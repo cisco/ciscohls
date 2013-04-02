@@ -8,8 +8,6 @@
 # 4/25/2012    Matt Snoby
 
 #
-# Need to add:
-#  *support for sysroot in pckconfig
 #
 
 #
@@ -162,6 +160,19 @@ else
    AC_MSG_ERROR([Your math library is missing floorf])
 fi
 
+#
+# options for building
+# this will enable basic DRM, meaning the library will pull the key url and get the key
+# and put it in the metadata field.
+AC_MSG_CHECKING(--enable-keyuri argument)
+AC_ARG_ENABLE([keyuri],
+              AS_HELP_STRING([--enable-keyuri], [Will download the key from a keyuri ]),
+                             [enable_keyuri=${enableval}],
+                             [enable_keyuri="no"]   )
+AC_MSG_RESULT(${enable_keyuri})
+if test "${enable_keyuri}" = "yes"; then
+       AC_DEFINE( [ENABLE_KEY_RETRIEVAL],[1],[ Will download the key from a keyuri, this is not default behavior.]) 
+    fi
 
 #this tells autoconf what files to generate
 # we aare generating the Makefile from Makefile.am

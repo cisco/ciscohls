@@ -87,11 +87,12 @@ hlsPlugin_t thePlugin;
 srcStatus_t srcPluginLoad(srcPluginFunc_t* pluginTable, srcPlayerFunc_t* playerTable, srcPluginErr_t* pErr)
 {
     srcStatus_t rval = SRC_SUCCESS;
+#if 0
 
     DIR *pDir = NULL;
     struct dirent *pDirEntry = NULL;
-
     char* filename = NULL;
+#endif
 
     /* Open the logging module/file */
     OPEN_LOG;

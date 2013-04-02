@@ -37,6 +37,7 @@ extern "C" {
 #include <errno.h>
 #include <ctype.h>
 
+#include "config.h"
 #ifndef __USE_XOPEN
 #define __USE_XOPEN
 #endif
@@ -131,6 +132,7 @@ static void strToHex( const char *pString,  char *pHex, int arraySize )
    }
    return;
 }
+#ifdef ENABLE_KEY_RETRIEVAL
 // This function does one simple thing, it pulls down the key that is 16 bytes long
 // that is it.
 static size_t WriteMemoryCallback( void *contents, size_t size, size_t nmemb, void *userp)
@@ -143,6 +145,7 @@ static size_t WriteMemoryCallback( void *contents, size_t size, size_t nmemb, vo
    return sizeof(tmemkey);
 
 }
+#if 0
 static void hexdump(void *ptr, int buflen) 
 {
    ptr = ptr;
@@ -163,7 +166,7 @@ static void hexdump(void *ptr, int buflen)
       printf("\n");
    }
 }
-
+#endif
 
 
 
@@ -194,25 +197,17 @@ static int dwnld_parse_keyURI(char *pOutKey, const char *pInURI)
 
       // we now have the key file
       // TODO: HANDLE ERROR CASE
-      //   hexdump(chunk.key, 16);
 
       curl_easy_cleanup(curl_h);
 
-
       // chunk now holds the key
       memcpy(pOutKey, chunk.key, 16);
-
-
-
-
    }while(0);
 
    return status;
-
-
-
 }
 
+#endif // ENABLE_KEY_RETRIEVAL
 /**
  * Downloads and parses playlist file pointed to by URL in
  * pPlaylist->playlistURL.
@@ -1369,8 +1364,6 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
 
                            int newStrSize=0;
                            char *pNew, *pOld;
-                           DEBUG(DBG_WARN, "Doctoring the key URI\n");
-                           DEBUG(DBG_WARN, "The the playlist URL is: %s \n",pMediaPlaylist->baseURL );
 
                            pOld = keyURI;
                            newStrSize += strlen(keyURI);
@@ -1381,34 +1374,12 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
                            strncpy(pNew, pMediaPlaylist->baseURL, strlen(pMediaPlaylist->baseURL));
                            strncat(pNew, keyURI, strlen(keyURI));
 
-                           DEBUG(DBG_WARN, "The new keyURI is: %s \n",pNew );
-
                            // now switch the urls
                            keyURI = pNew;
                            free(pOld);
                            pNew = NULL;
                            pOld = NULL;
                         }
-#if 0
-                        // 
-                        // Call the keyURI parser to bust out the key and the iv 
-                        // and put them into the data structure.
-                        //
-                        // There can be situations where we aren't given an URL just an IV, 
-                        // However if we have been given the URL to a key then we actually have
-                        // to parse it.
-                        // 
-                        dwnld_parse_keyURI(&key, keyURI);
-#endif
-
-                        rval= addSegmentEncInfo(pSegment, encType, iv, keyURI);
-                        if(rval != HLS_OK) 
-                        {
-                            ERROR("failed to add key info to segment!!!!!!!!!!!!!!!!!");
-                            rval = HLS_OK;
-                        }
-                           
-
 
                         /* Save the current sequence number as the first
                            sequence number this key tag was applied to. */
@@ -1495,8 +1466,10 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
                                    (pSegment->encType == SRC_ENC_AES128_CTR) &&
                                    (pSegment->seqNum != firstKeySeqNum)) // Don't decrement if this is the first segment after KEY tag
                                 {
-#warning FIX ME
-#if 0
+                                   //
+                                   // NOTE: TODO: RMS - I changed IV to a 16 byte value  for basic HLS
+                                   // these changes have not been tested with AES-128-CTR.
+                                   //
                                     /* Decrement the segment's IV */
                                     rval = decCtrIv(&(pSegment->iv));
                                     if(rval != HLS_OK) 
@@ -1512,7 +1485,6 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
                                         ERROR("failed to decrement AES-128-CTR IV");
                                         break;
                                     }
-#endif
                                 }
 
                             }
@@ -2895,10 +2867,6 @@ static hlsStatus_t addSegmentEncInfo(hlsSegment_t* pSegment, srcEncType_t encTyp
 
         /* Clear out any old values */
         //RMS TODO fix.
-#if 0
-        free(pSegment->iv);
-        pSegment->iv = NULL;
-#endif
         free(pSegment->keyURI);
         pSegment->keyURI = NULL;
 
@@ -2917,25 +2885,14 @@ static hlsStatus_t addSegmentEncInfo(hlsSegment_t* pSegment, srcEncType_t encTyp
                 memset(pSegment->keyURI, 0, strlen(keyURI)+1);
                 strcpy(pSegment->keyURI, keyURI);
                 // Download and get the key
-#ifdef PULL_DOWN_KEY
+
+#ifdef ENABLE_KEY_RETRIEVAL
                 dwnld_parse_keyURI(pSegment->key, keyURI);
-                //hexdump ((void*)pSegment->key, 16);
 #endif
             }
     
             if(iv != NULL) 
             {
-#if 0
-                pSegment->iv = (char*)malloc(strlen(iv)+1);
-                if(pSegment->iv == NULL) 
-                {
-                    ERROR("malloc error");
-                    rval = HLS_MEMORY_ERROR;
-                    break;
-                }
-                memset(pSegment->iv, 0, strlen(iv)+1);
-                strcpy(pSegment->iv, iv);
-#endif
                 strToHex(iv,pSegment->iv, 16);
             }
     
@@ -2944,24 +2901,10 @@ static hlsStatus_t addSegmentEncInfo(hlsSegment_t* pSegment, srcEncType_t encTyp
             if((encType != SRC_ENC_NONE) && (iv == NULL))
             {
                memset(pSegment->iv, 0, 16);
-#if 0
-                /* IV should be a 128 bit number represented as a text string
-                   of hex digits -- 32 digits (4 bits each) + NULL */
-                pSegment->iv = malloc(33);
-                if(pSegment->iv == NULL) 
-                {
-                    ERROR("malloc error");
-                    rval = HLS_MEMORY_ERROR;
-                    break;
-                }
-                memset(pSegment->iv, 0, 33);
-                sprintf(pSegment->iv, "%032x", pSegment->seqNum);
-#endif
             }
     
             DEBUG(DBG_INFO,"encType = %s", (pSegment->encType == SRC_ENC_AES128_CBC ? "AES-128-CBC" : 
                                              (pSegment->encType == SRC_ENC_AES128_CTR ? "AES-128-CTR" : "NONE")));
-            //rms TODO fix DEBUG(DBG_INFO,"iv = 0x%s", pSegment->iv);
             DEBUG(DBG_INFO,"keyURI = %s", pSegment->keyURI);
         }
                     

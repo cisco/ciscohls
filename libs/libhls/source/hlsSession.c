@@ -766,7 +766,12 @@ hlsStatus_t hlsSession_play(hlsSession_t* pSession)
                 rval = HLS_ERROR;
                 break;
             }
-#warning changed the code here RMS
+            // 
+            // The original code would do some form of timeout if it wasn't notified to play
+            // This really isn't useful and alot of systems will not report back that it is playing
+            // So I removed this.
+            // RMS.
+            //
 #if 0
             /* If HLS_PLAYING_TIMEOUT_SECS have passed and we are not yet HLS_PLAYING, return an error */
             if((currTime.tv_sec > timeoutTime.tv_sec) || ((currTime.tv_sec == timeoutTime.tv_sec) && (currTime.tv_nsec > timeoutTime.tv_nsec)))

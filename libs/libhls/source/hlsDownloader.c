@@ -51,27 +51,6 @@ extern "C" {
 
 /* Loop duration in seconds */
 #define DOWNLOADER_LOOP_SECS 1
-
-static void hexdump(void *ptr, int buflen) 
-{
-   ptr = ptr;
-   buflen = buflen;
-   unsigned char *buf = (unsigned char*)ptr;
-   int i, j;
-   for (i=0; i<buflen; i+=16) {
-      printf("%06x: ", i);
-      for (j=0; j<16; j++) 
-         if (i+j < buflen)
-            printf("%02x ", buf[i+j]);
-         else
-            printf("   ");
-      printf(" ");
-      for (j=0; j<16; j++) 
-         if (i+j < buflen)
-            printf("%c", isprint(buf[i+j]) ? buf[i+j] : '.');
-      printf("\n");
-   }
-}
 hlsStatus_t hlsSegmentDownloadLoop(hlsSession_t* pSession)
 {
     hlsStatus_t status = HLS_OK;
@@ -180,20 +159,12 @@ hlsStatus_t hlsSegmentDownloadLoop(hlsSession_t* pSession)
                 }
                 // here is the segment, if it's encrypted we need to attach
                 // some decryption infomation here.
-                //RMS - get decryption information.
-                DEBUG(DBG_WARN,"Segment has the following key information %p:\n",pSegment);
-                DEBUG(DBG_WARN,"Key:\n");
-                hexdump(pSegment->key,16);
-                DEBUG(DBG_WARN,"IV:\n");
-                hexdump(pSegment->iv,16);
                
                 // 
                 // RMS RETARDED!!!! Key information was in the original pSegment structure
                 // but instead of sending that the original author sends a copy.  WTF???
                 //
                 
-                DEBUG(DBG_NOISE,"Segment download URL: %s", pSegmentCopy->URL);
-
                 /* We no longer need a reference to the parsed segment */
                 pSegment = NULL;
         

@@ -69,52 +69,6 @@ typedef struct
 /* Local function prototypes */
 void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc);
 
-static void hexdump(void *ptr, int buflen) 
-{
-   ptr = ptr;
-   buflen = buflen;
-   unsigned char *buf = (unsigned char*)ptr;
-   int i, j;
-   for (i=0; i<buflen; i+=16) {
-      printf("%06x: ", i);
-      for (j=0; j<16; j++) 
-         if (i+j < buflen)
-            printf("%02x ", buf[i+j]);
-         else
-            printf("   ");
-      printf(" ");
-      for (j=0; j<16; j++) 
-         if (i+j < buflen)
-            printf("%c", isprint(buf[i+j]) ? buf[i+j] : '.');
-      printf("\n");
-   }
-}
-static void strToHex( const char *pString,  char *pHex, int arraySize )
-{
-   int ii = 0, jj = 0;
-   int numPairs = strnlen( pString, (arraySize*2) )/2;
-   unsigned int output;
-
-   if( (NULL == pString) || (NULL == pHex) )
-   {
-      return;
-   }
-   else if( numPairs != arraySize )
-   {
-      return;
-   }
-   else
-   {
-      /* Loop through and convert */
-      for( ii=0, jj=0; ii < numPairs; ii++, jj+=2 )
-      {
-         sscanf( &pString[jj], "%2x", &output );
-         pHex[ii] = output;
-      }  
-   }
-   return;
-}
-
 /** 
  * Assumes calling thread has AT LEAST playlist READ lock 
  *  
@@ -206,7 +160,6 @@ hlsStatus_t getNextSegment(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegme
                     //
                     pSeg = *ppSegment;
                     printf("does this segment have any metadata in it? \n");
-                    printf("key[0]:%x key[1]: %x\n", pSeg->key[0], pSeg->key[1]);
                     printf("%s \n",pSeg->keyURI);
 
                     /* Update the pLastDownloadedSegment */
@@ -1087,24 +1040,14 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession, hlsSegment_t* pSegmen
             rval = HLS_ERROR;
             break;
         }
-
+         // we now have the segment do some house keeping.
         /* Datafill buffer metadata struct */
         bufferMeta.encType = pSegment->encType;
-        //bufferMeta.iv = pSegment->iv;
-        //strToHex(pSegment->iv, bufferMeta.iv, 16);
         memcpy( bufferMeta.iv,pSegment->iv, 16);
         bufferMeta.keyURI = pSegment->keyURI;
         memcpy( bufferMeta.key,pSegment->key, 16);
-
-#if 0
-        {   
-           printf("below are the key and the iv for the buffermeta data\n");
-           printf("Also the key URI: %s\n", bufferMeta.keyURI);
-           hexdump (bufferMeta.key, 16);
-           hexdump (bufferMeta.iv, 16);
-
-        }
-#endif
+        
+        
         /* Keep going as long as we don't hit an error */
         while(rval == HLS_OK) 
         {
@@ -1233,6 +1176,11 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession, hlsSegment_t* pSegmen
         
                     DEBUG(DBG_NOISE,"read %d bytes -- wanted %d", readSize, bufferSize);
 
+                    // incase the user does trick modes, we need to store
+                    // the last 4 bytes of this segment so that the next
+                    // segment can use that as the IV if requested.
+                    memcpy(pSegment->last4bytes,(buffer+(readSize -4)) , 4);
+
                     /* We need to send the buffer metadata only with the first buffer for the segment */
                     if(bufferCount == 0)
                     {
@@ -1242,7 +1190,7 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession, hlsSegment_t* pSegmen
 
                        bufferMeta.keyURI = pSegment->keyURI;
                        memcpy( bufferMeta.key,pSegment->key, 16);
-
+                       DEBUG(DBG_WARN, "Sending metadata info\n");
                        status = hlsPlayer_sendBuffer(pSession->pHandle, buffer, readSize, &bufferMeta, pPrivate);
                     }
                     else
