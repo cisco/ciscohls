@@ -1179,7 +1179,8 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession, hlsSegment_t* pSegmen
                     // incase the user does trick modes, we need to store
                     // the last 4 bytes of this segment so that the next
                     // segment can use that as the IV if requested.
-                    memcpy(pSegment->last4bytes,(buffer+(readSize -4)) , 4);
+                    // FIXME
+                    //memcpy(pSegment->last4bytes,(buffer+(readSize -4)) , 4);
 
                     /* We need to send the buffer metadata only with the first buffer for the segment */
                     if(bufferCount == 0)
