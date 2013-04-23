@@ -15,4 +15,4 @@ Description: libgsthls Library
 Version: 1.00.002
 Requires: 
 Libs: -L${libdir}  -L/opt/test/lib -lm -lHls-1.0 -L/opt/test/lib -lm -lHls-1.0
-Cflags: -I${includedir} -ggdb -Wall -pthread -I/opt/test/include -I/opt/test/include/libHls-1.0 -I/opt/test/include/libHls-1.0/include
+Cflags: -I${includedir} -ggdb -Wall -O0 -pthread -I/opt/test/include -I/opt/test/include/libHls-1.0 -I/opt/test/include/libHls-1.0/include

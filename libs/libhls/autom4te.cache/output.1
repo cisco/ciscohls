@@ -760,6 +760,7 @@ with_gnu_ld
 with_sysroot
 enable_libtool_lock
 with_libcurl
+enable_keyuri
 '
       ac_precious_vars='build_alias
 host_alias
@@ -1407,6 +1408,7 @@ Optional Features:
   --enable-fast-install@<:@=PKGS@:>@ 
                           optimize for fast installation @<:@default=yes@:>@
   --disable-libtool-lock  avoid locking (might break parallel builds)
+  --enable-keyuri         Will download the key from a keyuri
 
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
@@ -17162,6 +17164,26 @@ $as_echo "no" >&6; }
    as_fn_error $? "Your math library is missing floorf" "$LINENO" 5
 fi
 
+#
+# options for building
+# this will enable basic DRM, meaning the library will pull the key url and get the key
+# and put it in the metadata field.
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking --enable-keyuri argument" >&5
+$as_echo_n "checking --enable-keyuri argument... " >&6; }
+@%:@ Check whether --enable-keyuri was given.
+if test "${enable_keyuri+set}" = set; then :
+  enableval=$enable_keyuri; enable_keyuri=${enableval}
+else
+  enable_keyuri="no"   
+fi
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: ${enable_keyuri}" >&5
+$as_echo "${enable_keyuri}" >&6; }
+if test "${enable_keyuri}" = "yes"; then
+       
+$as_echo "@%:@define ENABLE_KEY_RETRIEVAL 1" >>confdefs.h
+ 
+    fi
 
 #this tells autoconf what files to generate
 # we aare generating the Makefile from Makefile.am
