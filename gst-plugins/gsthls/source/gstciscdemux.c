@@ -540,7 +540,7 @@ static gboolean gst_cscohlsdemuxer_sink_event (GstPad * pad, GstEvent * event)
 static GstStateChangeReturn gst_cscohlsdemuxer_change_state (GstElement * element, GstStateChange transition)
 {
   GstStateChangeReturn ret;
-  //Gstciscdemux *demux = GST_CISCDEMUX (element);
+  Gstciscdemux *demux = GST_CISCDEMUX (element);
 
   printf(" Entered:: %s\n", __FUNCTION__);
   switch (transition) {
@@ -562,6 +562,7 @@ static GstStateChangeReturn gst_cscohlsdemuxer_change_state (GstElement * elemen
     case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
       break;
     case GST_STATE_CHANGE_PAUSED_TO_READY:
+      cisco_hls_stop(demux);
       break;
     default:
       break;
@@ -949,9 +950,32 @@ static gboolean cisco_hls_start(Gstciscdemux *demux, char *pPlaylistUri)
 
 static gboolean cisco_hls_stop(Gstciscdemux *demux)
 {
+   srcPluginErr_t  ErrTable;
+   srcStatus_t stat = SRC_SUCCESS;
+
+   stat = demux->HLS_pluginTable.close(demux->pCscoHlsSession->pSessionID, &ErrTable);
+   if (stat != SRC_SUCCESS)
+   {
+      printf(" Hummm there was an error closing the HLS plugin:%s\n", ErrTable.errMsg);
+   }
+   else
+   {
+      printf("Done closing the HLS plugin session\n"); 
+   }
+
+   stat = demux->HLS_pluginTable.finalize(&ErrTable);
+   if (stat != SRC_SUCCESS)
+   {
+      printf(" Hummm there was an error finalizing the HLS plugin:%s\n", ErrTable.errMsg);
+   }
+   else
+   {
+      printf("Done finalizing the HLS src plugin\n"); 
+   }
 
    return TRUE;
 }
+
 static GstClockTime gst_cisco_hls_get_duration (Gstciscdemux *demux)
 {
    srcPluginGetData_t getData;
@@ -970,12 +994,13 @@ static GstClockTime gst_cisco_hls_get_duration (Gstciscdemux *demux)
    {
       printf(" Hummm there was an error obtaining the duration: %s\n", ErrTable.errMsg);
    }
-   t = (GstClockTime)getData.pData;
-   t = t*1000; // turn ms into nanoseconds
+   
+   t = *((float *)getData.pData);
+   t = t*1000*1000; // turn ms into nanoseconds
    free(getData.pData);
 
-   // returned value is in milliseconds.
+   printf("[ciscdemux] - duration = %llu\n", t);
+   // returned value is in nanoseconds.
   return t; 
-
 }
 
