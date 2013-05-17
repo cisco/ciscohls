@@ -73,8 +73,10 @@ static gboolean gst_ciscdemux_sink_event (GstPad * pad, GstEvent * event);
 static gboolean gst_cscohlsdemuxer_sink_event (GstPad * pad, GstEvent * event);
 static GstClockTime gst_cisco_hls_get_duration (Gstciscdemux *demux);
 static gboolean cisco_hls_initialize (Gstciscdemux *demux);
+static gboolean cisco_hls_open(Gstciscdemux *demux);
 static gboolean cisco_hls_start(Gstciscdemux *demux, char *pPlaylistUri);
-static gboolean cisco_hls_stop(Gstciscdemux *demux);
+static gboolean cisco_hls_close(Gstciscdemux *demux);
+static gboolean cisco_hls_finalize(Gstciscdemux *demux);
 /* GObject vmethod implementations */
 
 /* These global variables must be removed*/
@@ -304,7 +306,6 @@ gst_ciscdemux_init (Gstciscdemux * demux,
   gpCisco_hls_demuxer = demux;
   demux->silent = FALSE;
   demux->capsSet =0;
-  cisco_hls_initialize (demux);
 }
 
 static void
@@ -544,7 +545,11 @@ static GstStateChangeReturn gst_cscohlsdemuxer_change_state (GstElement * elemen
 
   printf(" Entered:: %s\n", __FUNCTION__);
   switch (transition) {
+    case GST_STATE_CHANGE_NULL_TO_READY:
+      cisco_hls_initialize (demux);
+      break;
     case GST_STATE_CHANGE_READY_TO_PAUSED:
+      cisco_hls_open(demux);
       break;
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
       /* Start the streaming loop in paused only if we already received
@@ -562,7 +567,10 @@ static GstStateChangeReturn gst_cscohlsdemuxer_change_state (GstElement * elemen
     case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
       break;
     case GST_STATE_CHANGE_PAUSED_TO_READY:
-      cisco_hls_stop(demux);
+      cisco_hls_close(demux);
+      break;
+    case GST_STATE_CHANGE_READY_TO_NULL:
+      cisco_hls_finalize(demux);
       break;
     default:
       break;
@@ -677,6 +685,7 @@ srcStatus_t hlsPlayer_sendBuffer(void* pHandle, char* buffer, int size, srcBuffe
       if (pPrivate == NULL)
       {
          printf("Warning %s pPrivate is NULL\n", __FUNCTION__);
+         break;
       }
       pmem = (tMemoryStruct*)pPrivate;
       pmem->size = size ; // this is the ACTUAL data amount written to the buffer, the size of the actual
@@ -809,7 +818,6 @@ static gboolean cisco_hls_initialize (Gstciscdemux *demux)
 {
    srcStatus_t stat =SRC_SUCCESS;
    srcPluginErr_t  ErrTable;
-   tSession       *pSession = NULL;
    gboolean   bError = FALSE;
 
    do
@@ -837,7 +845,11 @@ static gboolean cisco_hls_initialize (Gstciscdemux *demux)
          printf("Done loading the HLS src plugin\n"); 
       }
 
-      if (demux->HLS_pluginTable.initialize == NULL ) { printf("Plugin function pointer is null\n");}
+      if (demux->HLS_pluginTable.initialize == NULL )
+      {
+         printf("Plugin function pointer is null\n");
+         break;
+      }
 
       printf("address of the table function call initialize is: %p \n", demux->HLS_pluginTable.initialize);
 
@@ -867,7 +879,22 @@ static gboolean cisco_hls_initialize (Gstciscdemux *demux)
          printf("Done loading the HLS callbacks\n"); 
       }
 
+   } while(0);
 
+   return bError;
+   
+
+}
+
+static gboolean cisco_hls_open (Gstciscdemux *demux)
+{
+   srcStatus_t stat =SRC_SUCCESS;
+   srcPluginErr_t  ErrTable;
+   tSession       *pSession = NULL;
+   gboolean   bError = FALSE;
+
+   do 
+   {
       demux->pCscoHlsSession = pSession = (tSession *) malloc(sizeof(tSession));
       stat = demux->HLS_pluginTable.open(&pSession->pSessionID, &pSession->pHandle_Player, &ErrTable);
       if (stat != SRC_SUCCESS)
@@ -880,13 +907,9 @@ static gboolean cisco_hls_initialize (Gstciscdemux *demux)
       {
          printf("Done opening the HLS callbacks\n"); 
       }
-
-
-   } while(0);
+   }while(0);
 
    return bError;
-   
-
 }
 
 static gboolean cisco_hls_start(Gstciscdemux *demux, char *pPlaylistUri)
@@ -948,7 +971,7 @@ static gboolean cisco_hls_start(Gstciscdemux *demux, char *pPlaylistUri)
 
 }
 
-static gboolean cisco_hls_stop(Gstciscdemux *demux)
+static gboolean cisco_hls_close(Gstciscdemux *demux)
 {
    srcPluginErr_t  ErrTable;
    srcStatus_t stat = SRC_SUCCESS;
@@ -962,6 +985,17 @@ static gboolean cisco_hls_stop(Gstciscdemux *demux)
    {
       printf("Done closing the HLS plugin session\n"); 
    }
+
+   free(demux->pCscoHlsSession);
+   demux->pCscoHlsSession = NULL;
+   
+   return TRUE;
+}
+
+static gboolean cisco_hls_finalize(Gstciscdemux *demux)
+{
+   srcPluginErr_t  ErrTable;
+   srcStatus_t stat = SRC_SUCCESS;
 
    stat = demux->HLS_pluginTable.finalize(&ErrTable);
    if (stat != SRC_SUCCESS)
