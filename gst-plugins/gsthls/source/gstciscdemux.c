@@ -77,6 +77,7 @@ static gboolean cisco_hls_open(Gstciscdemux *demux);
 static gboolean cisco_hls_start(Gstciscdemux *demux, char *pPlaylistUri);
 static gboolean cisco_hls_close(Gstciscdemux *demux);
 static gboolean cisco_hls_finalize(Gstciscdemux *demux);
+static gboolean gst_cisco_hls_seek (Gstciscdemux *demux, GstEvent *event);
 /* GObject vmethod implementations */
 
 /* These global variables must be removed*/
@@ -462,12 +463,11 @@ static gboolean gst_cscohlsdemuxer_src_query (GstPad * pad, GstQuery * query)
         break;
      case GST_QUERY_SEEKING:
         {
-#warning seeking is disabled currently.
            ret = FALSE;
            break;
         }
      default:
-        /* Don't fordward queries upstream because of the special nature of this
+        /* Don't forward queries upstream because of the special nature of this
          * "demuxer", which relies on the upstream element only to be fed with the
          * first playlist */
         break;
@@ -479,16 +479,19 @@ static gboolean gst_cscohlsdemuxer_src_query (GstPad * pad, GstQuery * query)
 static gboolean gst_cscohlsdemuxer_src_event (GstPad * pad, GstEvent * event)
 {
    Gstciscdemux *demux = GST_CISCDEMUX (gst_pad_get_parent(pad));
+   gboolean res = FALSE;
 
    switch (event->type)
    {
       case GST_EVENT_SEEK:
       {
-         GST_WARNING_OBJECT(demux, "I've been asked to do a seek and I do not yet support this.");
+         printf("Got seek event!\n");
+         res = gst_cisco_hls_seek (demux, event);
          gst_event_unref(event);
-         return FALSE;
+         return res;
       }
-      default: break;
+      default: 
+         break;
    }//end of switch
 
    return gst_pad_event_default(pad,event);
@@ -785,9 +788,43 @@ srcStatus_t hlsPlayer_set(void *pHandle, srcPlayerSetData_t *pSetData)
    srcStatus_t status = SRC_SUCCESS;
    printf("Entered: %s\n",__FUNCTION__);
 
+   Gstciscdemux *demux = (Gstciscdemux *)pHandle;   
+
+   if (demux == NULL)
+      return SRC_ERROR;
    do
    {
+      if (pSetData->setCode == SRC_PLAYER_SET_BUFFER_FLUSH)
+      {
+         GstEvent *event;
 
+         if (demux->srcpad == NULL)
+         {
+            printf("cisco demux source pad not linked!\n");
+            status = SRC_ERROR;
+            break;
+         }
+
+         event = gst_event_new_flush_start ();
+         if (event == NULL)
+         {
+            status = SRC_ERROR;
+            break;
+         }
+
+         printf("cisco demux sending flush start downstream...\n");
+         gst_pad_push_event (demux->srcpad, event);
+
+         event = gst_event_new_flush_stop ();
+         if (event == NULL)
+         {
+            status = SRC_ERROR;
+            break;
+         }
+
+         printf("cisco demux sending flush stop downstream...\n");
+         gst_pad_push_event (demux->srcpad, event);
+      }
    }while (0);
 
    return status;
@@ -817,13 +854,13 @@ srcPlayerFunc_t gPlayerFunc =
 static gboolean cisco_hls_initialize (Gstciscdemux *demux)
 {
    srcStatus_t stat =SRC_SUCCESS;
-   srcPluginErr_t  ErrTable;
+   srcPluginErr_t errTable;
    gboolean   bError = FALSE;
 
    do
    {
 
-      memset(ErrTable.errMsg, 0, SRC_ERR_MSG_LEN);
+      memset(errTable.errMsg, 0, SRC_ERR_MSG_LEN);
       //memset(&demux->HLS_pluginTable, 0, sizeof(srcPluginFunc_t));
       printf("About to load the HLS src plugin\n");
       //from hlsPlugin.c 
@@ -833,10 +870,10 @@ static gboolean cisco_hls_initialize (Gstciscdemux *demux)
       // The source code directly calls these functions.
       stat = srcPluginLoad( &demux->HLS_pluginTable, /* empty structure*/
                             &gPlayerFunc , /* filled in functions of our player in this case GST wrapper*/
-                            &ErrTable ); /* No debug string support for now */ 
+                            &errTable ); /* No debug string support for now */ 
       if (stat != SRC_SUCCESS)
       {
-         printf(" Hummm there was an error loading the HLS plugin:%s\n", ErrTable.errMsg);
+         printf(" Hummm there was an error loading the HLS plugin:%s\n", errTable.errMsg);
          bError =TRUE;
          break;
       }
@@ -853,10 +890,10 @@ static gboolean cisco_hls_initialize (Gstciscdemux *demux)
 
       printf("address of the table function call initialize is: %p \n", demux->HLS_pluginTable.initialize);
 
-      stat = demux->HLS_pluginTable.initialize(&ErrTable);
+      stat = demux->HLS_pluginTable.initialize(&errTable);
       if (stat != SRC_SUCCESS)
       {
-         printf(" Hummm there was an error initialzing the HLS plugin:%s\n", ErrTable.errMsg);
+         printf(" Hummm there was an error initialzing the HLS plugin:%s\n", errTable.errMsg);
          bError =TRUE;
          break;
       }
@@ -867,10 +904,10 @@ static gboolean cisco_hls_initialize (Gstciscdemux *demux)
 
       // ok now we need to register the event callback
       //
-      stat = demux->HLS_pluginTable.registerCB(hlsPlayer_pluginEvtCallback, hlsPlayer_pluginErrCallback, &ErrTable);
+      stat = demux->HLS_pluginTable.registerCB(hlsPlayer_pluginEvtCallback, hlsPlayer_pluginErrCallback, &errTable);
       if (stat != SRC_SUCCESS)
       {
-         printf(" Hummm there was an error registering the HLS plugin:%s\n", ErrTable.errMsg);
+         printf(" Hummm there was an error registering the HLS plugin:%s\n", errTable.errMsg);
          bError =TRUE;
          break;
       }
@@ -888,18 +925,19 @@ static gboolean cisco_hls_initialize (Gstciscdemux *demux)
 
 static gboolean cisco_hls_open (Gstciscdemux *demux)
 {
-   srcStatus_t stat =SRC_SUCCESS;
-   srcPluginErr_t  ErrTable;
-   tSession       *pSession = NULL;
-   gboolean   bError = FALSE;
+   srcStatus_t stat = SRC_SUCCESS;
+   srcPluginErr_t errTable;
+   tSession *pSession = NULL;
+   gboolean bError = FALSE;
 
    do 
    {
       demux->pCscoHlsSession = pSession = (tSession *) malloc(sizeof(tSession));
-      stat = demux->HLS_pluginTable.open(&pSession->pSessionID, &pSession->pHandle_Player, &ErrTable);
+      pSession->pHandle_Player = demux;
+      stat = demux->HLS_pluginTable.open(&pSession->pSessionID, pSession->pHandle_Player, &errTable);
       if (stat != SRC_SUCCESS)
       {
-         printf(" Hummm there was an error opening the HLS plugin:%s\n", ErrTable.errMsg);
+         printf(" Hummm there was an error opening the HLS plugin:%s\n", errTable.errMsg);
          bError =TRUE;
          break;
       }
@@ -914,8 +952,8 @@ static gboolean cisco_hls_open (Gstciscdemux *demux)
 
 static gboolean cisco_hls_start(Gstciscdemux *demux, char *pPlaylistUri)
 {
-   srcStatus_t stat =SRC_SUCCESS;
-   srcPluginErr_t  ErrTable;
+   srcStatus_t stat = SRC_SUCCESS;
+   srcPluginErr_t errTable;
    srcPluginSetData_t setData;
    tSession *pSession = demux->pCscoHlsSession;
 
@@ -937,18 +975,18 @@ static gboolean cisco_hls_start(Gstciscdemux *demux, char *pPlaylistUri)
    g_print("Setting location to : %s \n",(char*) setData.pData);
 
    /* now set the location of the m3u8 url to the HLS plugin */
-   stat = demux->HLS_pluginTable.set(pSession->pSessionID, &setData, &ErrTable);
+   stat = demux->HLS_pluginTable.set(pSession->pSessionID, &setData, &errTable);
    if (stat != SRC_SUCCESS)
    {
-      printf(" Hummm there was an error setting the url to the HLS plugin:%s\n", ErrTable.errMsg);
+      printf(" Hummm there was an error setting the url to the HLS plugin:%s\n", errTable.errMsg);
    }
    free(setData.pData);
 
 /* prepare */
-   stat = demux->HLS_pluginTable.prepare(pSession->pSessionID,&ErrTable );
+   stat = demux->HLS_pluginTable.prepare(pSession->pSessionID,&errTable );
    if(stat)
    {
-      printf( "%s: Error %d while preparing playlist: %s", __FUNCTION__, ErrTable.errCode, ErrTable.errMsg);
+      printf( "%s: Error %d while preparing playlist: %s", __FUNCTION__, errTable.errCode, errTable.errMsg);
       return FALSE;
    }
 
@@ -956,10 +994,10 @@ static gboolean cisco_hls_start(Gstciscdemux *demux, char *pPlaylistUri)
    setData.pData = malloc(sizeof(float));
    *(float *)(setData.pData) = 1;
    /* setSpeed (play) */
-   stat = demux->HLS_pluginTable.set( pSession->pSessionID, &setData, &ErrTable );
+   stat = demux->HLS_pluginTable.set( pSession->pSessionID, &setData, &errTable );
    if(stat)
    {
-      printf( "%s: Error %d while setting speed to 1: %s", __FUNCTION__, ErrTable.errCode, ErrTable.errMsg);
+      printf( "%s: Error %d while setting speed to 1: %s", __FUNCTION__, errTable.errCode, errTable.errMsg);
       free(setData.pData);
       return FALSE;
    }
@@ -973,13 +1011,13 @@ static gboolean cisco_hls_start(Gstciscdemux *demux, char *pPlaylistUri)
 
 static gboolean cisco_hls_close(Gstciscdemux *demux)
 {
-   srcPluginErr_t  ErrTable;
+   srcPluginErr_t errTable;
    srcStatus_t stat = SRC_SUCCESS;
 
-   stat = demux->HLS_pluginTable.close(demux->pCscoHlsSession->pSessionID, &ErrTable);
+   stat = demux->HLS_pluginTable.close(demux->pCscoHlsSession->pSessionID, &errTable);
    if (stat != SRC_SUCCESS)
    {
-      printf(" Hummm there was an error closing the HLS plugin:%s\n", ErrTable.errMsg);
+      printf(" Hummm there was an error closing the HLS plugin:%s\n", errTable.errMsg);
    }
    else
    {
@@ -994,13 +1032,13 @@ static gboolean cisco_hls_close(Gstciscdemux *demux)
 
 static gboolean cisco_hls_finalize(Gstciscdemux *demux)
 {
-   srcPluginErr_t  ErrTable;
+   srcPluginErr_t errTable;
    srcStatus_t stat = SRC_SUCCESS;
 
-   stat = demux->HLS_pluginTable.finalize(&ErrTable);
+   stat = demux->HLS_pluginTable.finalize(&errTable);
    if (stat != SRC_SUCCESS)
    {
-      printf(" Hummm there was an error finalizing the HLS plugin:%s\n", ErrTable.errMsg);
+      printf(" Hummm there was an error finalizing the HLS plugin:%s\n", errTable.errMsg);
    }
    else
    {
@@ -1013,7 +1051,7 @@ static gboolean cisco_hls_finalize(Gstciscdemux *demux)
 static GstClockTime gst_cisco_hls_get_duration (Gstciscdemux *demux)
 {
    srcPluginGetData_t getData;
-   srcPluginErr_t  ErrTable;
+   srcPluginErr_t errTable;
    GstClockTime  t;
    srcStatus_t stat = SRC_SUCCESS;
    tSession *pSession = demux->pCscoHlsSession;
@@ -1023,18 +1061,67 @@ static GstClockTime gst_cisco_hls_get_duration (Gstciscdemux *demux)
    getData.pData = malloc(sizeof(float));
 
    /* now set the location of the m3u8 url to the HLS plugin */
-   stat = demux->HLS_pluginTable.get(pSession->pSessionID, &getData, &ErrTable);
+   stat = demux->HLS_pluginTable.get(pSession->pSessionID, &getData, &errTable);
    if (stat != SRC_SUCCESS)
    {
-      printf(" Hummm there was an error obtaining the duration: %s\n", ErrTable.errMsg);
+      printf(" Hummm there was an error obtaining the duration: %s\n", errTable.errMsg);
    }
    
    t = *((float *)getData.pData);
-   t = t*1000*1000; // turn ms into nanoseconds
+   t = t * GST_MSECOND; // turn ms into gstreamer time base
    free(getData.pData);
 
    printf("[ciscdemux] - duration = %llu\n", t);
    // returned value is in nanoseconds.
   return t; 
+}
+
+static gboolean gst_cisco_hls_seek (Gstciscdemux *demux, GstEvent *event)
+{
+   gfloat position;
+   srcPluginSetData_t setData;
+   srcPluginErr_t errTable;
+   GstClockTime timestamp;
+   srcStatus_t stat = SRC_SUCCESS;
+   tSession *pSession;
+   GstFormat format;
+   gdouble rate;
+   GstSeekFlags flags;
+   GstSeekType curType, stopType;
+   gint64 cur, stop;
+
+   if ( demux == NULL )
+   {      
+      return FALSE;
+   }
+
+   pSession = demux->pCscoHlsSession;
+   if ( pSession == NULL )
+   {      
+      printf("[ciscdemux] - HLS session not opened!\n");
+      return FALSE;
+   }
+
+   timestamp = GST_EVENT_TIMESTAMP(event);
+   if (timestamp == GST_CLOCK_TIME_NONE)
+   {
+      printf("[ciscdemux] - invalid seek position!\n");
+      return FALSE;
+   }
+
+   gst_event_parse_seek (event, &rate, &format, &flags, &curType, &cur, &stopType, &stop);
+
+   setData.setCode = SRC_PLUGIN_SET_POSITION;
+   position = (gfloat)(cur / GST_MSECOND);
+   setData.pData = &position;
+   printf("[ciscdemux] seeking to position %f, timestamp %llu...\n", position, cur);
+   stat = demux->HLS_pluginTable.set(pSession->pSessionID, &setData, &errTable );      
+   if ( stat == SRC_ERROR )
+   {
+      printf("Failed to set position on the source plugin: %s\n", errTable.errMsg);
+      return FALSE;
+   }  
+
+   return TRUE;
 }
 

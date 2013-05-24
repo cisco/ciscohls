@@ -77,7 +77,7 @@ typedef struct
 {
    int bInUse;
    srcSessionId_t pSessionID;
-   unsigned int   pHandle_Player;
+   void           *pHandle_Player;
    char           *pUrl;
   
    unsigned int   GstBufferSize;
