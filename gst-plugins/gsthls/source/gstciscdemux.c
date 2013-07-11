@@ -368,7 +368,6 @@ gst_ciscdemux_chain (GstPad * pad, GstBuffer * buf)
   demux = GST_CISCDEMUX (GST_OBJECT_PARENT (pad));
 
    gst_buffer_unref(buf);
-   gst_object_unref(demux);
   if (demux->silent == FALSE)
     g_print ("I'm plugged, therefore I'm in.\n");
 
