@@ -617,9 +617,27 @@ static gboolean gst_ciscdemux_sink_event (GstPad * pad, GstEvent * event)
 #endif
 
 void hlsPlayer_pluginEvtCallback(void* pHandle, srcPluginEvt_t* pEvt)
-{
+{   
    printf(" Entered: %s : got event [%15s] callback for pHandle: %p : %d\n",
          __FUNCTION__, strHLSEvent[pEvt->eventCode],pHandle, pEvt->eventCode);
+
+   Gstciscdemux *demux = (Gstciscdemux *)pHandle;
+   if (demux == NULL)
+      return;
+
+   switch( pEvt->eventCode )
+   {
+      case SRC_PLUGIN_EOF:
+         if (demux->srcpad != NULL)
+         {
+            GstEvent *event = gst_event_new_eos ();
+            if (gst_pad_push_event (demux->srcpad, event) == FALSE)
+            {
+               g_print("Error sending the eos event down stream\n");
+            }
+         }
+         break;
+   }
    return;
 }
 void hlsPlayer_pluginErrCallback(void* pHandle, srcPluginErr_t* pErr)
