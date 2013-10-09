@@ -1359,28 +1359,30 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
                         // if the keyURI is an offset we have to generate a full length URI
                         //
 
-                        if (0 == strncmp("..", keyURI, 2))
+                        if (0 != strncmp("htt", keyURI, 3))
                         {
+                           // We are not starting at a full url we will have to 
+                           // generate the full url
 
-                           int newStrSize=0;
-                           char *pNew, *pOld;
 
-                           pOld = keyURI;
-                           newStrSize += strlen(keyURI);
-                           newStrSize += strlen(pMediaPlaylist->baseURL);
-                           newStrSize++;
-                           pNew = malloc(newStrSize);
-                           memset(pNew, 0, newStrSize);
-                           strncpy(pNew, pMediaPlaylist->baseURL, strlen(pMediaPlaylist->baseURL));
-                           strncat(pNew, keyURI, strlen(keyURI));
+                              int newStrSize=0;
+                              char *pNew, *pOld;
 
-                           // now switch the urls
-                           keyURI = pNew;
-                           free(pOld);
-                           pNew = NULL;
-                           pOld = NULL;
+                              pOld = keyURI;
+                              newStrSize += strlen(keyURI);
+                              newStrSize += strlen(pMediaPlaylist->baseURL);
+                              newStrSize++;
+                              pNew = malloc(newStrSize);
+                              memset(pNew, 0, newStrSize);
+                              strncpy(pNew, pMediaPlaylist->baseURL, strlen(pMediaPlaylist->baseURL));
+                              strncat(pNew, keyURI, strlen(keyURI));
+
+                              // now switch the urls
+                              keyURI = pNew;
+                              free(pOld);
+                              pNew = NULL;
+                              pOld = NULL;
                         }
-
                         /* Save the current sequence number as the first
                            sequence number this key tag was applied to. */
                         firstKeySeqNum = currSeqNum;
