@@ -1120,11 +1120,13 @@ static gboolean gst_cisco_hls_seek (Gstciscdemux *demux, GstEvent *event)
    }
 
    timestamp = GST_EVENT_TIMESTAMP(event);
+   /*
    if (timestamp == GST_CLOCK_TIME_NONE)
    {
       printf("[ciscdemux] - invalid seek position!\n");
       return FALSE;
    }
+   */
 
    gst_event_parse_seek (event, &rate, &format, &flags, &curType, &cur, &stopType, &stop);
 
