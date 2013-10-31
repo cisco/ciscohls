@@ -217,12 +217,21 @@ void hlsPlaybackControllerThread(hlsSession_t* pSession)
                     /* Are we downloading regular segments or I-frames? */
                     if((pSession->speed >= 0) && (pSession->speed <= 1)) /* Regular playback */
                     {
+#if 0
+                        /* Before we send EOF to the player, we need to wait for the player
+                           to consume everything that it has buffered. Set this boolean and
+                           wait for PBC_PLAYER_AUDIO_UNDERRUN event. */
+
+                        bWaitForPlaybackCompletion = 1;
+#endif
+                        /* Hack: Using gstreamer player, we can send EOF right away
+                        (i.e., we do no need to wait for the player to consume buffers) because
+                        The EOF we send will be processed by the gstreamer pipeline only after
+                        decoder buffers are consumed */
                         DEBUG(DBG_INFO, "sending SRC_PLUGIN_EOF to player");
                         event.eventCode = SRC_PLUGIN_EOF;
                         event.pData = NULL;
                         hlsPlayer_pluginEvtCallback(pSession->pHandle, &event);
-
-                        bWaitForPlaybackCompletion = 1;
                     }
                     else /* Trickplay */
                     {
@@ -307,12 +316,10 @@ void hlsPlaybackControllerThread(hlsSession_t* pSession)
                         }
                             
                         /* Signal EOF to player */
-                        /*
                         DEBUG(DBG_INFO, "sending SRC_PLUGIN_EOF to player");
                         event.eventCode = SRC_PLUGIN_EOF;
                         event.pData = NULL;
                         hlsPlayer_pluginEvtCallback(pSession->pHandle, &event);
-                        */
             
                         bWaitForPlaybackCompletion = 0;
                     }
