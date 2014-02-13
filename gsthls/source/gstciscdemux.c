@@ -1,4 +1,6 @@
 /*
+ * This gstreamer plugin was written for the cisco HLS library.  It will handle auto plugging 
+ * and with the correct elements downstream can decrypt DRM encrypted HLS streams.
  */
 
 /**
@@ -60,8 +62,6 @@ static void gst_ciscdemux_get_property (GObject * object, guint prop_id,
 static GstFlowReturn gst_ciscdemux_chain (GstPad * pad, GstBuffer * buf);
 static GstStateChangeReturn gst_cscohlsdemuxer_change_state (GstElement * element, GstStateChange transition);
 
-static gboolean gst_ciscdemux_sink_event (GstPad * pad, GstEvent * event);
-// rms experiment adding the below
 static gboolean gst_cscohlsdemuxer_sink_event (GstPad * pad, GstEvent * event);
 static GstClockTime gst_cisco_hls_get_duration (Gstciscdemux *demux);
 static gboolean cisco_hls_initialize (Gstciscdemux *demux);
@@ -74,7 +74,6 @@ static gboolean gst_cisco_hls_seek (Gstciscdemux *demux, GstEvent *event);
 
 /* These global variables must be removed*/
 //TODO FIX
-Gstciscdemux  *gpCisco_hls_demuxer;
 static GstStaticCaps abr_caps = GST_STATIC_CAPS ("application/x-hlss");
 #define DATA_SCAN_CTX_CHUNK_SIZE 4096
 
@@ -209,17 +208,9 @@ static GstEvent* gst_ciscdemux_create_decryption_event(  srcBufferMetadata_t* me
 
          }
 
-      //   printf("key: %s\n", strKey);
-      //   printf("iv : %s\n", strIv);
-         //TODO: This really should be in a header file
-#if 0
+         // put here verimatrix if it's verimatrix
+         // TODO;
 
-         structure = gst_structure_new("AES128CBC",
-                     "keyURI", G_TYPE_STRING, metadata->keyURI,
-                     "key",    G_TYPE_STRING, strKey,
-                     "iv",     G_TYPE_STRING, strIv,
-                     NULL);
-#endif
          structure = gst_structure_new("ENCRYPTED_BASIC_HLS",
                      "keyURI", G_TYPE_STRING, metadata->keyURI,
                      "iv",     G_TYPE_STRING, strIv,
@@ -244,10 +235,10 @@ gst_ciscdemux_base_init (gpointer gclass)
   GstElementClass *element_class = GST_ELEMENT_CLASS (gclass);
 
   gst_element_class_set_details_simple(element_class,
-    "Cisco Demuxer",
+    "Cisco HLS Demuxer",
     "Demuxer/Fetcher",
-    "Basic Test to become a Sink to URL fetcher",
-    "Iotapi322  <<iotapi322@hostname.org>>");
+    "Cisco's HLS library GStreamer interface",
+    "Matt Snoby <<snobym@cisco.com>>");
   gst_element_class_add_pad_template (element_class,
       gst_static_pad_template_get (&src_factory));
   gst_element_class_add_pad_template (element_class,
@@ -298,7 +289,6 @@ gst_ciscdemux_init (Gstciscdemux * demux,
   gst_element_add_pad (GST_ELEMENT (demux), demux->sinkpad);
   gst_element_add_pad (GST_ELEMENT (demux), demux->srcpad);
 
-  gpCisco_hls_demuxer = demux;
   demux->silent = FALSE;
   demux->capsSet =0;
 }
@@ -335,25 +325,11 @@ gst_ciscdemux_get_property (GObject * object, guint prop_id,
   }
 }
 
-/* GstElement vmethod implementations */
-#if 0
-/* this function handles the link with other elements */
-static gboolean
-gst_ciscdemux_set_caps (GstPad * pad, GstCaps * caps)
-{
-  Gstciscdemux *demux;
-  GstPad *otherpad;
-
-  demux = GST_CISCDEMUX (gst_pad_get_parent (pad));
-  otherpad = (pad == demux->srcpad) ? demux->sinkpad : demux->srcpad;
-  gst_object_unref (demux);
-
-  return gst_pad_set_caps (otherpad, caps);
-}
-#endif
 
 /* chain function
  * this function does the actual processing
+ * This is actually not used at all it just dumps the 
+ * packet.  The HLS library actually pulls the m3u8 file.
  */
 static GstFlowReturn
 gst_ciscdemux_chain (GstPad * pad, GstBuffer * buf)
@@ -377,10 +353,9 @@ ciscdemux_init (GstPlugin * ciscdemux)
    gboolean value =TRUE;
   /* debug category for fltering log messages
    *
-   * exchange the string 'Template ciscdemux' with your description
    */
   GST_DEBUG_CATEGORY_INIT (gst_ciscdemux_debug, "ciscdemux",
-      0, "Template ciscdemux");
+      0, "Cisco HLS Demuxer");
 
 
   value = gst_element_register (ciscdemux, "cischlsdemux", GST_RANK_PRIMARY + 5,
@@ -391,14 +366,6 @@ ciscdemux_init (GstPlugin * ciscdemux)
   return value;
 }
 
-/* PACKAGE: this is usually set by autotools depending on some _INIT macro
- * in configure.ac and then written into and defined in config.h, but we can
- * just set it ourselves here in case someone doesn't use autotools to
- * compile this code. GST_PLUGIN_DEFINE needs PACKAGE to be defined.
- */
-#ifndef PACKAGE
-#define PACKAGE "myfirstciscdemux"
-#endif
 
 /* gstreamer looks for this structure to register ciscdemuxs
  *
@@ -534,7 +501,6 @@ static GstStateChangeReturn gst_cscohlsdemuxer_change_state (GstElement * elemen
   GstStateChangeReturn ret;
   Gstciscdemux *demux = GST_CISCDEMUX (element);
 
-  printf(" Entered:: %s\n", __FUNCTION__);
   switch (transition) {
     case GST_STATE_CHANGE_NULL_TO_READY:
       cisco_hls_initialize (demux);
@@ -586,31 +552,16 @@ const char *strHLSEvent [] =
    "SRC_PLUGIN_EOS            " 
 };
 
-#if 0
-static gboolean gst_ciscdemux_sink_event (GstPad * pad, GstEvent * event)
-{
-  gboolean ret;
-  gchar *uri;
-  Gstciscdemux *demux = GST_CISCDEMUX (gst_pad_get_parent(pad));
 
-
-  switch (event->type)
-  {
-      case GST_EVENT_EOS:
-         GST_WARNING_OBJECT(demux, "Got EOS for the playlist");
-         break;
-  }//end of switch
-  return gst_pad_event_default (pad, event);
-}
-
-#endif
 
 void hlsPlayer_pluginEvtCallback(void* pHandle, srcPluginEvt_t* pEvt)
 {   
-   printf(" Entered: %s : got event [%15s] callback for pHandle: %p : %d\n",
-         __FUNCTION__, strHLSEvent[pEvt->eventCode],pHandle, pEvt->eventCode);
 
    Gstciscdemux *demux = (Gstciscdemux *)pHandle;
+
+   GST_LOG(" Entered: %s : got event [%15s] callback for pHandle: %p : %d\n",
+         __FUNCTION__, strHLSEvent[pEvt->eventCode],pHandle, pEvt->eventCode);
+
    if (demux == NULL)
       return;
 
@@ -632,7 +583,7 @@ void hlsPlayer_pluginEvtCallback(void* pHandle, srcPluginEvt_t* pEvt)
 void hlsPlayer_pluginErrCallback(void* pHandle, srcPluginErr_t* pErr)
 {
 
-   printf(" Entered: %s : got event ERROR callback for pHandle: %p : %d\n",
+   GST_ERROR(" Entered: %s : got event ERROR callback for pHandle: %p : %d\n",
          __FUNCTION__,pHandle, pErr->errCode);
    return ;
 }
@@ -686,11 +637,9 @@ srcStatus_t hlsPlayer_sendBuffer(void* pHandle, char* buffer, int size, srcBuffe
    GstBuffer *buf = NULL;
    GstEvent*event= NULL;
    GstCaps *caps =NULL;
-   GstStructure *s;
 
    // send it downstream first we need to see if we need to set the capabilities
-   //TODO: Make this NOT be a global
-   Gstciscdemux *demux = gpCisco_hls_demuxer;
+   Gstciscdemux *demux = (Gstciscdemux*) pHandle;
 
 
    do
@@ -711,117 +660,80 @@ srcStatus_t hlsPlayer_sendBuffer(void* pHandle, char* buffer, int size, srcBuffe
       // we don't need the pPrivate anymore
       free(pmem);
 
+      // The first packet should always have meta data with it, if not we have an error
 
-      if (metadata)
+      if ((metadata == NULL) && (demux->capsSet == 0))
       {
-         GST_INFO_OBJECT(demux,"This packet does have meta data with it.\n!"); 
-
-         if (metadata->encType == SRC_ENC_AES128_CBC)
-         {
-            if (demux->capsSet == 0)
-            {
-#if 0 
-               caps = gst_caps_new_simple ("data/x-drm",
-                     "type", G_TYPE_INT, SRC_ENC_AES128_CBC, NULL);
-#endif
-               caps = gst_caps_new_simple ("drm/x-BASIC_HLS", NULL);
-
-               demux->inputStreamCap = caps;
-
-               gst_pad_set_event_function(demux->srcpad,
-                     GST_DEBUG_FUNCPTR(gst_cscohlsdemuxer_src_event));
-
-               gst_pad_set_query_function (demux->srcpad,
-                     GST_DEBUG_FUNCPTR (gst_cscohlsdemuxer_src_query));
-
-               gst_pad_set_element_private (demux->srcpad, demux);
-               if (FALSE == gst_pad_set_active (demux->srcpad, TRUE))
-               {
-                  GST_WARNING_OBJECT(demux,"I was not able to set the src pad to active\n!"); 
-               }
-
-
-
-               if (FALSE == gst_pad_set_caps (demux->srcpad,  demux->inputStreamCap))
-               {
-                  GST_WARNING_OBJECT(demux, "I was not able to set caps on the src pad for some reason\n");
-               }
-               GST_INFO_OBJECT(demux, "demux->srcpad: Capabilities: %" GST_PTR_FORMAT,gst_pad_get_caps(demux->srcpad));
-               //dont' have to add it because it's already there.
-               //g_print("%s - adding actual pad \n", __func__);
-               //
-              // gst_element_add_pad (GST_ELEMENT (demux), demux->srcpad);
-               //gst_element_no_more_pads(GST_ELEMENT(demux));
-               demux->capsSet =1;
-
-            }//end of if capSet==0
-            // need to create a special gstreamer structure and send it downstream.
-            {
-               // we have to send a data packet down stream to get the pipeline plugged together
-               // then we can send the decryption event.  So we are going to duplicate ONLY this first
-               // buffer, send it down stream so that everything autoplugs, then we will send the 
-               // decryption keydownstream.  Tecnically this first buffer will just get dropped.
-
-               if ( FALSE ==gst_pad_is_linked(demux->srcpad))
-               {
-                  GST_ERROR("We are NOT linked\n");
-               }
-
-
-               // now we can send the event downstream. :-)
-               event = gst_ciscdemux_create_decryption_event(metadata); 
-               if (event == NULL) { GST_ERROR("Error no event to send\n");}
-
-               GST_INFO_OBJECT(demux, "Sending the encryption key information downstream\n");
-               if (gst_pad_push_event(demux->srcpad, event)== FALSE)
-               {
-                  GST_WARNING(" Error sending the encyption key down stream\n");
-               }
-            }
-         }
-         else
-         {
-            GST_WARNING("I don't understand this type of encryption\n");
-         }
-
-      } //end of if metadata
-      else
-      {
-         if (demux->capsSet ==0)
-         {
-            caps =gst_type_find_helper_for_buffer(NULL, buf, NULL);
-            GST_INFO_OBJECT(demux, "Capabilities: %" GST_PTR_FORMAT,caps);
-            demux->inputStreamCap = caps;
-            gst_buffer_set_caps(buf, demux->inputStreamCap);
-            demux->srcpad = gst_pad_new_from_static_template(&src_factory, NULL);
-            gst_pad_set_event_function(demux->srcpad,
-                  GST_DEBUG_FUNCPTR(gst_cscohlsdemuxer_src_event));
-
-            gst_pad_set_query_function (demux->srcpad,
-                  GST_DEBUG_FUNCPTR (gst_cscohlsdemuxer_src_query));
-
-            gst_pad_set_element_private (demux->srcpad, demux);
-            gst_pad_set_active (demux->srcpad, TRUE);
-            gst_pad_set_caps (demux->srcpad,  GST_BUFFER_CAPS(buf));
-
-            GST_INFO_OBJECT(demux, "demux->srcpad: Capabilities: %" GST_PTR_FORMAT,gst_pad_get_caps(demux->srcpad));
-            gst_element_add_pad (GST_ELEMENT (demux), demux->srcpad);
-            gst_element_no_more_pads(GST_ELEMENT(demux));
-            demux->capsSet =1;
-
-         }
-
+         GST_ERROR("the Capabilities are not set and the metadata field was null This should NEVER happen\n");
       }
 
+      // check to see if we have setup the source pad yet to send out it's capabilities
+      if (demux->capsSet ==0)
+      {
+         if (metadata)
+         {
+            // this is for basic HLS
+            if (metadata->encType == SRC_ENC_AES128_CBC)
+            {
+               caps = gst_caps_new_simple ("drm/x-BASIC_HLS", NULL);
+            }
+            else if ( metadata->encType == SRC_ENC_NONE)
+            {
+               caps =gst_type_find_helper_for_buffer(NULL, buf, NULL);
+            }
+            else
+            {
+               caps = NULL;
+               GST_WARNING("I don't know this encryption type\n");
+            }
 
-      // send the buffer
-      // anytime there is a bitrate change we will need to redo the typefind on the buffers.
+         }// end of if metadata
+         GST_INFO_OBJECT(demux, "Capabilities: %" GST_PTR_FORMAT,caps);
+         demux->inputStreamCap = caps;
+         gst_pad_set_event_function(demux->srcpad,
+               GST_DEBUG_FUNCPTR(gst_cscohlsdemuxer_src_event));
+
+         gst_pad_set_query_function (demux->srcpad,
+               GST_DEBUG_FUNCPTR (gst_cscohlsdemuxer_src_query));
+
+         gst_pad_set_element_private (demux->srcpad, demux);
+         if (FALSE == gst_pad_set_active (demux->srcpad, TRUE))
+         {
+            GST_WARNING_OBJECT(demux,"I was not able to set the src pad to active\n!"); 
+         }
+
+         if (FALSE == gst_pad_set_caps (demux->srcpad,  demux->inputStreamCap))
+         {
+            GST_WARNING_OBJECT(demux, "I was not able to set caps on the src pad for some reason\n");
+         }
+         GST_INFO_OBJECT(demux, "demux->srcpad: Capabilities: %" GST_PTR_FORMAT,gst_pad_get_caps(demux->srcpad));
+         demux->capsSet =1;
+      }// end of if capsSet
+
+
+      // Now that the pad is setup and the capabilities set on the pad we can send a decryption event
+      // if necessary or we can just send the buffer down the pipeline this is outside the above block 
+      // because you can get a new key tag at any time
+      if (metadata)
+      {
+         if (metadata->encType ==SRC_ENC_AES128_CBC)
+         {
+            // now we can send the event downstream. :-)
+            event = gst_ciscdemux_create_decryption_event(metadata); 
+            if (event == NULL) { GST_ERROR("Error no event to send\n");}
+
+            GST_INFO_OBJECT(demux, "Sending the encryption key information downstream\n");
+            if (gst_pad_push_event(demux->srcpad, event)== FALSE)
+            {
+               GST_WARNING(" Error sending the encyption key down stream\n");
+            }
+         }// end of if metadata->SRC_ENC_AES128CBC
+      } // end of if metadata
+
       gst_buffer_set_caps(buf, demux->inputStreamCap);
       gst_pad_push(demux->srcpad,buf);
 
-
    }while(0);
-
 
    return status;
 }
