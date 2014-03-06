@@ -440,7 +440,7 @@ static gboolean gst_cscohlsdemuxer_src_event (GstPad * pad, GstEvent * event)
    {
       case GST_EVENT_SEEK:
       {
-         printf("Got seek event!\n");
+         GST_WARNING("Got seek event!");
          res = gst_cisco_hls_seek (demux, event);
          gst_event_unref(event);
          return res;
@@ -1062,6 +1062,7 @@ static gboolean gst_cisco_hls_seek (Gstciscdemux *demux, GstEvent *event)
    position = (gfloat)(cur / GST_MSECOND);
    setData.pData = &position;
    GST_WARNING("[cischlsdemux] seeking to position %f, timestamp %llu...\n", position, cur);
+   stat = demux->HLS_pluginTable.set(pSession->pSessionID, &setData, &errTable);
    if ( stat == SRC_ERROR )
    {
       GST_WARNING("Failed to set position on the source plugin: %s\n", errTable.errMsg);
