@@ -23,6 +23,9 @@
 
 GST_DEBUG_CATEGORY_STATIC (gst_ciscdemux_debug);
 #define GST_CAT_DEFAULT gst_ciscdemux_debug
+#define DRM_TYPE_VERIMATRIX "ENCRYPTED_VERIMATRIX"
+#define DRM_TYPE_VGDRM "ENCRYPTED_VGDRM"
+#define DRM_TYPE_BASIC "ENCRYPTED_BASIC_HLS"
 
 /* demux signals and args */
 enum
@@ -178,7 +181,6 @@ static GstEvent* gst_ciscdemux_create_decryption_event(  srcBufferMetadata_t* me
    // make sure that this is indeed an encryption type we understand.
    if (metadata)
    {
-
       //This buffer has meta data, need to see if it's encrypted
       //TODO: This will take a lot of research but instead of converting the 
       //key and iv array from binary to string, just send a byte array down the pipline.
@@ -208,10 +210,16 @@ static GstEvent* gst_ciscdemux_create_decryption_event(  srcBufferMetadata_t* me
 
          }
 
-         // put here verimatrix if it's verimatrix
-         // TODO;
-
-         structure = gst_structure_new("ENCRYPTED_BASIC_HLS",
+         #ifdef OPT_FORCE_VERIMATRIX
+            char * drmType = DRM_TYPE_VERIMATRIX;
+            GST_LOG("Forcing DRM type to: \"%s\"\n", drmType);
+         #elif OPT_FORCE_VGDRM
+            char * drmType = DRM_TYPE_VGDRM;
+            GST_LOG("Forcing DRM type to: \"%s\"\n", drmType);
+         #else
+            char * drmType = DRM_TYPE_BASIC;
+         #endif
+         structure = gst_structure_new(drmType,
                      "keyURI", G_TYPE_STRING, metadata->keyURI,
                      "iv",     G_TYPE_STRING, strIv,
                      NULL);
