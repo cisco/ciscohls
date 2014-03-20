@@ -23,8 +23,8 @@
 
 GST_DEBUG_CATEGORY_STATIC (gst_ciscdemux_debug);
 #define GST_CAT_DEFAULT gst_ciscdemux_debug
-#define DRM_TYPE_VERIMATRIX "ENCRYPTED_VERIMATRIX"
-#define DRM_TYPE_VGDRM "ENCRYPTED_VGDRM"
+#define DRM_TYPE_VERIMATRIX "ENCRYPTED_VERIMATRIX_HLS"
+#define DRM_TYPE_VGDRM "ENCRYPTED_VGDRM_HLS"
 #define DRM_TYPE_BASIC "ENCRYPTED_BASIC_HLS"
 
 /* demux signals and args */
@@ -683,7 +683,12 @@ srcStatus_t hlsPlayer_sendBuffer(void* pHandle, char* buffer, int size, srcBuffe
             // this is for basic HLS
             if (metadata->encType == SRC_ENC_AES128_CBC)
             {
-               caps = gst_caps_new_simple ("drm/x-BASIC_HLS", NULL);
+
+               #ifdef OPT_FORCE_VERIMATRIX
+                  caps = gst_caps_new_simple ("drm/x-VERIMATRIX", NULL);
+               #else
+                  caps = gst_caps_new_simple ("drm/x-BASIC_HLS", NULL);
+               #endif
             }
             else if ( metadata->encType == SRC_ENC_NONE)
             {
