@@ -164,7 +164,7 @@ static void hls_type_find (GstTypeFind * tf, gpointer unused)
     data_scan_ctx_advance (tf, &c, 1);
   }
 }
-static GstEvent* gst_ciscdemux_create_decryption_event(  srcBufferMetadata_t* metadata)
+static GstEvent* gst_ciscdemux_create_decryption_event(  srcBufferMetadata_t* metadata,  Gstciscdemux *demux) 
 {
    GstEvent       *event = NULL;
    GstStructure   *structure = NULL;       
@@ -213,16 +213,25 @@ static GstEvent* gst_ciscdemux_create_decryption_event(  srcBufferMetadata_t* me
          #ifdef OPT_FORCE_VERIMATRIX
             char * drmType = DRM_TYPE_VERIMATRIX;
             GST_LOG("Forcing DRM type to: \"%s\"\n", drmType);
-         #elif OPT_FORCE_VGDRM
-            char * drmType = DRM_TYPE_VGDRM;
-            GST_LOG("Forcing DRM type to: \"%s\"\n", drmType);
-         #else
-            char * drmType = DRM_TYPE_BASIC;
-         #endif
-         structure = gst_structure_new(drmType,
+            structure = gst_structure_new(drmType,
                      "keyURI", G_TYPE_STRING, metadata->keyURI,
                      "iv",     G_TYPE_STRING, strIv,
                      NULL);
+         #elif OPT_FORCE_VGDRM
+            char * drmType = DRM_TYPE_VGDRM;
+            GST_LOG("Forcing DRM type to: \"%s\"\n", drmType);
+            structure = gst_structure_new(drmType,
+                     "keyURI",   G_TYPE_STRING, metadata->keyURI,
+                     "iv",       G_TYPE_STRING, strIv,
+                     "LicenseID",G_TYPE_STRING, demux->LicenseID,
+                     NULL);
+         #else
+            char * drmType = DRM_TYPE_BASIC;
+            structure = gst_structure_new(drmType,
+                     "keyURI", G_TYPE_STRING, metadata->keyURI,
+                     "iv",     G_TYPE_STRING, strIv,
+                     NULL);
+         #endif
          if (structure == NULL)
          {
             GST_ERROR("Error creating event message\n");
@@ -479,7 +488,31 @@ static gboolean gst_cscohlsdemuxer_sink_event (GstPad * pad, GstEvent * event)
          ret = gst_pad_peer_query(demux->sinkpad,query);
          if (ret)
          {
+            // http://foobar.com/index.m3u8?LicenseID=abcde456785345a&another
             gst_query_parse_uri(query, &uri);
+
+            //
+            // Parse for a LicenseID to pass down stream.
+            //
+            do
+            {
+
+               gchar *str = NULL;
+               gchar **array = NULL;
+               gchar delimiter ='&';
+
+               str =  g_strstr_len (uri, -1, "LicenseID=");
+               if (str == NULL) break;
+               // copy string until you find '&'
+               array = g_strsplit (str, &delimiter, 1024);
+               // the first array element string should hold what we need.
+               GST_WARNING_OBJECT(demux,"Setting LicenseID to: %s\n",array[0]);
+               if (demux->LicenseID != NULL){g_free(demux->LicenseID);}
+               demux->LicenseID = strdup (array[0]);
+               g_strfreev(array);
+
+
+            }while(0);
             // we can now set the uri with the cisco plugin.
             cisco_hls_start(demux, uri); 
             
@@ -684,7 +717,9 @@ srcStatus_t hlsPlayer_sendBuffer(void* pHandle, char* buffer, int size, srcBuffe
             if (metadata->encType == SRC_ENC_AES128_CBC)
             {
 
-               #ifdef OPT_FORCE_VERIMATRIX
+               #ifdef OPT_FORCE_VGDRM
+                  caps = gst_caps_new_simple ("drm/x-VGDRM", NULL);
+               #elif OPT_FORCE_VERIMATRIX
                   caps = gst_caps_new_simple ("drm/x-VERIMATRIX", NULL);
                #else
                   caps = gst_caps_new_simple ("drm/x-BASIC_HLS", NULL);
@@ -732,7 +767,7 @@ srcStatus_t hlsPlayer_sendBuffer(void* pHandle, char* buffer, int size, srcBuffe
          if (metadata->encType ==SRC_ENC_AES128_CBC)
          {
             // now we can send the event downstream. :-)
-            event = gst_ciscdemux_create_decryption_event(metadata); 
+            event = gst_ciscdemux_create_decryption_event(metadata,demux); 
             if (event == NULL) { GST_ERROR("Error no event to send\n");}
 
             GST_INFO_OBJECT(demux, "Sending the encryption key information downstream\n");
@@ -983,6 +1018,7 @@ static gboolean cisco_hls_close(Gstciscdemux *demux)
    }
 
    free(demux->pCscoHlsSession);
+   if(demux->LicenseID){g_free(demux->LicenseID);}
    demux->pCscoHlsSession = NULL;
    
    return TRUE;

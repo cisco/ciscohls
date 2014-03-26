@@ -2,11 +2,11 @@
 prefix=/opt/test
 exec_prefix=${prefix}
 bindir=${exec_prefix}/bin
-libdir=/home/snoby/work/cisco/ciscohls/gsthls/.libs
+libdir=/home/snoby/work/localbuild/ciscohls/gsthls/.libs
 datarootdir=${prefix}/share
 datadir=${datarootdir}
 sysconfdir=${prefix}/etc
-includedir=/home/snoby/work/cisco/ciscohls/gsthls/.
+includedir=/home/snoby/work/localbuild/ciscohls/gsthls/.
 package=libgsthls
 suffix=
 

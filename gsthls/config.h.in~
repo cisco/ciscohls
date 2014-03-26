@@ -109,6 +109,12 @@
 /* Define to 1 if your C compiler doesn't accept -c and -o together. */
 #undef NO_MINUS_C_MINUS_O
 
+/* Force Verimatrix only */
+#undef OPT_FORCE_VERIMATRIX
+
+/* Force VGDRM only */
+#undef OPT_FORCE_VGDRM
+
 /* cpu-machine-OS */
 #undef OS
 

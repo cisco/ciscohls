@@ -92,6 +92,7 @@ struct _Gstciscdemux
 
   GstPad *sinkpad, *srcpad;
 
+  gchar    *LicenseID;
   GstCaps *inputStreamCap;
 
   gboolean  silent;
