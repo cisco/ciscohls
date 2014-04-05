@@ -150,7 +150,7 @@ static void hls_type_find (GstTypeFind * tf, gpointer unused)
   data_scan_ctx_advance (tf, &c, 7);
 
   /* Check only the first 256 bytes */
-  while (c.offset < 256) {
+  while (c.offset < 1024) {
     if (G_UNLIKELY (!data_scan_ctx_ensure_data (tf, &c, 21)))
       return;
 
