@@ -38,6 +38,8 @@
 extern "C" {
 #endif
 
+#define SRC_PTS_NOTIFY_INTERVAL (5)
+
 #define SRC_ERR_MSG_LEN 128 /*!< Maximum error message length */
 
 /*!

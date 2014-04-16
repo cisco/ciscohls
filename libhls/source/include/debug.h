@@ -37,6 +37,9 @@ extern "C" {
 #include <stdio.h>
 #include <time.h>
 
+/* TODO - pass this through a configure option */
+#define USE_SYSLOG
+
 #define DEBUG_MSG(x, ...) "[%s:%d] " x "\n", __FUNCTION__, __LINE__, ##__VA_ARGS__
 #define TS_MSG(ts, x, ...) "[TS:%10f]:" x "\n", ((ts.tv_sec)*1.0) + (ts.tv_nsec/1000000000.0), ##__VA_ARGS__
 #define DEBUG_TS_MSG(ts, x, ...) TS_MSG(ts, "[%s:%d] " x, __FUNCTION__, __LINE__, ##__VA_ARGS__)
@@ -106,14 +109,15 @@ extern "C" {
 #define OPEN_LOG                                                                \
    do                                                                           \
    {                                                                            \
-      openlog("hls", 0, 0);                                                     \
-      setlogmask(LOG_UPTO(DBG_LEVEL));                                          \
+      /* Calling openlog() overrides the calling process(SAIL/gstreamer) openlog() call */ \
+      /* openlog("hls", LOG_CONS | LOG_NDELAY, LOG_USER); */                    \
+      /* setlogmask(LOG_UPTO(DBG_LEVEL)); */                                    \
    } while(0);
 
 #define CLOSE_LOG                                                               \
    do                                                                           \
    {                                                                            \
-      closelog();                                                               \
+      /* closelog(); */                                                         \
    } while(0);
 
 #define ERROR(x, ...) syslog(LOG_ERR, "!!ERROR!! " DEBUG_MSG(x, ##__VA_ARGS__));
@@ -153,8 +157,7 @@ extern "C" {
 #define CLOSE_LOG
 
 
-//rms #warning changed from DBG_INFO to DBG_WARN
-#define DBG_LEVEL DBG_WARN
+#define DBG_LEVEL DBG_INFO
 
 /* To change debug levels within specific files, use:
  *

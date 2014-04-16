@@ -1151,7 +1151,7 @@ int getSessionIndex(srcSessionId_t sessionId)
     
     for(i = 0; i < MAX_SESSIONS; i++) 
     {
-        DEBUG(DBG_INFO,"Looking for sessionId %p, found %p", (void *)sessionId, (void *)(thePlugin.hlsSessions[i]));
+        DEBUG(DBG_NOISE,"Looking for sessionId %p, found %p", (void *)sessionId, (void *)(thePlugin.hlsSessions[i]));
 
         if(sessionId == (srcSessionId_t)(thePlugin.hlsSessions[i])) 
         {

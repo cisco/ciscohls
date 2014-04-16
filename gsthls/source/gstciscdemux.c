@@ -14,9 +14,10 @@
 #  include <config.h>
 #endif
 
+#include <time.h>
+
 #include <gst/gst.h>
 #include <gst/base/gsttypefindhelper.h>
-#include "sourcePlugin.h"
 
 #include "gstciscdemux.h"
 #include "string.h"
@@ -63,6 +64,7 @@ static void gst_ciscdemux_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
 
 static GstFlowReturn gst_ciscdemux_chain (GstPad * pad, GstBuffer * buf);
+static GstPadLinkReturn gst_ciscdemux_src_link(GstPad *pad, GstPad *peer);
 static GstStateChangeReturn gst_cscohlsdemuxer_change_state (GstElement * element, GstStateChange transition);
 
 static gboolean gst_cscohlsdemuxer_sink_event (GstPad * pad, GstEvent * event);
@@ -73,6 +75,7 @@ static gboolean cisco_hls_start(Gstciscdemux *demux, char *pPlaylistUri);
 static gboolean cisco_hls_close(Gstciscdemux *demux);
 static gboolean cisco_hls_finalize(Gstciscdemux *demux);
 static gboolean gst_cisco_hls_seek (Gstciscdemux *demux, GstEvent *event);
+static void * getCurrentPTSNotify(void *data);
 /* GObject vmethod implementations */
 
 /* These global variables must be removed*/
@@ -302,12 +305,27 @@ gst_ciscdemux_init (Gstciscdemux * demux,
   gst_pad_set_event_function (demux->sinkpad,
                               GST_DEBUG_FUNCPTR (gst_cscohlsdemuxer_sink_event ));
 
+  gst_pad_set_link_function(demux->srcpad, GST_DEBUG_FUNCPTR (gst_ciscdemux_src_link));
+
   /* now enable the pads*/
   gst_element_add_pad (GST_ELEMENT (demux), demux->sinkpad);
   gst_element_add_pad (GST_ELEMENT (demux), demux->srcpad);
 
   demux->silent = FALSE;
   demux->capsSet =0;
+  demux->bKillPTSThread = FALSE;
+  demux->playerEvtCb = NULL;
+  demux->downstream_peer_pad = NULL;
+  
+  if(0 != pthread_mutex_init(&demux->PTSMutex, NULL))
+  {
+     GST_WARNING("Failed to init PTSMutex\n");
+  }
+
+  if(0 != pthread_cond_init(&demux->PTSThreadCond, NULL))
+  {
+     GST_WARNING("Failed to init PTSThreadCond\n");
+  }
 }
 
 static void
@@ -358,6 +376,33 @@ gst_ciscdemux_chain (GstPad * pad, GstBuffer * buf)
   /* just push out the incoming buffer without touching it */
    return GST_FLOW_OK;
 }
+
+static GstPadLinkReturn gst_ciscdemux_src_link(GstPad *pad, GstPad *peer) 
+{
+   GstElement *pElement;
+   Gstciscdemux *demux = GST_CISCDEMUX(gst_pad_get_parent(pad));
+
+   gchar *peerName = gst_pad_get_name(peer);
+   pElement = (GstElement*) gst_pad_get_parent_element (pad); 
+   GST_WARNING("---->[%s]Src Link with peer %s (Element %s)  %s (Element ?)(Pad %p %p)\n", 
+               __FUNCTION__, gst_pad_get_name(pad),GST_ELEMENT_NAME(pElement), peerName,pad,peer);
+
+   pElement = (GstElement*) gst_pad_get_parent_element (peer); 
+   if(pElement)
+   {
+      GST_WARNING("Peer Element: %s\n", GST_ELEMENT_NAME(pElement));
+   }
+
+   g_free(peerName);
+
+   if (GST_PAD_LINKFUNC (peer)) 
+   {
+      GST_PAD_LINKFUNC (peer) (peer, pad);
+   }    
+
+   demux->downstream_peer_pad = peer;
+   return GST_PAD_LINK_OK;
+}     
 
 
 /* entry point to initialize the plug-in
@@ -631,9 +676,12 @@ void hlsPlayer_pluginErrCallback(void* pHandle, srcPluginErr_t* pErr)
 srcStatus_t hlsPlayer_registerCB(void* pHandle, playerEvtCallback_t evtCb)
 {
    srcStatus_t status = SRC_SUCCESS;
+   Gstciscdemux *demux = (Gstciscdemux *)pHandle;
 
    do
    {
+      demux->playerEvtCb = evtCb;
+
    }while (0);
 
    return status;
@@ -756,6 +804,11 @@ srcStatus_t hlsPlayer_sendBuffer(void* pHandle, char* buffer, int size, srcBuffe
          }
          GST_INFO_OBJECT(demux, "demux->srcpad: Capabilities: %" GST_PTR_FORMAT,gst_pad_get_caps(demux->srcpad));
          demux->capsSet =1;
+
+
+         pthread_create(&demux->getPTSThread, NULL, getCurrentPTSNotify, demux);
+
+
       }// end of if capsSet
 
 
@@ -1007,6 +1060,12 @@ static gboolean cisco_hls_close(Gstciscdemux *demux)
    srcPluginErr_t errTable;
    srcStatus_t stat = SRC_SUCCESS;
 
+   pthread_mutex_lock(&demux->PTSMutex);
+   demux->bKillPTSThread = TRUE;
+   pthread_mutex_unlock(&demux->PTSMutex);
+   
+   pthread_join(demux->getPTSThread, NULL);
+
    stat = demux->HLS_pluginTable.close(demux->pCscoHlsSession->pSessionID, &errTable);
    if (stat != SRC_SUCCESS)
    {
@@ -1037,6 +1096,16 @@ static gboolean cisco_hls_finalize(Gstciscdemux *demux)
    else
    {
       GST_LOG("Done finalizing the HLS src plugin\n"); 
+   }
+
+   if(0 != pthread_mutex_destroy(&demux->PTSMutex))
+   {
+      GST_WARNING("Failed to destroy PTSMutex\n");
+   }
+
+   if(0 != pthread_cond_destroy(&demux->PTSThreadCond))
+   {
+      GST_WARNING("Failed to destroy PTSThreadCond\n");
    }
 
    return TRUE;
@@ -1121,3 +1190,102 @@ static gboolean gst_cisco_hls_seek (Gstciscdemux *demux, GstEvent *event)
    return TRUE;
 }
 
+static void * getCurrentPTSNotify(void *data)
+{
+   GstQuery        *query = NULL;
+   GstStructure    *structure;
+   const GValue    *val = NULL;
+   gpointer        *ptr = NULL;
+   gboolean        rc;
+   gint64          pts = 0;
+   Gstciscdemux    *demux = (Gstciscdemux *)data;
+   srcPlayerEvt_t  ptsEvent = {SRC_PLAYER_LAST_PTS, NULL};
+   struct timespec ts = {};
+   
+   GST_LOG("%s() >>>>\n", __FUNCTION__);
+
+   if(NULL == demux)
+   {
+      GST_WARNING("demux is NULL\n");
+      goto fn_exit;
+   }
+   if(NULL == demux->pCscoHlsSession)
+   {
+      GST_WARNING("libhls session is NULL\n");
+      goto fn_exit;
+   }
+
+   do
+   {
+      pthread_mutex_lock(&demux->PTSMutex);
+
+      if(TRUE == demux->bKillPTSThread)
+      {
+         pthread_mutex_unlock(&demux->PTSMutex);
+         break;
+      }
+         
+      ts.tv_sec = time(NULL) + SRC_PTS_NOTIFY_INTERVAL;
+      pthread_cond_timedwait(&demux->PTSThreadCond, &demux->PTSMutex, &ts);
+      
+      if(TRUE == demux->bKillPTSThread)
+      {
+         pthread_mutex_unlock(&demux->PTSMutex);
+         break;
+      }
+
+      pthread_mutex_unlock(&demux->PTSMutex);
+
+      if(NULL == demux->downstream_peer_pad)
+      {
+         /* Try again - srcpad is not linked */
+         continue;
+      }
+
+      structure = gst_structure_new("get_current_pts", "current_pts", G_TYPE_UINT, 0, NULL);
+      query = gst_query_new_application(GST_QUERY_CUSTOM, structure);
+      rc = gst_pad_query(demux->downstream_peer_pad, query);
+      if (!rc) 
+      {
+         GST_WARNING("could not get pts");
+         continue;
+      }    
+
+      structure = gst_query_get_structure(query);
+      val = gst_structure_get_value(structure, "current_pts");
+      if (val == NULL) 
+      {
+         GST_WARNING("could not get pts");
+         continue;
+      }    
+
+      ptr = g_value_get_pointer(val);
+      if(NULL == ptr)
+      {
+         GST_WARNING("pts value is 0\n");
+         continue;
+      }
+
+      pts = 0;
+      memcpy((gchar *)&pts, (gchar *)&ptr, sizeof(ptr)); 
+
+      GST_DEBUG("Current PTS %lld\n", pts);
+
+      gst_query_unref(query);
+
+      if(NULL != demux->playerEvtCb)
+      {
+            ptsEvent.pData = &pts;
+            demux->playerEvtCb(demux->pCscoHlsSession->pSessionID, &ptsEvent);
+      }
+      else
+      {
+         GST_WARNING("playerEvtCb is NULL\n");
+         break;
+      }
+   }while(1);
+
+fn_exit:
+   GST_LOG("%s() <<<<\n", __FUNCTION__);
+   pthread_exit(NULL);
+}

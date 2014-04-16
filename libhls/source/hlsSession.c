@@ -2019,7 +2019,7 @@ void hlsSession_playerEvtCallback(hlsSession_t* pSession, srcPlayerEvt_t* pEvt)
                         }
                     }
 
-	                DEBUG(DBG_NOISE,"%5.2f since last PTS", ptsToSeconds(tempPTS) - ptsToSeconds(pSession->lastPTS));
+	                DEBUG(DBG_INFO,"CurrentPTS = %lld, lastPTS= %lld, %5.2f since last PTS", tempPTS, pSession->lastPTS, ptsToSeconds(tempPTS) - ptsToSeconds(pSession->lastPTS));
 
     	            /* Decrease our total time buffered */
         	        pSession->timeBuffered -= ptsToSeconds(tempPTS) - ptsToSeconds(pSession->lastPTS);

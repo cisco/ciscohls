@@ -47,6 +47,8 @@
 #define __GST_CISCDEMUX_H__
 
 #include <gst/gst.h>
+#include <pthread.h>
+#include "sourcePlugin.h"
 
 G_BEGIN_DECLS
 
@@ -91,6 +93,8 @@ struct _Gstciscdemux
   GstElement element;
 
   GstPad *sinkpad, *srcpad;
+  
+  GstPad *downstream_peer_pad;
 
   gchar    *LicenseID;
   GstCaps *inputStreamCap;
@@ -100,6 +104,12 @@ struct _Gstciscdemux
   gchar     *uri;
   tSession  *pCscoHlsSession ;
   srcPluginFunc_t   HLS_pluginTable;
+  playerEvtCallback_t playerEvtCb;
+
+  pthread_t       getPTSThread;
+  pthread_cond_t  PTSThreadCond;
+  pthread_mutex_t PTSMutex;
+  gboolean        bKillPTSThread;
 };
 
 struct _GstciscdemuxClass 
