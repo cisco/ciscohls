@@ -67,8 +67,8 @@ typedef struct
     long* pBytesDownloaded;         /*!< Pointer to integer into which to write the number of bytes downloaded */
     int* pbKillThread;              /*!< Pointer to flag which will signal the thread to terminate when it is TRUE */
     hlsStatus_t* pDownloadStatus;   /*!< Pointer to #hlsStatus_t which will contain the thread's exit status */
-    pthread_mutex_t* downloaderWaitMutex;
-    pthread_cond_t* downloaderWaitCondition;
+    pthread_mutex_t* downloaderWaitMutex; /*!< Pointer to the downloader wait mutex */
+    pthread_cond_t* downloaderWaitCondition; /*!< Pointer to the download wait condition that notifies when a segment has finished downloading */
 } asyncDlDesc_t;
 
 /* Local function prototypes */

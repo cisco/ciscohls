@@ -1197,7 +1197,8 @@ static void * getCurrentPTSNotify(void *data)
    const GValue    *val = NULL;
    gpointer        *ptr = NULL;
    gboolean        rc;
-   gint64          pts = 0;
+   unsigned int    pts_45khz = 0;
+   long long       pts_90khz = 0;
    Gstciscdemux    *demux = (Gstciscdemux *)data;
    srcPlayerEvt_t  ptsEvent = {SRC_PLAYER_LAST_PTS, NULL};
    struct timespec ts = {};
@@ -1266,16 +1267,17 @@ static void * getCurrentPTSNotify(void *data)
          continue;
       }
 
-      pts = 0;
-      memcpy((gchar *)&pts, (gchar *)&ptr, sizeof(ptr)); 
+      memcpy((gchar *)&pts_45khz, (gchar *)&ptr, sizeof(ptr)); 
 
-      GST_DEBUG("Current PTS %lld\n", pts);
+      GST_DEBUG("Current 45khz based PTS %u\n", pts_45khz);
+      pts_90khz = ((long long)pts_45khz) << 1;
+      GST_DEBUG("Current 90khz based PTS %lld\n", pts_90khz);
 
       gst_query_unref(query);
 
       if(NULL != demux->playerEvtCb)
       {
-            ptsEvent.pData = &pts;
+            ptsEvent.pData = &pts_90khz;
             demux->playerEvtCb(demux->pCscoHlsSession->pSessionID, &ptsEvent);
       }
       else

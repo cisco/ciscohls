@@ -975,8 +975,8 @@ hlsStatus_t switchToNormalPlaylists(hlsSession_t* pSession)
  */
 double ptsToSeconds(long long PTS)
 {
-    /* PTS has a resolution of 45kHz */
-    return PTS/45000.0;
+    /* PTS has a resolution of 90kHz */
+    return PTS/90000.0;
 }
 
 /** 

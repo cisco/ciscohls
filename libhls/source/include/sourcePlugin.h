@@ -164,7 +164,7 @@ typedef struct
 typedef enum
 {
    SRC_PLAYER_GET_FIFO_DATA,     /*!< pData -> fifoData_t* ; Get demux fifo data */
-   SRC_PLAYER_GET_LAST_PTS,      /*!< pData -> uint64_t* ; Get last PTS */
+   SRC_PLAYER_GET_LAST_PTS,      /*!< pData -> uint64_t* ; Get last 90khz PTS */
 
 } srcPlayerGetCode_t;
 
@@ -327,8 +327,8 @@ typedef struct
  */
 typedef enum
 {
-   SRC_PLAYER_LAST_PTS = 0,          /*!< pData -> long* containing the last decoded PTS */ 
-   SRC_PLAYER_DISCONTINUITY,         /*!< pData -> long* containing the last decoded PTS ; indicates a discontinuity was seen */
+   SRC_PLAYER_LAST_PTS = 0,          /*!< pData -> long* containing the last decoded 90khz PTS */ 
+   SRC_PLAYER_DISCONTINUITY,         /*!< pData -> long* containing the last decoded 90khz PTS ; indicates a discontinuity was seen */
    SRC_PLAYER_FIFO_DATA,             /*!< pData -> uint32_t* containing the demux fifo size and depth */
    SRC_PLAYER_AUDIO_FIFO_UNDERRUN    /*!< pData -> NULL */ 
 

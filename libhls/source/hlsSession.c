@@ -1223,7 +1223,7 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
         {
             ERROR("invalid current playlist");
             rval = HLS_ERROR;
-			/* Release playlist lock */
+            /* Release playlist lock */
             pthread_rwlock_unlock(&(pSession->playlistRWLock));
             break;
         }
@@ -1938,141 +1938,139 @@ void hlsSession_playerEvtCallback(hlsSession_t* pSession, srcPlayerEvt_t* pEvt)
             /* Ignore PTS events if we're not currently PLAYING or doing trickmodes */
             if((pSession->state == HLS_PLAYING) && (pSession->speed >= 0) && (pSession->speed <=1))
             {
-	            /* If we haven't gotten a PTS yet, set the initial values */
-	            if(pSession->lastPTS == -1ll) 
-    	        {
-        	        pSession->lastPTS = tempPTS;
+               /* If we haven't gotten a PTS yet, set the initial values */
+               if(pSession->lastPTS == -1ll) 
+               {
+                  pSession->lastPTS = tempPTS;
 
-                    DEBUG(DBG_INFO,"got first PTS %lld -- current position: %5.2f seconds", pSession->lastPTS, 0.0);
-	            }
-    	        else
-        	    {
-	                /* Get playlist WRITE lock */
-    	            pthread_rwlock_wrlock(&(pSession->playlistRWLock));
+                  DEBUG(DBG_INFO,"got first PTS %lld -- current position: %5.2f seconds", pSession->lastPTS, 0.0);
+               }
+               else
+               {
+                  /* Get playlist WRITE lock */
+                  pthread_rwlock_wrlock(&(pSession->playlistRWLock));
 
-        	        if((pSession->pCurrentPlaylist == NULL) ||
-            	       (pSession->pCurrentPlaylist->type != PL_MEDIA) ||
-                       (pSession->pCurrentPlaylist->pMediaData == NULL))
-                	{
-	                    // TODO: do something more drastic??
-    	                ERROR("current playlist is not a valid media playlist");
-        	            /* Release playlist lock */
-            	        pthread_rwlock_unlock(&(pSession->playlistRWLock));
-                	    break;
-	                }
+                  if((pSession->pCurrentPlaylist == NULL) ||
+                        (pSession->pCurrentPlaylist->type != PL_MEDIA) ||
+                        (pSession->pCurrentPlaylist->pMediaData == NULL))
+                  {
+                     // TODO: do something more drastic??
+                     ERROR("current playlist is not a valid media playlist");
+                     /* Release playlist lock */
+                     pthread_rwlock_unlock(&(pSession->playlistRWLock));
+                     break;
+                  }
 
-                    // TODO: is PTS_LIMIT correct???
+                  // TODO: is PTS_LIMIT correct???
 
-    	            /* We need to deal with PTS rollovers */
-        	        if(pSession->speed >= 0) /* 1x PLAY or FFWD */
-            	    {
-                        /* If we're playing forward and we get a PTS smaller than our last one, assume we rolled over */
-                        if(tempPTS < pSession->lastPTS)
+                  /* We need to deal with PTS rollovers */
+                  if(pSession->speed >= 0) /* 1x PLAY or FFWD */
+                  {
+                     /* If we're playing forward and we get a PTS smaller than our last one, assume we rolled over */
+                     if(tempPTS < pSession->lastPTS)
+                     {
+                        DEBUG(DBG_WARN, "possible PTS roll-over...");
+
+                        /* If the PTS difference is greater than .5 the entire PTS range, assume a roll over */
+                        if((pSession->lastPTS - tempPTS) > PTS_LIMIT/2)
                         {
-                            //TODO: noise...
-                            DEBUG(DBG_INFO, "possible PTS roll-over...");
+                           DEBUG(DBG_WARN, "Got a PTS %lld from the past while playing forwards -- rolling over", tempPTS);
 
-                            /* If the PTS difference is greater than .5 the entire PTS range, assume a roll over */
-                            if((pSession->lastPTS - tempPTS) > PTS_LIMIT/2)
-                            {
-                                DEBUG(DBG_WARN, "Got a PTS %lld from the past while playing forwards -- rolling over", tempPTS);
-
-                                /* If we rolled over, subtract the maximum value (2^33) from
-                                   our last PTS and continue from there. */
-                                pSession->lastPTS -= PTS_LIMIT;
-                            }
-                            else
-                            {
-                                /* If we don't roll-over, assume this is a spurious PTS from the past, and just ignore it. */
-                                DEBUG(DBG_WARN, "Got a PTS %lld from the past while playing forwards -- ignoring", tempPTS);
-                                /* Release playlist lock */
-                                pthread_rwlock_unlock(&(pSession->playlistRWLock));
-                                break;
-                            }
+                           /* If we rolled over, subtract the maximum value (2^33) from
+                              our last PTS and continue from there. */
+                           pSession->lastPTS -= PTS_LIMIT;
                         }
-                	}
-                    else /* REW */
-                    {
-                        /* If we're playing backwards and we get a PTS larger than our last one, assume we rolled over */
-                        if(tempPTS > pSession->lastPTS)
+                        else
                         {
-                            //TODO: noise...
-                            DEBUG(DBG_INFO, "possible PTS roll-over...");
-
-                            /* If the PTS difference is greater than .5 the entire PTS range, assume a roll over */
-                            if((tempPTS - pSession->lastPTS) > PTS_LIMIT/2)
-                            {
-                                DEBUG(DBG_WARN, "Got a PTS %lld from the future while playing backwards -- rolling over", tempPTS);
-
-                                /* If we rolled over, add the maximum value (2^33) from
-                                   our last PTS and continue from there. */
-                                pSession->lastPTS += PTS_LIMIT;
-                            }
-                            else
-                            {
-                                /* If we don't roll-over, assume this is a spurious PTS from the future, and just ignore it. */
-                                DEBUG(DBG_WARN, "Got a PTS %lld from the future while playing backwards -- ignoring", tempPTS);
-                                /* Release playlist lock */
-                                pthread_rwlock_unlock(&(pSession->playlistRWLock));
-                                break;
-                            }
+                           /* If we don't roll-over, assume this is a spurious PTS from the past, and just ignore it. */
+                           DEBUG(DBG_WARN, "Got a PTS %lld from the past while playing forwards -- ignoring", tempPTS);
+                           /* Release playlist lock */
+                           pthread_rwlock_unlock(&(pSession->playlistRWLock));
+                           break;
                         }
-                    }
+                     }
+                  }
+                  else /* REW */
+                  {
+                     /* If we're playing backwards and we get a PTS larger than our last one, assume we rolled over */
+                     if(tempPTS > pSession->lastPTS)
+                     {
+                        DEBUG(DBG_WARN, "possible PTS roll-over...");
 
-	                DEBUG(DBG_INFO,"CurrentPTS = %lld, lastPTS= %lld, %5.2f since last PTS", tempPTS, pSession->lastPTS, ptsToSeconds(tempPTS) - ptsToSeconds(pSession->lastPTS));
+                        /* If the PTS difference is greater than .5 the entire PTS range, assume a roll over */
+                        if((tempPTS - pSession->lastPTS) > PTS_LIMIT/2)
+                        {
+                           DEBUG(DBG_WARN, "Got a PTS %lld from the future while playing backwards -- rolling over", tempPTS);
 
-    	            /* Decrease our total time buffered */
-        	        pSession->timeBuffered -= ptsToSeconds(tempPTS) - ptsToSeconds(pSession->lastPTS);
+                           /* If we rolled over, add the maximum value (2^33) from
+                              our last PTS and continue from there. */
+                           pSession->lastPTS += PTS_LIMIT;
+                        }
+                        else
+                        {
+                           /* If we don't roll-over, assume this is a spurious PTS from the future, and just ignore it. */
+                           DEBUG(DBG_WARN, "Got a PTS %lld from the future while playing backwards -- ignoring", tempPTS);
+                           /* Release playlist lock */
+                           pthread_rwlock_unlock(&(pSession->playlistRWLock));
+                           break;
+                        }
+                     }
+                  }
 
-            	    /* Update our position */
-                	pSession->pCurrentPlaylist->pMediaData->positionFromEnd -= ptsToSeconds(tempPTS) - ptsToSeconds(pSession->lastPTS);
+                  DEBUG(DBG_INFO,"CurrentPTS = %lld, lastPTS= %lld, %5.2f since last PTS", tempPTS, pSession->lastPTS, ptsToSeconds(tempPTS) - ptsToSeconds(pSession->lastPTS));
 
-	                /* Save the new PTS */
-    	            pSession->lastPTS = tempPTS;
+                  /* Decrease our total time buffered */
+                  pSession->timeBuffered -= ptsToSeconds(tempPTS) - ptsToSeconds(pSession->lastPTS);
 
-                    DEBUG(DBG_INFO,"got PTS %lld -- current position: %5.2f seconds", pSession->lastPTS, 
-                          pSession->pCurrentPlaylist->pMediaData->duration - pSession->pCurrentPlaylist->pMediaData->positionFromEnd - pSession->pCurrentPlaylist->pMediaData->startOffset);
+                  /* Update our position */
+                  pSession->pCurrentPlaylist->pMediaData->positionFromEnd -= ptsToSeconds(tempPTS) - ptsToSeconds(pSession->lastPTS);
 
-        	        /* Release playlist lock */
-                	pthread_rwlock_unlock(&(pSession->playlistRWLock));
-	            }
+                  /* Save the new PTS */
+                  pSession->lastPTS = tempPTS;
 
-    	        DEBUG(DBG_INFO,"%f seconds left in buffer", pSession->timeBuffered);
-			}
+                  DEBUG(DBG_INFO,"got PTS %lld -- current position: %5.2f seconds", pSession->lastPTS, 
+                        pSession->pCurrentPlaylist->pMediaData->duration - pSession->pCurrentPlaylist->pMediaData->positionFromEnd - pSession->pCurrentPlaylist->pMediaData->startOffset);
+
+                  /* Release playlist lock */
+                  pthread_rwlock_unlock(&(pSession->playlistRWLock));
+               }
+
+               DEBUG(DBG_INFO,"%f seconds left in buffer", pSession->timeBuffered);
+            }
             break;
         case SRC_PLAYER_DISCONTINUITY:
             /* Ignore discontinuity events if we're not PLAYING or doing trickmodes */
             if((pSession->state == HLS_PLAYING) && (pSession->speed >= 0) && (pSession->speed <=1))
             {
-	            /* Get playlist WRITE lock */
-    	        pthread_rwlock_wrlock(&(pSession->playlistRWLock));
+               /* Get playlist WRITE lock */
+              pthread_rwlock_wrlock(&(pSession->playlistRWLock));
 
-        	    /* Verify currentPlaylist */
-            	if((pSession->pCurrentPlaylist == NULL) ||
-	               (pSession->pCurrentPlaylist->type != PL_MEDIA) ||
+             /* Verify currentPlaylist */
+               if((pSession->pCurrentPlaylist == NULL) ||
+                  (pSession->pCurrentPlaylist->type != PL_MEDIA) ||
                    (pSession->pCurrentPlaylist->pMediaData == NULL))
-    	        {
-        	        // TODO: do something more drastic??
-            	    ERROR("current playlist is not a media playlist");
-                	/* Release playlist lock */
-	                pthread_rwlock_unlock(&(pSession->playlistRWLock));
-    	            break;
-        	    }
+              {
+                 // TODO: do something more drastic??
+                   ERROR("current playlist is not a media playlist");
+                  /* Release playlist lock */
+                   pthread_rwlock_unlock(&(pSession->playlistRWLock));
+                  break;
+             }
 
-	            /* Get the current aboslute playlist position (duration - positionFromEnd) */
-    	        time = pSession->pCurrentPlaylist->pMediaData->duration;
+               /* Get the current aboslute playlist position (duration - positionFromEnd) */
+              time = pSession->pCurrentPlaylist->pMediaData->duration;
                 time -= pSession->pCurrentPlaylist->pMediaData->positionFromEnd;
     
-            	/* Find the segment the media player is currently playing */
-	            status = getSegmentXSecFromStart(pSession->pCurrentPlaylist, time, &pSegment);
-    	        if(status != HLS_OK) 
-        	    {
-            	    // TODO: do something more drastic??
-                	ERROR("failed to find segment in playlist");
-	                /* Release playlist lock */
-    	            pthread_rwlock_unlock(&(pSession->playlistRWLock));
-        	        break;
-            	}
+               /* Find the segment the media player is currently playing */
+               status = getSegmentXSecFromStart(pSession->pCurrentPlaylist, time, &pSegment);
+              if(status != HLS_OK) 
+             {
+                   // TODO: do something more drastic??
+                  ERROR("failed to find segment in playlist");
+                   /* Release playlist lock */
+                  pthread_rwlock_unlock(&(pSession->playlistRWLock));
+                 break;
+               }
             
                 /* Get the segment's node */
                 if(pSegment->pParentNode != NULL) 
@@ -2088,59 +2086,59 @@ void hlsSession_playerEvtCallback(hlsSession_t* pSession, srcPlayerEvt_t* pEvt)
                     break;
                 }
 
-	            // TODO: If we don't find a discontinuity, do we want to kill playback??
+               // TODO: If we don't find a discontinuity, do we want to kill playback??
 
-    	        /* Find the next node that has a discontinuity */
-        	    while(status == HLS_OK) 
-            	{
-                	/* Did we run out of segments or hit an empty one? */
-	                if((pSegmentNode == NULL) || (pSegmentNode->pData == NULL))
-    	            {
-        	            ERROR("NULL or empty node in segment linked list");
-            	        status = HLS_ERROR;
-                	    break;
-	                }
+              /* Find the next node that has a discontinuity */
+             while(status == HLS_OK) 
+               {
+                  /* Did we run out of segments or hit an empty one? */
+                   if((pSegmentNode == NULL) || (pSegmentNode->pData == NULL))
+                  {
+                     ERROR("NULL or empty node in segment linked list");
+                       status = HLS_ERROR;
+                      break;
+                   }
     
-    	            pSegment = (hlsSegment_t*)(pSegmentNode->pData);
+                  pSegment = (hlsSegment_t*)(pSegmentNode->pData);
                 
-        	        /* Does this segment have a discontinuity signalled? */
-            	    if(pSegment->bDiscontinuity) 
-                	{
-                    	/* Get the current position from end of this segment */
-	                    status = getPositionFromEnd(pSession->pCurrentPlaylist, pSegment, &time);
-    	                if(status != HLS_OK) 
-        	            {
-            	            ERROR("failed to get segment position");
-                	        break;
-                    	}
+                 /* Does this segment have a discontinuity signalled? */
+                   if(pSegment->bDiscontinuity) 
+                  {
+                     /* Get the current position from end of this segment */
+                       status = getPositionFromEnd(pSession->pCurrentPlaylist, pSegment, &time);
+                      if(status != HLS_OK) 
+                     {
+                           ERROR("failed to get segment position");
+                          break;
+                     }
     
-	                    /* We're done searching -- break */
-    	                break;
-        	        }
+                       /* We're done searching -- break */
+                      break;
+                 }
     
-            	    pSegmentNode = pSegmentNode->pNext;
-	            }
-    	        if(status != HLS_OK) 
-        	    {
-            	    // TODO: do something more drastic??
-                	/* Release playlist lock */
-	                pthread_rwlock_unlock(&(pSession->playlistRWLock));
-    	            break;
-            	}
+                   pSegmentNode = pSegmentNode->pNext;
+               }
+              if(status != HLS_OK) 
+             {
+                   // TODO: do something more drastic??
+                  /* Release playlist lock */
+                   pthread_rwlock_unlock(&(pSession->playlistRWLock));
+                  break;
+               }
     
-	            /* Update our startingOffsetFromEnd to be the current offset from end of the discontinuous segment */
-    	        pSession->pCurrentPlaylist->pMediaData->positionFromEnd = time;
-	
-        	    /* Release playlist lock */
-    	        pthread_rwlock_unlock(&(pSession->playlistRWLock));
+               /* Update our startingOffsetFromEnd to be the current offset from end of the discontinuous segment */
+              pSession->pCurrentPlaylist->pMediaData->positionFromEnd = time;
+   
+             /* Release playlist lock */
+              pthread_rwlock_unlock(&(pSession->playlistRWLock));
             
-	            // TODO: need to update buffer length...how? -- above: positionFromEnd - time???
+               // TODO: need to update buffer length...how? -- above: positionFromEnd - time???
 
-	            /* Reset the PTS value */
-	            pSession->lastPTS = *((long long*)(pEvt->pData));
+               /* Reset the PTS value */
+               pSession->lastPTS = *((long long*)(pEvt->pData));
 
-	            DEBUG(DBG_INFO,"got DISCONTINUITY with PTS %lld", pSession->lastPTS);
-			}
+               DEBUG(DBG_INFO,"got DISCONTINUITY with PTS %lld", pSession->lastPTS);
+         }
             break;
         case SRC_PLAYER_AUDIO_FIFO_UNDERRUN:
             /* Signal the player audio FIFO underrun to the playback controller thread */
