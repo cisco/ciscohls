@@ -172,7 +172,26 @@ AC_ARG_ENABLE([keyuri],
 AC_MSG_RESULT(${enable_keyuri})
 if test "${enable_keyuri}" = "yes"; then
        AC_DEFINE( [ENABLE_KEY_RETRIEVAL],[1],[ Will download the key from a keyuri, this is not default behavior.]) 
-    fi
+fi
+
+#
+# use syslog for logging 
+#
+AC_MSG_CHECKING(use syslog)
+AC_ARG_ENABLE([syslog],
+[
+   AS_HELP_STRING([--enable-syslog],
+      [If enabled then logs will be sent to syslog])
+],
+[
+   AC_MSG_RESULT(yes)
+   AC_DEFINE([OPT_USE_SYSLOG],[1],[use syslog])
+   use_syslog=yes
+],
+[
+   AC_MSG_RESULT(no)
+   use_syslog=no
+])
 
 #this tells autoconf what files to generate
 # we aare generating the Makefile from Makefile.am

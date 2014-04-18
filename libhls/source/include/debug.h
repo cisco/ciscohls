@@ -37,8 +37,13 @@ extern "C" {
 #include <stdio.h>
 #include <time.h>
 
-/* TODO - pass this through a configure option */
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
+
+#ifdef OPT_USE_SYSLOG
 #define USE_SYSLOG
+#endif
 
 #define DEBUG_MSG(x, ...) "[%s:%d] " x "\n", __FUNCTION__, __LINE__, ##__VA_ARGS__
 #define TS_MSG(ts, x, ...) "[TS:%10f]:" x "\n", ((ts.tv_sec)*1.0) + (ts.tv_nsec/1000000000.0), ##__VA_ARGS__
