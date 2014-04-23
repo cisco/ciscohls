@@ -52,7 +52,7 @@ extern "C" {
 #define BUFFER_WAIT_SECS 1
 
 /* Number of seconds to wait for more data to be downloaded */
-#define DATA_WAIT_SECS 1
+#define DATA_WAIT_SECS (1)
 
 /* Local types */
 
@@ -67,8 +67,6 @@ typedef struct
     long* pBytesDownloaded;         /*!< Pointer to integer into which to write the number of bytes downloaded */
     int* pbKillThread;              /*!< Pointer to flag which will signal the thread to terminate when it is TRUE */
     hlsStatus_t* pDownloadStatus;   /*!< Pointer to #hlsStatus_t which will contain the thread's exit status */
-    pthread_mutex_t* downloaderWaitMutex; /*!< Pointer to the downloader wait mutex */
-    pthread_cond_t* downloaderWaitCondition; /*!< Pointer to the download wait condition that notifies when a segment has finished downloading */
 } asyncDlDesc_t;
 
 /* Local function prototypes */
@@ -230,8 +228,7 @@ hlsStatus_t getNextSegment(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegme
             }
             else
             {
-                //TODO: noise...
-                 DEBUG(DBG_INFO,"this is the next segment");
+                 DEBUG(DBG_NOISE,"this is the next segment");
                 /* We want the next segment */
                 *ppSegment = (hlsSegment_t*)(pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode->pNext->pData);
 
@@ -945,8 +942,6 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession, hlsSegment_t* pSegmen
     long bytesDownloaded = 0;
     hlsStatus_t dlStatus = HLS_OK;
     int bKillThread = 0;
-    pthread_mutex_t downloaderWaitMutex;
-    pthread_cond_t downloaderWaitCondition;
 
     srcPlayerSetData_t playerSetData;
 
@@ -1001,20 +996,6 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession, hlsSegment_t* pSegmen
             break;
         }
 
-        /* Initialize downloader wait thread mutex/condition */
-        if(pthread_mutex_init(&(downloaderWaitMutex), NULL) != 0)
-        {
-            ERROR("failed to initialize downloader wake mutex");
-            rval = HLS_ERROR;
-            break;
-        }
-        if(pthread_cond_init(&(downloaderWaitCondition), NULL) != 0) 
-        {
-            ERROR("failed to initialize downloader wake condition");
-            rval = HLS_ERROR;
-            break;
-        }
-
         /* Populate the async download descriptor structure */
         desc.pSession = pSession;
         desc.pSegment = pSegment;
@@ -1022,8 +1003,6 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession, hlsSegment_t* pSegmen
         desc.pBytesDownloaded = &bytesDownloaded;
         desc.pDownloadStatus = &dlStatus;
         desc.pbKillThread = &bKillThread;
-        desc.downloaderWaitMutex = &downloaderWaitMutex;
-        desc.downloaderWaitCondition = &downloaderWaitCondition;
 
         /* Kick off a separate thread to go off and do the download */
         if(pthread_create(&(asyncDlThread), NULL, (void*)asyncSegmentDownloadThread, &desc))
@@ -1148,8 +1127,6 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession, hlsSegment_t* pSegmen
                         /* If the download is currently in progress, we need to find out the current size
                            of the file. */
                         
-                        pthread_mutex_lock(&downloaderWaitMutex);
-
                         /* Move the pointer to the end of the file */
                         if(fseek(fpRead, 0, SEEK_END) == 0) 
                         {
@@ -1159,7 +1136,6 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession, hlsSegment_t* pSegmen
                             {
                                 ERROR("ftell() failed on file %s -- %s", filePath, strerror(errno));
                                 rval = HLS_FILE_ERROR;
-                                pthread_mutex_unlock(&downloaderWaitMutex);
                                 break;
                             }
 
@@ -1177,13 +1153,14 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession, hlsSegment_t* pSegmen
                                 else
                                 {
                                    /* Wait for more data... */
-                                   struct timespec waitTime = {};
-                                   waitTime.tv_sec = time(NULL) + DATA_WAIT_SECS;
-    
-                                   DEBUG(DBG_WARN,"wait for %d seconds until more data is downloaded", DATA_WAIT_SECS);
-    
-                                   PTHREAD_COND_TIMEDWAIT(&downloaderWaitCondition, &downloaderWaitMutex, &waitTime);
-                                   pthread_mutex_unlock(&downloaderWaitMutex);
+                                   wakeTime.tv_sec += DATA_WAIT_SECS;
+
+                                   DEBUG(DBG_WARN, "wait for %d seconds until more data is downloaded", DATA_WAIT_SECS);
+                                   pthread_mutex_lock(&(pSession->downloaderWakeMutex));
+
+                                   PTHREAD_COND_TIMEDWAIT(&(pSession->downloaderWakeCond), &(pSession->downloaderWakeMutex), &wakeTime);
+                                   
+                                   pthread_mutex_unlock(&(pSession->downloaderWakeMutex));
                                    continue;
                                 }
                             }
@@ -1192,13 +1169,10 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession, hlsSegment_t* pSegmen
                         {
                             ERROR("fseek() failed on file %s -- %s", filePath, strerror(errno));
                             rval = HLS_FILE_ERROR;
-                            pthread_mutex_unlock(&downloaderWaitMutex);
                             break;
                         }
 
-                        pthread_mutex_unlock(&downloaderWaitMutex);
                     } 
-
 
                     /* Seek to current read posiiton */
                     if(fseek(fpRead, bytesRead, SEEK_SET) != 0) 
@@ -1228,7 +1202,7 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession, hlsSegment_t* pSegmen
 
                        bufferMeta.keyURI = pSegment->keyURI;
                        memcpy( bufferMeta.key,pSegment->key, 16);
-                       DEBUG(DBG_WARN, "Sending metadata info - first buffer of the segment");
+                       DEBUG(DBG_NOISE, "Sending metadata info - first buffer of the segment");
                        status = hlsPlayer_sendBuffer(pSession->pHandle, buffer, readSize, &bufferMeta, pPrivate);
                     }
                     else
@@ -1479,7 +1453,6 @@ void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc)
 
             /* Lock cURL mutex */
             pthread_mutex_lock(&(pDesc->pSession->curlMutex));
-            pthread_mutex_lock(pDesc->downloaderWaitMutex);
 
             /* Download segment */
             status = curlDownloadFile(pDesc->pSession->pCurl, pDesc->pSegment->URL, &dlHandle, dlOffset, dlLength);
@@ -1490,8 +1463,6 @@ void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc)
                     DEBUG(DBG_WARN, "download stopped");
                     /* Unlock cURL mutex */
                     pthread_mutex_unlock(&(pDesc->pSession->curlMutex));
-                    pthread_cond_signal(pDesc->downloaderWaitCondition);
-                    pthread_mutex_unlock(pDesc->downloaderWaitMutex);
                     break;
                 }
                 else if(status == HLS_DL_ERROR) 
@@ -1510,14 +1481,9 @@ void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc)
                         ERROR("fflush() failed on file %s -- %s", filePath, strerror(errno));
                         status = HLS_FILE_ERROR;
 
-                        pthread_cond_signal(pDesc->downloaderWaitCondition);
-                        pthread_mutex_unlock(pDesc->downloaderWaitMutex);
                         break;
                     }
 
-                    pthread_cond_signal(pDesc->downloaderWaitCondition);
-                    pthread_mutex_unlock(pDesc->downloaderWaitMutex);
-            
                     /* Get the total number of bytes written to disk */
                     *(pDesc->pBytesDownloaded) = ftell(fpWrite);
                     if(*(pDesc->pBytesDownloaded) == -1) 
@@ -1540,8 +1506,6 @@ void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc)
                     /* Unlock cURL mutex */
                     pthread_mutex_unlock(&(pDesc->pSession->curlMutex));
 
-                    pthread_cond_signal(pDesc->downloaderWaitCondition);
-                    pthread_mutex_unlock(pDesc->downloaderWaitMutex);
                     break;
                 }
             }
@@ -1549,8 +1513,6 @@ void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc)
             {
                 /* Download successful -- leave the loop */
 
-                pthread_cond_signal(pDesc->downloaderWaitCondition);
-                pthread_mutex_unlock(pDesc->downloaderWaitMutex);
                 break;
             }
 

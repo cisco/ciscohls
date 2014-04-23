@@ -285,8 +285,8 @@ void hlsSession_term(hlsSession_t* pSession)
 {
     DEBUG(DBG_INFO,"%s", __FUNCTION__);
     
-    // TODO: remove eventually...
-    hlsSession_printInfo(pSession);
+    // TODO: enable for debugging via env var/ compile time flag??? 
+    //hlsSession_printInfo(pSession);
 
     if(pSession != NULL) 
     {

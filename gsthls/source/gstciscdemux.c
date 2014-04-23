@@ -14,6 +14,8 @@
 #  include <config.h>
 #endif
 
+#include <stdio.h>  /* sprintf */ 
+#include <stdlib.h> /* malloc/free */
 #include <time.h>
 
 #include <gst/gst.h>
@@ -64,7 +66,7 @@ static void gst_ciscdemux_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
 
 static GstFlowReturn gst_ciscdemux_chain (GstPad * pad, GstBuffer * buf);
-static GstPadLinkReturn gst_ciscdemux_src_link(GstPad *pad, GstPad *peer);
+static GstPadLinkReturn gst_ciscdemux_src_link(GstPad *srcPad, GstPad *peerPad);
 static GstStateChangeReturn gst_cscohlsdemuxer_change_state (GstElement * element, GstStateChange transition);
 
 static gboolean gst_cscohlsdemuxer_sink_event (GstPad * pad, GstEvent * event);
@@ -377,31 +379,84 @@ gst_ciscdemux_chain (GstPad * pad, GstBuffer * buf)
    return GST_FLOW_OK;
 }
 
-static GstPadLinkReturn gst_ciscdemux_src_link(GstPad *pad, GstPad *peer) 
+static GstPadLinkReturn gst_ciscdemux_src_link(GstPad *srcPad, GstPad *peerPad) 
 {
-   GstElement *pElement;
-   Gstciscdemux *demux = GST_CISCDEMUX(gst_pad_get_parent(pad));
+   Gstciscdemux     *demux = NULL; 
+   gchar            *srcPadName = NULL;
+   GstElement       *pPeerElement = NULL;
+   gchar            *peerElementName = NULL;
+   gchar            *peerPadName = NULL;
+   GstPadLinkReturn ret = GST_PAD_LINK_REFUSED;
 
-   gchar *peerName = gst_pad_get_name(peer);
-   pElement = (GstElement*) gst_pad_get_parent_element (pad); 
-   GST_WARNING("---->[%s]Src Link with peer %s (Element %s)  %s (Element ?)(Pad %p %p)\n", 
-               __FUNCTION__, gst_pad_get_name(pad),GST_ELEMENT_NAME(pElement), peerName,pad,peer);
-
-   pElement = (GstElement*) gst_pad_get_parent_element (peer); 
-   if(pElement)
+   demux = GST_CISCDEMUX(gst_pad_get_parent(srcPad));
+   if(NULL == demux)
    {
-      GST_WARNING("Peer Element: %s\n", GST_ELEMENT_NAME(pElement));
+      GST_ERROR("Gstciscdemux ptr is NULL\n");
+      goto fn_exit;
    }
-
-   g_free(peerName);
-
-   if (GST_PAD_LINKFUNC (peer)) 
+ 
+   srcPadName = gst_pad_get_name(srcPad);
+   if(NULL != srcPadName)
    {
-      GST_PAD_LINKFUNC (peer) (peer, pad);
+      GST_INFO("srcPadName: %s\n", srcPadName);
+   }
+   
+   peerPadName = gst_pad_get_name(peerPad);
+   if(NULL != peerPadName)
+   {
+      GST_INFO("peerPadName: %s\n", peerPadName);
+   }
+   
+   pPeerElement = (GstElement*) gst_pad_get_parent_element(peerPad); 
+   if(NULL != pPeerElement)
+   {
+      peerElementName = gst_element_get_name(pPeerElement);
+      if(NULL != peerElementName)
+      {
+         GST_INFO("peerElementName: %s\n", peerElementName);
+      }
+   }
+   
+   if(GST_PAD_LINKFUNC (peerPad)) 
+   {
+      GST_PAD_LINKFUNC (peerPad) (peerPad, srcPad);
    }    
 
-   demux->downstream_peer_pad = peer;
-   return GST_PAD_LINK_OK;
+   demux->downstream_peer_pad = peerPad;
+   ret = GST_PAD_LINK_OK;
+
+fn_exit:
+   /* free ref */
+   if(NULL != peerPadName)
+   {
+      g_free(peerPadName);
+      peerPadName = NULL;
+   }
+   
+   if(NULL != peerElementName)
+   {
+      g_free(peerElementName);
+      peerElementName = NULL;
+   }
+   
+   if(NULL != pPeerElement)
+   {
+      gst_object_unref(pPeerElement);
+      pPeerElement = NULL;
+   }
+   
+   if(NULL != srcPadName)
+   {
+      g_free(srcPadName);
+      srcPadName = NULL;
+   }
+   
+   if(NULL != demux)
+   {
+      gst_object_unref(demux);
+      demux = NULL;
+   }
+   return ret;
 }     
 
 
@@ -447,12 +502,18 @@ GST_PLUGIN_DEFINE (
 
 static gboolean gst_cscohlsdemuxer_src_query (GstPad * pad, GstQuery * query)
 {
-  Gstciscdemux *demux = GST_CISCDEMUX (gst_pad_get_parent(pad));
+  Gstciscdemux *demux = NULL;
   gboolean ret = FALSE;
 
   if (query == NULL)
     return FALSE;
 
+  demux = GST_CISCDEMUX(gst_pad_get_parent(pad));
+  if(NULL == demux)
+  {
+     GST_ERROR("Gstciscdemux ptr is NULL\n");
+     return FALSE;
+  }
 
   switch (query->type) 
   {
@@ -490,13 +551,24 @@ static gboolean gst_cscohlsdemuxer_src_query (GstPad * pad, GstQuery * query)
         break;
   } //end of switch
 
+  if(NULL != demux)
+  {
+     gst_object_unref(demux);
+     demux = NULL;
+  }
   return ret;
 }
 
 static gboolean gst_cscohlsdemuxer_src_event (GstPad * pad, GstEvent * event)
 {
-   Gstciscdemux *demux = GST_CISCDEMUX (gst_pad_get_parent(pad));
    gboolean res = FALSE;
+   Gstciscdemux *demux = GST_CISCDEMUX(gst_pad_get_parent(pad));
+
+   if(NULL == demux)
+   {
+      GST_ERROR("Gstciscdemux ptr is NULL\n");
+      return FALSE;
+   }
 
    switch (event->type)
    {
@@ -505,25 +577,33 @@ static gboolean gst_cscohlsdemuxer_src_event (GstPad * pad, GstEvent * event)
          GST_WARNING("Got seek event!");
          res = gst_cisco_hls_seek (demux, event);
          gst_event_unref(event);
+         gst_object_unref(demux);
          return res;
       }
       default: 
          break;
    }//end of switch
 
+   gst_object_unref(demux);
+   
    return gst_pad_event_default(pad,event);
 }
 
 static gboolean gst_cscohlsdemuxer_sink_event (GstPad * pad, GstEvent * event)
 {
-  gboolean ret;
-  gchar *uri;
-  GstQuery *query;
-  Gstciscdemux *demux = GST_CISCDEMUX (gst_pad_get_parent(pad));
+   gboolean ret;
+   gchar *uri;
+   GstQuery *query;
+   Gstciscdemux *demux = GST_CISCDEMUX (gst_pad_get_parent(pad));
+   
+   if(NULL == demux)
+   {
+      GST_ERROR("Gstciscdemux ptr is NULL\n");
+      return FALSE;
+   }
 
-
-  switch (event->type)
-  {
+   switch (event->type)
+   {
       case GST_EVENT_EOS:
          GST_WARNING_OBJECT(demux, "Got EOS for the playlist");
          /* This means that the source was able to retreive the m3u8 url playlist.
@@ -560,7 +640,7 @@ static gboolean gst_cscohlsdemuxer_sink_event (GstPad * pad, GstEvent * event)
             }while(0);
             // we can now set the uri with the cisco plugin.
             cisco_hls_start(demux, uri); 
-            
+
             //ok free the uri string
             g_free(uri);
          }
@@ -572,15 +652,20 @@ static gboolean gst_cscohlsdemuxer_sink_event (GstPad * pad, GstEvent * event)
             break;
          }
          gst_event_unref(event);
+         gst_object_unref(demux);
          return TRUE;
       case GST_EVENT_NEWSEGMENT:
          // ignor these
          gst_event_unref(event);
+         gst_object_unref(demux);
          return TRUE;
       default:
          break;
-  }//end of switch
-  return gst_pad_event_default (pad, event);
+   }//end of switch
+   
+   gst_object_unref(demux);
+   
+   return gst_pad_event_default (pad, event);
 }
 static GstStateChangeReturn gst_cscohlsdemuxer_change_state (GstElement * element, GstStateChange transition)
 {
@@ -1061,11 +1146,20 @@ static gboolean cisco_hls_close(Gstciscdemux *demux)
    srcStatus_t stat = SRC_SUCCESS;
 
    pthread_mutex_lock(&demux->PTSMutex);
-   demux->bKillPTSThread = TRUE;
-   pthread_mutex_unlock(&demux->PTSMutex);
    
+   demux->bKillPTSThread = TRUE;
+   
+   GST_DEBUG("Timestamp before killing pts thread : %d\n", time(NULL));
+   /* Wake up the PTS thread if it is sleeping */
+   pthread_cond_signal(&demux->PTSThreadCond);
+   
+   pthread_mutex_unlock(&demux->PTSMutex);
+  
    pthread_join(demux->getPTSThread, NULL);
+   GST_DEBUG("Timestamp after killing pts thread : %d\n", time(NULL));
 
+   GST_DEBUG("Timestamp before calling hls close : %d\n", time(NULL));
+   
    stat = demux->HLS_pluginTable.close(demux->pCscoHlsSession->pSessionID, &errTable);
    if (stat != SRC_SUCCESS)
    {
@@ -1075,6 +1169,8 @@ static gboolean cisco_hls_close(Gstciscdemux *demux)
    {
       GST_LOG("Done closing the HLS plugin session\n"); 
    }
+   
+   GST_DEBUG("Timestamp when hls close returns : %d\n", time(NULL));
 
    free(demux->pCscoHlsSession);
    if(demux->LicenseID){g_free(demux->LicenseID);}
@@ -1249,6 +1345,7 @@ static void * getCurrentPTSNotify(void *data)
       if (!rc) 
       {
          GST_WARNING("could not get pts");
+         gst_query_unref(query);
          continue;
       }    
 
@@ -1257,6 +1354,7 @@ static void * getCurrentPTSNotify(void *data)
       if (val == NULL) 
       {
          GST_WARNING("could not get pts");
+         gst_query_unref(query);
          continue;
       }    
 
@@ -1264,10 +1362,11 @@ static void * getCurrentPTSNotify(void *data)
       if(NULL == ptr)
       {
          GST_WARNING("pts value is 0\n");
+         gst_query_unref(query);
          continue;
       }
 
-      memcpy((gchar *)&pts_45khz, (gchar *)&ptr, sizeof(ptr)); 
+      memcpy((gchar *)&pts_45khz, (gchar *)&ptr, sizeof(pts_45khz)); 
 
       GST_DEBUG("Current 45khz based PTS %u\n", pts_45khz);
       pts_90khz = ((long long)pts_45khz) << 1;
