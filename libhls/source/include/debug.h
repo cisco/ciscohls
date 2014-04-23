@@ -41,10 +41,6 @@ extern "C" {
 #include <config.h>
 #endif
 
-#ifdef OPT_USE_SYSLOG
-#define USE_SYSLOG
-#endif
-
 #define DEBUG_MSG(x, ...) "[%s:%d] " x "\n", __FUNCTION__, __LINE__, ##__VA_ARGS__
 #define TS_MSG(ts, x, ...) "[TS:%10f]:" x "\n", ((ts.tv_sec)*1.0) + (ts.tv_nsec/1000000000.0), ##__VA_ARGS__
 #define DEBUG_TS_MSG(ts, x, ...) TS_MSG(ts, "[%s:%d] " x, __FUNCTION__, __LINE__, ##__VA_ARGS__)
@@ -95,7 +91,7 @@ extern "C" {
     } while (0)
 #endif
   
-#elif defined(USE_SYSLOG)
+#elif defined(OPT_USE_SYSLOG)
 #include <syslog.h>
 
 /* There is no matching level for DBG_OFF in syslog. So assigning a value outside of 
