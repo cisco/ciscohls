@@ -53,6 +53,9 @@ hlsStatus_t hlsSession_stop(hlsSession_t* pSession);
 hlsStatus_t hlsSession_seek(hlsSession_t* pSession, float position);
 hlsStatus_t hlsSession_getDuration(hlsSession_t* pSession, float* pDuration);
 hlsStatus_t hlsSession_getCurrentPosition(hlsSession_t* pSession, float* pPosition);
+hlsStatus_t hlsSession_getSpeed(hlsSession_t* pSession, float* pSpeed);
+hlsStatus_t hlsSession_getTrickSupported(hlsSession_t* pSession, int *bTrickSupported);
+hlsStatus_t hlsSession_getContentType(hlsSession_t* pSession, hlsContentType_t *contentType);
 
 void hlsSession_playerEvtCallback(hlsSession_t* pSession, srcPlayerEvt_t* pEvt);
 

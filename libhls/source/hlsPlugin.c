@@ -1081,6 +1081,70 @@ srcStatus_t hlsPlugin_get(srcSessionId_t sessionId, srcPluginGetData_t* pGetData
                     break;
                 }
                 break;
+            case SRC_PLUGIN_GET_SPEED:
+                DEBUG(DBG_INFO,"getting current speed for session %p", (void*)sessionId);
+        
+                status = hlsSession_getSpeed(thePlugin.hlsSessions[sessionIndex], (float*)(pGetData->pData));
+                if(status != HLS_OK) 
+                {
+                    ERROR("hlsSession_getSpeed failed on session %p with status: %d", (void*)sessionId, status);
+                    if(pErr != NULL) 
+                    {
+                        pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
+                        snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("hlsSession_getSpeed failed on session %p with status: %d", (void*)sessionId, status));
+                    }
+                    rval = SRC_ERROR;
+                    break;
+                }
+                break;
+            case SRC_PLUGIN_GET_TRICK_SUPPORTED:
+                DEBUG(DBG_INFO,"getting trick supported for session %p", (void*)sessionId);
+        
+                status = hlsSession_getTrickSupported(thePlugin.hlsSessions[sessionIndex], (int*)(pGetData->pData));
+                if(status != HLS_OK) 
+                {
+                    ERROR("hlsSession_getTrickSupported failed on session %p with status: %d", (void*)sessionId, status);
+                    if(pErr != NULL) 
+                    {
+                        pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
+                        snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("hlsSession_getTrickSupported failed on session %p with status: %d", (void*)sessionId, status));
+                    }
+                    rval = SRC_ERROR;
+                    break;
+                }
+                break;
+            case SRC_PLUGIN_GET_CONTENT_TYPE:
+                {
+                   hlsContentType_t contentType = HLS_UNSPECIFIED;
+                   DEBUG(DBG_INFO,"getting content type for session %p", (void*)sessionId);
+
+                   status = hlsSession_getContentType(thePlugin.hlsSessions[sessionIndex], &contentType);
+                   if(status != HLS_OK) 
+                   {
+                      ERROR("hlsSession_getContentType failed on session %p with status: %d", (void*)sessionId, status);
+                      if(pErr != NULL) 
+                      {
+                         pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
+                         snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, 
+                                  DEBUG_MSG("hlsSession_getContentType failed on session %p with status: %d", 
+                                  (void*)sessionId, status));
+                      }
+                      rval = SRC_ERROR;
+                      break;
+                   }
+                   else
+                   {
+                      if(HLS_EVENT == contentType)
+                      {
+                         *((hlsContentType_t *)pGetData->pData) = SRC_PLUGIN_CONTENT_TYPE_LIVE;
+                      }
+                      else
+                      {
+                         *((hlsContentType_t *)pGetData->pData) = SRC_PLUGIN_CONTENT_TYPE_VOD;
+                      }
+                   }
+                }
+                break;
             default:
                 ERROR("unknown srcPlayerGetCode_t value: %d", pGetData->getCode);
                 if(pErr != NULL) 

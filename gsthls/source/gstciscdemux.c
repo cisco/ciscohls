@@ -318,6 +318,7 @@ gst_ciscdemux_init (Gstciscdemux * demux,
   demux->bKillPTSThread = FALSE;
   demux->playerEvtCb = NULL;
   demux->downstream_peer_pad = NULL;
+  demux->uri = NULL;
   
   if(0 != pthread_mutex_init(&demux->PTSMutex, NULL))
   {
@@ -544,6 +545,86 @@ static gboolean gst_cscohlsdemuxer_src_query (GstPad * pad, GstQuery * query)
            ret = FALSE;
            break;
         }
+     case GST_QUERY_CUSTOM:
+        {
+           ret = FALSE;
+           GST_DEBUG("Custom query\n");
+           GstStructure *pStruct = gst_query_get_structure(query);
+           if(gst_structure_has_name(pStruct, "getTrickSpeeds"))
+           {
+              GST_DEBUG("getTrickSpeeds query\n");
+              
+              srcPluginGetData_t     getData = {};
+              int                    bTrickSupported = 0;
+              srcPluginContentType_t contentType;
+              char                   speeds[128] = "";
+              tSession               *pSession = NULL;
+              srcPluginErr_t         errTable = {};
+              srcStatus_t            stat = SRC_SUCCESS;
+
+              pSession = demux->pCscoHlsSession;
+              if ( pSession == NULL )
+              {      
+                 GST_ERROR("libhls session is NULL!\n");
+                 ret = FALSE;
+                 break;
+              }
+
+              getData.getCode = SRC_PLUGIN_GET_TRICK_SUPPORTED;
+              getData.pData = &bTrickSupported;
+
+              stat = demux->HLS_pluginTable.get(pSession->pSessionID, &getData, &errTable);
+              if (stat != SRC_SUCCESS)
+              {
+                 GST_ERROR("There was an error obtaining trick supported boolean: %s\n", 
+                            errTable.errMsg);
+                 ret = FALSE;
+                 break;
+              }
+              
+              getData.getCode = SRC_PLUGIN_GET_CONTENT_TYPE;
+              getData.pData = &contentType;
+
+              stat = demux->HLS_pluginTable.get(pSession->pSessionID, &getData, &errTable);
+              if (stat != SRC_SUCCESS)
+              {
+                 GST_ERROR("There was an error obtaining content type: %s\n", 
+                            errTable.errMsg);
+                 ret = FALSE;
+                 break;
+              }
+
+              if(1 == bTrickSupported)
+              {
+                 /* Hardcoding the speeds because libhls sends the I-Frames to the decoder
+                  * based on speed (duration/speed - i-frame display time)
+                  */
+                 strncpy(speeds, "-8,-4,-2,", sizeof(speeds));
+              }
+
+              if(SRC_PLUGIN_CONTENT_TYPE_VOD == contentType)
+              {
+                 strncat(speeds, "0,", sizeof(speeds));
+              }
+              
+              strncat(speeds, "1", sizeof(speeds));
+              
+              if(1 == bTrickSupported)
+              {
+                 strncat(speeds, ",2,4,8", sizeof(speeds));
+
+              }
+              speeds[sizeof(speeds) - 1] = '\0';
+              
+              GST_DEBUG("%s %s(%d): Trick Speeds str: %s\n", __FILE__, __FUNCTION__, __LINE__, speeds);
+
+              gst_structure_set(pStruct,
+                                "trickSpeedsStr", G_TYPE_STRING, speeds, 
+                                NULL); 
+              ret = TRUE;
+           }
+        }
+        break;
      default:
         /* Don't forward queries upstream because of the special nature of this
          * "demuxer", which relies on the upstream element only to be fed with the
@@ -669,8 +750,21 @@ static gboolean gst_cscohlsdemuxer_sink_event (GstPad * pad, GstEvent * event)
 }
 static GstStateChangeReturn gst_cscohlsdemuxer_change_state (GstElement * element, GstStateChange transition)
 {
-  GstStateChangeReturn ret;
+  GstStateChangeReturn ret = GST_STATE_CHANGE_FAILURE;
   Gstciscdemux *demux = GST_CISCDEMUX (element);
+  srcPluginSetData_t setData = {};
+  float speed = 0.0;
+  srcStatus_t stat = SRC_SUCCESS;
+  srcPluginErr_t errTable = {};
+  tSession *pSession = NULL;
+  
+  if(NULL == demux)
+  {
+     GST_ERROR("ciscdemux ptr is NULL\n");
+     return GST_STATE_CHANGE_FAILURE;
+  }
+
+  pSession = demux->pCscoHlsSession;
 
   switch (transition) {
     case GST_STATE_CHANGE_NULL_TO_READY:
@@ -684,6 +778,27 @@ static GstStateChangeReturn gst_cscohlsdemuxer_change_state (GstElement * elemen
          the main playlist. It might have been stopped if we were in PAUSED
          state and we filled our queue with enough cached fragments
        */
+      {
+         if(NULL == demux->uri)
+         {
+            break;
+         }
+         if(NULL == pSession)
+         {
+            GST_ERROR("libhls session ptr is NULL\n");
+            return GST_STATE_CHANGE_FAILURE;
+         }
+  
+         setData.setCode = SRC_PLUGIN_SET_SPEED;
+         speed = 1.0;
+         setData.pData = &speed;
+         stat = demux->HLS_pluginTable.set( pSession->pSessionID, &setData, &errTable );
+         if(stat)
+         {
+            GST_ERROR( "%s: Error %d while setting speed to %f: %s", 
+                       __FUNCTION__, errTable.errCode, speed, errTable.errMsg);
+         }
+      }
       break;
     default:
       break;
@@ -693,6 +808,23 @@ static GstStateChangeReturn gst_cscohlsdemuxer_change_state (GstElement * elemen
 
   switch (transition) {
     case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
+      {
+         if(NULL == pSession)
+         {
+            GST_ERROR("libhls session ptr is NULL\n");
+            return GST_STATE_CHANGE_FAILURE;
+         }
+  
+         setData.setCode = SRC_PLUGIN_SET_SPEED;
+         speed = 0.0;
+         setData.pData = &speed;
+         stat = demux->HLS_pluginTable.set( pSession->pSessionID, &setData, &errTable );
+         if(stat)
+         {
+            GST_ERROR( "%s: Error %d while setting speed to %f: %s", 
+                       __FUNCTION__, errTable.errCode, speed, errTable.errMsg);
+         }
+      }
       break;
     case GST_STATE_CHANGE_PAUSED_TO_READY:
       cisco_hls_close(demux);
@@ -748,14 +880,22 @@ void hlsPlayer_pluginEvtCallback(void* pHandle, srcPluginEvt_t* pEvt)
             }
          }
          break;
+
+      case SRC_PLUGIN_BOF:
+         gst_element_post_message(GST_ELEMENT_CAST(demux),
+                                  gst_message_new_element(GST_OBJECT_CAST(demux),
+                                  gst_structure_new("extended_notification",
+                                  "notification", G_TYPE_STRING, "BOF",
+                                  NULL)));
+         break;
    }
    return;
 }
 void hlsPlayer_pluginErrCallback(void* pHandle, srcPluginErr_t* pErr)
 {
 
-   GST_ERROR(" Entered: %s : got event ERROR callback for pHandle: %p : %d\n",
-         __FUNCTION__,pHandle, pErr->errCode);
+   GST_ERROR("Entered: %s : got event ERROR callback for pHandle: %p : %d\n",
+              __FUNCTION__,pHandle, pErr->errCode);
    return ;
 }
 srcStatus_t hlsPlayer_registerCB(void* pHandle, playerEvtCallback_t evtCb)
@@ -1238,6 +1378,8 @@ static GstClockTime gst_cisco_hls_get_duration (Gstciscdemux *demux)
 static gboolean gst_cisco_hls_seek (Gstciscdemux *demux, GstEvent *event)
 {
    gfloat position;
+   gfloat speed = 0.0;
+   srcPluginGetData_t getData = {};
    srcPluginSetData_t setData;
    srcPluginErr_t errTable;
    GstClockTime timestamp;
@@ -1257,7 +1399,7 @@ static gboolean gst_cisco_hls_seek (Gstciscdemux *demux, GstEvent *event)
    pSession = demux->pCscoHlsSession;
    if ( pSession == NULL )
    {      
-      GST_ERROR("[cischlsdemux] - HLS session not opened!\n");
+      GST_ERROR("libhls session is NULL!\n");
       return FALSE;
    }
 
@@ -1270,18 +1412,47 @@ static gboolean gst_cisco_hls_seek (Gstciscdemux *demux, GstEvent *event)
    }
    */
 
-   gst_event_parse_seek (event, &rate, &format, &flags, &curType, &cur, &stopType, &stop);
 
-   setData.setCode = SRC_PLUGIN_SET_POSITION;
-   position = (gfloat)(cur / GST_MSECOND);
-   setData.pData = &position;
-   GST_WARNING("[cischlsdemux] seeking to position %f, timestamp %llu...\n", position, cur);
-   stat = demux->HLS_pluginTable.set(pSession->pSessionID, &setData, &errTable);
-   if ( stat == SRC_ERROR )
+   /* Get the current speed from libhls */
+   getData.getCode = SRC_PLUGIN_GET_SPEED;
+   getData.pData = &speed;
+
+   stat = demux->HLS_pluginTable.get(pSession->pSessionID, &getData, &errTable);
+   if (stat != SRC_SUCCESS)
    {
-      GST_WARNING("Failed to set position on the source plugin: %s\n", errTable.errMsg);
+      GST_ERROR(" Hummm there was an error obtaining the speed: %s\n", errTable.errMsg);
       return FALSE;
-   }  
+   }
+
+   gst_event_parse_seek (event, &rate, &format, &flags, &curType, &cur, &stopType, &stop);
+  
+   if((speed == rate) && (GST_FORMAT_TIME == format))
+   {
+      setData.setCode = SRC_PLUGIN_SET_POSITION;
+      position = (gfloat)(cur / GST_MSECOND);
+      setData.pData = &position;
+      GST_WARNING("[cischlsdemux] seeking to position %f, timestamp %llu...\n", position, cur);
+      stat = demux->HLS_pluginTable.set(pSession->pSessionID, &setData, &errTable);
+      if ( stat == SRC_ERROR )
+      {
+         GST_WARNING("Failed to set position on the source plugin: %s\n", errTable.errMsg);
+         return FALSE;
+      }
+   }
+   else
+   {
+      setData.setCode = SRC_PLUGIN_SET_SPEED;
+      speed = rate;
+      setData.pData = &speed; 
+      stat = demux->HLS_pluginTable.set( pSession->pSessionID, &setData, &errTable );
+      if(stat)
+      {
+         GST_ERROR("%s: Error %d while setting speed to %f: %s", __FUNCTION__, 
+                   errTable.errCode, errTable.errMsg, speed);
+         return FALSE;
+      }
+      GST_LOG("setSpeed returned\n");
+   }
 
    return TRUE;
 }

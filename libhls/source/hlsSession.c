@@ -1905,6 +1905,140 @@ hlsStatus_t hlsSession_getCurrentPosition(hlsSession_t* pSession, float* pPositi
  * 
  * 
  * @param pSession
+ * @param pSpeed
+ * 
+ * @return #hlsStatus_t
+ */
+hlsStatus_t hlsSession_getSpeed(hlsSession_t* pSession, float* pSpeed)
+{
+   hlsStatus_t rval = HLS_OK;
+
+   do 
+   {
+      if((pSession == NULL) || (pSpeed == NULL))
+      {
+         ERROR("invalid parameter");
+         rval = HLS_INVALID_PARAMETER;
+         break;
+      }
+        
+      *pSpeed = pSession->speed;
+
+      DEBUG(DBG_INFO,"current speed = %5.2f\n", *pSpeed);
+   }while(0);
+
+   return rval;
+}
+
+/** 
+ * 
+ * 
+ * @param pSession
+ * @param bTrickSupported
+ * 
+ * @return #hlsStatus_t
+ */
+hlsStatus_t hlsSession_getTrickSupported(hlsSession_t* pSession, int *bTrickSupported)
+{
+   hlsStatus_t rval = HLS_OK;
+
+   do
+   {
+      if((pSession == NULL) || (bTrickSupported == NULL))
+      {
+         ERROR("invalid parameter");
+         rval = HLS_INVALID_PARAMETER;
+         break;
+      }
+
+      *bTrickSupported = 1;
+
+      /* Check for valid state */
+      if(pSession->state < HLS_PREPARED) 
+      {
+         ERROR("%s invalid in state %d", __FUNCTION__, pSession->state);
+         rval = HLS_STATE_ERROR;
+         break;
+      }
+
+      /* Get playlist READ lock */
+      pthread_rwlock_rdlock(&(pSession->playlistRWLock));
+
+      /* If we don't have any I-frame playlists, we can't do trickmodes */
+      if((pSession->pCurrentProgram == NULL) ||
+         (pSession->pCurrentProgram->pIFrameStreams == NULL) ||
+         (pSession->pCurrentProgram->pIFrameStreams->numElements == 0))
+      {
+         DEBUG(DBG_INFO, "no I-frame streams -- Trick modes not supported");
+         *bTrickSupported = 0;
+      }
+
+      /* Release playlist lock */
+      pthread_rwlock_unlock(&(pSession->playlistRWLock));
+
+      DEBUG(DBG_INFO,"bTrickSupported = %d\n", *bTrickSupported);
+
+   }while(0);
+
+   return rval;
+}
+
+/** 
+ * 
+ * 
+ * @param pSession
+ * @param contentType 
+ * 
+ * @return #hlsStatus_t
+ */
+hlsStatus_t hlsSession_getContentType(hlsSession_t* pSession, hlsContentType_t *contentType)
+{
+   hlsStatus_t rval = HLS_OK;
+
+   do
+   {
+      if((pSession == NULL) || (contentType == NULL))
+      {
+         ERROR("invalid parameter");
+         rval = HLS_INVALID_PARAMETER;
+         break;
+      }
+
+      /* Check for valid state */
+      if(pSession->state < HLS_PREPARED) 
+      {
+         ERROR("%s invalid in state %d", __FUNCTION__, pSession->state);
+         rval = HLS_STATE_ERROR;
+         break;
+      }
+
+      /* Get playlist READ lock */
+      pthread_rwlock_rdlock(&(pSession->playlistRWLock));
+               
+      /* TODO - check mutability? */
+      if(0 == pSession->pCurrentPlaylist->pMediaData->bHaveCompletePlaylist)
+      {
+         *contentType = HLS_EVENT;
+      }
+      else
+      {
+         *contentType = HLS_VOD;
+      }
+
+      /* Release playlist lock */
+      pthread_rwlock_unlock(&(pSession->playlistRWLock));
+
+      DEBUG(DBG_INFO, "Content type = %d\n", *contentType);
+
+   }while(0);
+
+   return rval;
+}
+
+/** 
+ * 
+ * 
+ * @param pSession
  * @param pEvt
  */
 void hlsSession_playerEvtCallback(hlsSession_t* pSession, srcPlayerEvt_t* pEvt)

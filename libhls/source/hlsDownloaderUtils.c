@@ -590,6 +590,10 @@ hlsStatus_t getNextIFrame(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegmen
                     break;
                 }
 
+/* TODO: The following check for BOS breaks rewind functionality for HLS VOD content.
+ * Need a live HLS content with I-Frames to fix it properly.
+ */
+#if 0
                 /* If our current segment is already the "last valid" I-frame,
                    signal BOS. Return *ppSegment = NULL and HLS_OK and assume the
                    caller will handle it. */
@@ -599,6 +603,7 @@ hlsStatus_t getNextIFrame(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegmen
                     DEBUG(DBG_INFO,"BOS!");
                     break;
                 }
+#endif
                 
                 /* Update the pLastDownloadedSegmentNode */  
                 if((*ppSegment)->pParentNode != NULL) 
