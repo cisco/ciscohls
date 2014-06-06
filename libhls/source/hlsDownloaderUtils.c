@@ -52,7 +52,7 @@ extern "C" {
 #define BUFFER_WAIT_SECS 1
 
 /* Number of seconds to wait for more data to be downloaded */
-#define DATA_WAIT_SECS (1)
+#define DATA_WAIT_MSECS (10)
 
 /* Local types */
 
@@ -1158,14 +1158,23 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession, hlsSegment_t* pSegmen
                                 else
                                 {
                                    /* Wait for more data... */
-                                   wakeTime.tv_sec += DATA_WAIT_SECS;
+                                   time_t sec = DATA_WAIT_MSECS / 1000;
+                                   long nsec = (DATA_WAIT_MSECS - (1000 * sec)) * 1000000;
+ 
+                                   wakeTime.tv_sec += sec;
 
-                                   DEBUG(DBG_WARN, "wait for %d seconds until more data is downloaded", DATA_WAIT_SECS);
+                                   if (wakeTime.tv_nsec + nsec > 1000000000)
+                                       wakeTime.tv_sec++;
+ 
+                                   wakeTime.tv_nsec = (wakeTime.tv_nsec + nsec) % 1000000000;
+
+                                   DEBUG(DBG_WARN, "wait for %d milliseconds until more data is downloaded", DATA_WAIT_MSECS);
                                    pthread_mutex_lock(&(pSession->downloaderWakeMutex));
 
                                    PTHREAD_COND_TIMEDWAIT(&(pSession->downloaderWakeCond), &(pSession->downloaderWakeMutex), &wakeTime);
                                    
                                    pthread_mutex_unlock(&(pSession->downloaderWakeMutex));
+
                                    continue;
                                 }
                             }
