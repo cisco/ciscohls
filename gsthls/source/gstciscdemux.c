@@ -319,6 +319,7 @@ gst_ciscdemux_init (Gstciscdemux * demux,
   demux->playerEvtCb = NULL;
   demux->downstream_peer_pad = NULL;
   demux->uri = NULL;
+  demux->getPTSThread = NULL;
   
   if(0 != pthread_mutex_init(&demux->PTSMutex, NULL))
   {
@@ -1137,7 +1138,6 @@ static gboolean cisco_hls_initialize (Gstciscdemux *demux)
 
    do
    {
-
       memset(errTable.errMsg, 0, SRC_ERR_MSG_LEN);
       //from hlsPlugin.c 
       // the demux->HLS_pluginTable will be empty
@@ -1295,7 +1295,11 @@ static gboolean cisco_hls_close(Gstciscdemux *demux)
    
    pthread_mutex_unlock(&demux->PTSMutex);
   
-   pthread_join(demux->getPTSThread, NULL);
+   if (demux->getPTSThread != NULL)
+      pthread_join(demux->getPTSThread, NULL);
+
+   demux->getPTSThread = NULL;
+
    GST_DEBUG("Timestamp after killing pts thread : %d\n", time(NULL));
 
    GST_DEBUG("Timestamp before calling hls close : %d\n", time(NULL));
