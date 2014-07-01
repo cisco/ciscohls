@@ -273,6 +273,7 @@ hlsStatus_t curlDownloadFile(CURL* pCurl, char* URL, downloadHandle_t* pHandle, 
 
     char *tempString = NULL;
     double tempDouble;
+    long respondCode;
 
     if((pCurl == NULL) || (URL == NULL) || (pHandle == NULL) || (pHandle->fpTarget == NULL))
     {
@@ -380,9 +381,17 @@ hlsStatus_t curlDownloadFile(CURL* pCurl, char* URL, downloadHandle_t* pHandle, 
             else
             {
                 // TODO: do we need to go through the various curl results and return HLS_ERROR and HLS_DL_ERROR appropriately?
-    
-                rval = HLS_DL_ERROR;
-                ERROR("Failed to execute curl_easy_perform(); Error %d: %s", curlResult, curl_easy_strerror(curlResult) );
+                curl_easy_getinfo(pCurl, CURLINFO_RESPONSE_CODE, &respondCode);
+                if (respondCode == 404)
+                {
+                    rval = HLS_ERROR;
+                } 
+                else
+                {
+                    rval = HLS_DL_ERROR;
+                }
+                ERROR("Failed to execute curl_easy_perform(); Error %d: '%s': HTTP respond code: %d", curlResult, curl_easy_strerror(curlResult), respondCode);
+		
                 break;
             }
         }

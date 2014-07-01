@@ -354,12 +354,12 @@ void m3u8ParserThread(hlsSession_t* pSession)
         /* Put session in INVALID state */
 
         /* Block state changes */
-        pthread_mutex_lock(&(pSession->stateMutex));
+        /*pthread_mutex_lock(&(pSession->stateMutex));*/
 
-        pSession->state = HLS_INVALID_STATE;
+        /*pSession->state = HLS_INVALID_STATE;*/
 
         /* Leave critical section */
-        pthread_mutex_unlock(&(pSession->stateMutex));
+        /*pthread_mutex_unlock(&(pSession->stateMutex));*/
     }
 
     DEBUG(DBG_INFO,"session %p parser exiting with status %d", pSession, status);

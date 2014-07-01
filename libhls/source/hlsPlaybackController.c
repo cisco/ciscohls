@@ -428,12 +428,12 @@ void hlsPlaybackControllerThread(hlsSession_t* pSession)
         /* Put session in INVALID state */
 
         /* Block state changes */
-        pthread_mutex_lock(&(pSession->stateMutex));
+        /*pthread_mutex_lock(&(pSession->stateMutex));*/
 
-        pSession->state = HLS_INVALID_STATE;
+        /*pSession->state = HLS_INVALID_STATE; */
 
         /* Leave critical section */
-        pthread_mutex_unlock(&(pSession->stateMutex));
+        /*pthread_mutex_unlock(&(pSession->stateMutex));*/
     }
 
     pSession->playbackControllerStatus = status;
