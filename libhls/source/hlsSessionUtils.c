@@ -339,13 +339,17 @@ hlsStatus_t getExternalPosition(hlsPlaylist_t* pMediaPlaylist, double* pPosition
 hlsStatus_t getSegmentXSecFromEnd(hlsPlaylist_t* pMediaPlaylist, double x, hlsSegment_t** ppSegment)
 {
     hlsStatus_t rval = HLS_OK;
-    
+    double targetTime;
     llNode_t* pNode = NULL;
-    double targetTime = x;
+
+    if (x < 0)
+       x = 0;
+
+    targetTime = x;
     
-    if((pMediaPlaylist == NULL) || (ppSegment == NULL) || (x < 0))
+    if((pMediaPlaylist == NULL) || (ppSegment == NULL))
     {
-        ERROR("invalid parameter");
+        ERROR("invalid parameter, pMediaPlaylist: %p, ppSegment: %p, x: %llf", pMediaPlaylist, ppSegment, x);
         return HLS_INVALID_PARAMETER;
     }
 
@@ -462,11 +466,16 @@ hlsStatus_t getSegmentXSecFromStart(hlsPlaylist_t* pMediaPlaylist, double x, hls
     hlsStatus_t rval = HLS_OK;
     
     llNode_t* pNode = NULL;
-    double targetTime = x;
+    double targetTime;
+
+    if (x < 0)
+       x = 0;
+
+    targetTime = x;
     
-    if((pMediaPlaylist == NULL) || (ppSegment == NULL) || (x < 0))
+    if((pMediaPlaylist == NULL) || (ppSegment == NULL))
     {
-        ERROR("invalid parameter");
+        ERROR("invalid parameter, pMediaPlaylist: %p, ppSegment: %p, x: %llf", pMediaPlaylist, ppSegment, x);
         return HLS_INVALID_PARAMETER;
     }
 

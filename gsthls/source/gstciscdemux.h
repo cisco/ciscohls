@@ -69,7 +69,10 @@ typedef struct _GstciscdemuxClass GstciscdemuxClass;
 typedef struct 
 {
    GstBuffer *buf ;
-   unsigned char     *memory;
+#if GST_CHECK_VERSION(1,0,0)
+   GstMapInfo info;
+#endif
+   unsigned char *memory;
    size_t   size;
    int      bInUse;
 
@@ -110,6 +113,8 @@ struct _Gstciscdemux
   pthread_cond_t  PTSThreadCond;
   pthread_mutex_t PTSMutex;
   gboolean        bKillPTSThread;
+  gboolean        bGetPTSThreadRunning;
+  gfloat          speed;
 };
 
 struct _GstciscdemuxClass 

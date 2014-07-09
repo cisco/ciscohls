@@ -34,7 +34,7 @@ libgsthls_@GSTHLS_API_VERSION@_la_LDFLAGS = -version-info $(GSTHLS_SO_VERSION) $
 # the directory structure will be used when doing an install.
 #
 #This defines the include directory name that we are creating once we do an install
-libgsthls_includedir = $(includedir)/gstreamer-0.10/gst/libgsthls-$(GSTHLS_API_VERSION)
+libgsthls_includedir = $(includedir)/gstreamer-@GST_API_VERSION@/gst/libgsthls-$(GSTHLS_API_VERSION)
 
 #This is the list of header files to be installed in the directory that was created on the target
 # libgsthls_includedir from above.
