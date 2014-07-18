@@ -42,6 +42,10 @@ extern "C" {
 
 #define SRC_ERR_MSG_LEN 128 /*!< Maximum error message length */
 
+#define SRC_STREAM_NUM_MAIN (0)
+
+#define INVALID_PTS (-1)
+
 /*!
 * Unique souce plugin session identifier
 */ 
@@ -214,6 +218,7 @@ typedef enum
 typedef enum
 {
    SRC_PLAYER_SET_BUFFER_FLUSH,  /*!< pData -> NULL ; Instruct player to flush buffers */
+   SRC_PLAYER_SET_DISABLE_MAIN_STREAM_AUDIO, /*!< pData -> NULL ; Instruct player to disable audio in main stream */
    SRC_PLAYER_SET_MODE           /*!< pData -> srcPlayerMode_t* ; Set player playback mode */
 
 } srcPlayerSetCode_t;
@@ -268,9 +273,13 @@ typedef enum {
 typedef struct
 {
    srcEncType_t encType;    /*!< encryption type */
-   char  iv [16];                /*!< initialization vector */
-   char* keyURI;            /*!< key URI */
-   char  key[16];            /*!< actual key */
+   char         iv [16];           /*!< initialization vector */
+   char*        keyURI;            /*!< key URI */
+   char         key[16];           /*!< actual key */
+   int          streamNum;         /*!< stream number */
+   int          totalNumStreams;   /*!< main stream + discrete streams */
+   int          bFirstBufferInSegment; /*!< first buffer in a HLS segment? */
+   long long    pts;                   /*!< pts from ID3 tag for audio elementary streams */
 
 } srcBufferMetadata_t;
 

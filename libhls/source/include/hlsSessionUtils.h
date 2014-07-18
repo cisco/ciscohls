@@ -67,6 +67,11 @@ hlsSegment_t* newHlsSegment();
 void freeSegment(hlsSegment_t* pSegment);
 hlsStatus_t copyHlsSegment(hlsSegment_t* pSrc, hlsSegment_t* pDst);
 
+hlsGroup_t* newHlsGroup();
+void freeGroup(hlsGroup_t* pGroup);
+
+hlsStatus_t playlistSeek(hlsPlaylist_t *pMediaPlaylist, float position, int *pSeqNum);
+
 void printPlaylist(hlsPlaylist_t* pPlaylist);
 
 #ifdef __cplusplus

@@ -1099,6 +1099,31 @@ void freePlaylist(hlsPlaylist_t* pPlaylist)
             freeLinkedList(pPlaylist->pList);
             pPlaylist->pList = NULL;
         }
+        
+        if(pPlaylist->pGroupList != NULL) 
+        {
+            while(pPlaylist->pGroupList->numElements != 0) 
+            {
+                removeHead(pPlaylist->pGroupList, (void**)(&pData));
+
+                if(pData != NULL) 
+                {
+                    switch(pPlaylist->type) 
+                    {
+                        case PL_VARIANT:
+                            DEBUG(DBG_INFO, "calling freeGroup\n");
+                            freeGroup((hlsGroup_t*)pData);
+                            break;
+                        default:
+                            break;
+                    }
+                    pData = NULL;
+                }
+            }
+            
+            freeLinkedList(pPlaylist->pGroupList);
+            pPlaylist->pGroupList = NULL;
+        }
 
         /* Free type-specific data */
         switch(pPlaylist->type) 
@@ -1106,6 +1131,12 @@ void freePlaylist(hlsPlaylist_t* pPlaylist)
             case PL_MEDIA:
                 free(pPlaylist->pMediaData->codecs);
                 pPlaylist->pMediaData->codecs = NULL;
+                
+                free(pPlaylist->pMediaData->audio);
+                pPlaylist->pMediaData->audio = NULL;
+                free(pPlaylist->pMediaData->video);
+                pPlaylist->pMediaData->video = NULL;
+                
                 free(pPlaylist->pMediaData);
                 pPlaylist->pMediaData = NULL;
                 break;
@@ -1404,6 +1435,136 @@ hlsStatus_t copyHlsSegment(hlsSegment_t* pSrc, hlsSegment_t* pDst)
     return status;
 }
 
+/** 
+ * Allocates new hlsGroup_t structure and sets the contents to 
+ * 0. 
+ * 
+ * @return hlsGroup_t* - pointer to new structure on success, 
+ *         NULL on failure
+ */
+hlsGroup_t* newHlsGroup()
+{
+    hlsGroup_t* pGroup = NULL;
+
+    pGroup = (hlsGroup_t*)malloc(sizeof(hlsGroup_t));
+
+    if(pGroup == NULL) 
+    {
+        ERROR("malloc error");
+    }
+    else
+    {
+        memset(pGroup, 0, (sizeof(hlsGroup_t)));
+    }
+
+    return pGroup;
+}
+
+/**
+ * Cleans up and frees an hlsGroup structure.
+ * 
+ * @param pGroup - pointer to hlsGroup to free
+ */
+void freeGroup(hlsGroup_t* pGroup)
+{
+    void* pData = NULL;
+
+    if(pGroup != NULL) 
+    {
+        pGroup->pParentNode = NULL;
+               
+        DEBUG(DBG_INFO, "Freeing group with ID: %s\n", pGroup->groupID);
+        free(pGroup->groupID);
+        pGroup->groupID = NULL;
+        free(pGroup->language);
+        pGroup->language = NULL;
+        free(pGroup->name);
+        pGroup->name = NULL;
+
+        if(pGroup->pPlaylist != NULL) 
+        {
+           freePlaylist(pGroup->pPlaylist);
+           pGroup->pPlaylist = NULL;
+        }
+
+        free(pGroup);
+    }
+}
+
+/** 
+ * Seek by position in the playlist 
+ *  
+ * @param pMediaPlaylist - Media playlist
+ * @param position       - location to jump to 
+ * @param pSeqNum        - Sequence of the segment after seek
+ * 
+ * @return #hlsStatus_t
+ */
+hlsStatus_t playlistSeek(hlsPlaylist_t *pMediaPlaylist, float position, int *pSeqNum)
+{
+   hlsStatus_t   rval = HLS_ERROR;
+   hlsSegment_t* pSegment = NULL;
+   double        positionFromEnd = 0;
+   llNode_t*     pSegmentNode = NULL;
+
+   do {
+
+   if((pMediaPlaylist == NULL) ||
+      (pMediaPlaylist->type != PL_MEDIA) ||
+      (pMediaPlaylist->pMediaData == NULL))
+   {
+      ERROR("playlist invalid");
+      break;
+   }
+
+   /* Need to account for the startOffset of the playlist when determining absolute
+      position. */
+   position += pMediaPlaylist->pMediaData->startOffset;
+
+   /* Get the segment which contains the desired position */
+   rval = getSegmentXSecFromStart(pMediaPlaylist, position, &pSegment);
+   if(rval != HLS_OK) 
+   {
+      ERROR("failed to find segment in playlist");
+      break;
+   }
+
+   *pSeqNum = pSegment->seqNum;
+
+   /* Reset our positionFromEnd to be the starting position from end of the above segment */
+   rval = getPositionFromEnd(pMediaPlaylist, pSegment, &(positionFromEnd));
+   if(rval != HLS_OK) 
+   {
+      ERROR("problem getting initial playlist position");
+      break;
+   }
+
+   /* Get the segment's node */
+   if(pSegment->pParentNode != NULL) 
+   {
+      pSegmentNode = pSegment->pParentNode;
+   }
+   else
+   {
+      ERROR("segment has no parent node");
+      break;
+   }
+
+   /* pSegmentNode is the first node we want to download, so we need to set
+      pLastDownloadedSegmentNode to pSegmentNode->pPrev */
+   pSegmentNode = pSegmentNode->pPrev;
+
+   /* Write new playlist values */
+   pMediaPlaylist->pMediaData->positionFromEnd = positionFromEnd;
+   pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode = pSegmentNode;
+  
+   rval = HLS_OK;
+   
+   }while(0);
+
+   return rval;
+}
+
 /**
  * Prints all information in hlsPlaylist structure.
  * 
@@ -1413,6 +1574,8 @@ void printPlaylist(hlsPlaylist_t* pPlaylist)
 {
     llNode_t* pProgramNode = NULL;
     hlsProgram_t* pProgram = NULL;
+    llNode_t* pGroupNode = NULL;
+    hlsGroup_t* pGroup = NULL;
     llNode_t* pStreamNode = NULL;
     llNode_t* pSegmentNode = NULL;
     hlsSegment_t* pSegment = NULL;
@@ -1512,6 +1675,32 @@ void printPlaylist(hlsPlaylist_t* pPlaylist)
                     pProgramNode = pProgramNode->pNext;
                 }
             }
+            /* Print group information */
+            if(NULL != pPlaylist->pGroupList)
+            {
+               pGroupNode = pPlaylist->pGroupList->pHead;
+               while(pGroupNode != NULL)
+               {
+                  pGroup = pGroupNode->pData;
+
+                  printf("------------------------\n");
+                  printf("*** Group ID: %s ***\n", pGroup->groupID);
+                  printf("------------------------\n");
+                  printf("EXT-X-MEDIA type: %d\n", pGroup->type);
+                  printf("EXT-X-MEDIA language: %s\n", PRINTNULL(pGroup->language));
+                  printf("EXT-X-MEDIA name: %s\n", PRINTNULL(pGroup->name));
+                  printf("EXT-X-MEDIA default: %d\n", pGroup->def);
+                  printf("EXT-X-MEDIA autoselect: %d\n", pGroup->autoSelect);
+
+                  /* Print stream information */
+                  if(pGroup->pPlaylist != NULL) 
+                  {
+                     printPlaylist(pGroup->pPlaylist);
+                  }
+
+                  pGroupNode = pGroupNode->pNext;
+               }
+            }
         }
         else if(pPlaylist->type == PL_MEDIA) 
         {
@@ -1531,6 +1720,8 @@ void printPlaylist(hlsPlaylist_t* pPlaylist)
             printf("bitrate: %d\n", pPlaylist->pMediaData->bitrate);
             printf("resolution: %d x %d\n", pPlaylist->pMediaData->width, pPlaylist->pMediaData->height);
             printf("codecs: %s\n", PRINTNULL(pPlaylist->pMediaData->codecs));
+            printf("audio group-id: %s\n", PRINTNULL(pPlaylist->pMediaData->audio));
+            printf("video group-id: %s\n", PRINTNULL(pPlaylist->pMediaData->video));
 
             printf("target duration: %d seconds\n", pPlaylist->pMediaData->targetDuration);
             printf("playlist duration: %5.2f seconds\n", pPlaylist->pMediaData->duration);

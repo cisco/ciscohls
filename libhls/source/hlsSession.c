@@ -73,6 +73,8 @@ hlsStatus_t hlsSession_init(hlsSession_t** ppSession, void* pHandle)
     pthread_condattr_t condAttr;
     pthread_mutexattr_t mutexAttr;
 
+    int ii = 0;
+
     if((ppSession == NULL) || (pHandle == NULL) || (*ppSession != NULL))
     {
         ERROR("invalid parameter");
@@ -136,6 +138,29 @@ hlsStatus_t hlsSession_init(hlsSession_t** ppSession, void* pHandle)
             ERROR("failed to initialize cURL mutex");
             rval = HLS_ERROR;
             break;
+        }
+        
+        if(pthread_mutex_init(&((*ppSession)->dldRateMutex), NULL) != 0)
+        {
+            ERROR("failed to initialize download rate mutex");
+            rval = HLS_ERROR;
+            break;
+        }
+       
+        rval = HLS_OK;
+        for(ii = 0; ii < MAX_NUM_MEDIA_GROUPS; ii++)
+        {
+           /* Initialize media group curl mutex */
+           if(pthread_mutex_init(&((*ppSession)->mediaGroupCurlMutex[ii]), NULL) != 0)
+           {
+              ERROR("failed to initialize CURL mutex for media group: %d", ii);
+              rval = HLS_ERROR;
+              break;
+           }
+        }
+        if(HLS_OK != rval)
+        {
+           break;
         }
 
         /* Initialize mutex attribute */
@@ -258,6 +283,22 @@ hlsStatus_t hlsSession_init(hlsSession_t** ppSession, void* pHandle)
             ERROR("failed to initialize CURL handle");
             break;
         }
+        
+        rval = HLS_OK;
+        for(ii = 0; ii < MAX_NUM_MEDIA_GROUPS; ii++)
+        {
+           rval = curlInit(&((*ppSession)->pMediaGroupCurl[ii]));
+           if(rval != HLS_OK) 
+           {
+              ERROR("failed to initialize CURL handle for media group: %d", ii);
+              rval = HLS_ERROR;
+              break;
+           }
+        }
+        if(HLS_OK != rval)
+        {
+           break;
+        }
 
     } while(0);
 
@@ -283,6 +324,7 @@ hlsStatus_t hlsSession_init(hlsSession_t** ppSession, void* pHandle)
  */
 void hlsSession_term(hlsSession_t* pSession)
 {
+    int ii = 0;
     DEBUG(DBG_INFO,"%s", __FUNCTION__);
     
     // TODO: enable for debugging via env var/ compile time flag??? 
@@ -298,7 +340,7 @@ void hlsSession_term(hlsSession_t* pSession)
         /* Wake up downloader thread if it is sleeping */
         if(pthread_mutex_lock(&(pSession->downloaderWakeMutex)) == 0)
         {
-            if(pthread_cond_signal(&(pSession->downloaderWakeCond)) == 0)
+            if(pthread_cond_broadcast(&(pSession->downloaderWakeCond)) == 0)
             {
                 pthread_mutex_unlock(&(pSession->downloaderWakeMutex));
             }
@@ -326,6 +368,16 @@ void hlsSession_term(hlsSession_t* pSession)
         {
             pthread_join(pSession->downloader, NULL);
             pSession->downloader = 0;
+        }
+        
+        for(ii = 0; ii < pSession->currentGroupCount; ii++)
+        {
+           if(0 != pSession->groupDownloader[ii])
+           {
+              /* Wait for the media group downloader(s) to quit */
+              pthread_join(pSession->groupDownloader[ii], NULL);
+              pSession->groupDownloader[ii] = 0;
+           }
         }
 
         if(pSession->playbackController != 0) 
@@ -363,6 +415,7 @@ void hlsSession_term(hlsSession_t* pSession)
         pthread_mutex_destroy(&(pSession->playerEvtMutex));
         pthread_mutex_destroy(&(pSession->setMutex));
         pthread_mutex_destroy(&(pSession->curlMutex));
+        pthread_mutex_destroy(&(pSession->dldRateMutex));
 
         pthread_rwlock_wrlock(&(pSession->playlistRWLock));
 
@@ -399,6 +452,15 @@ void hlsSession_term(hlsSession_t* pSession)
         {
             curlTerm(pSession->pCurl);
             pSession->pCurl = NULL;
+        }
+   
+        for(ii = 0; ii < MAX_NUM_MEDIA_GROUPS; ii++)
+        {
+           if(pSession->pMediaGroupCurl[ii] != NULL)
+           {
+              curlTerm(pSession->pMediaGroupCurl[ii]);
+              pSession->pMediaGroupCurl[ii] = NULL;
+           }
         }
 
         free(pSession);
@@ -680,6 +742,10 @@ hlsStatus_t hlsSession_play(hlsSession_t* pSession)
 
     struct timespec timeoutTime, currTime;
 
+    int ii = 0;
+    
+    hlsGrpDwnldData_t grpThreadData = {0, pSession};
+
     if(pSession == NULL)
     {
         ERROR("invalid parameter");
@@ -717,6 +783,23 @@ hlsStatus_t hlsSession_play(hlsSession_t* pSession)
             ERROR("failed to create downloader thread");
             rval = HLS_ERROR;
             break;
+        }
+
+        /* Start group downloader threads only for non trick playback */
+        if((pSession->speed >= 0) && (pSession->speed <= 1))
+        {
+           for(ii = 0; ii < pSession->currentGroupCount; ii++)
+           {
+              pSession->groupDownloaderStatus[ii] = HLS_OK;
+              grpThreadData.mediaGrpIdx = ii;
+              if(pthread_create(&(pSession->groupDownloader[ii]), NULL, 
+                                (void*)hlsGrpDownloaderThread, &grpThreadData))
+              {
+                 ERROR("failed to create group downloader thread %d", ii);
+                 rval = HLS_ERROR;
+                 break;
+              }
+           }
         }
 
         /* Signal that playback is starting to the playback controller thread */
@@ -812,7 +895,7 @@ hlsStatus_t hlsSession_play(hlsSession_t* pSession)
         /* Wake up downloader thread if it is sleeping */
         if(pthread_mutex_lock(&(pSession->downloaderWakeMutex)) == 0)
         {
-            if(pthread_cond_signal(&(pSession->downloaderWakeCond)) == 0)
+            if(pthread_cond_broadcast(&(pSession->downloaderWakeCond)) == 0)
             {
                 pthread_mutex_unlock(&(pSession->downloaderWakeMutex));
             }
@@ -823,6 +906,16 @@ hlsStatus_t hlsSession_play(hlsSession_t* pSession)
         {
             pthread_join(pSession->downloader, NULL);
             pSession->downloader = 0;
+        }
+        
+        for(ii = 0; ii < pSession->currentGroupCount; ii++)
+        {
+           if(0 != pSession->groupDownloader[ii])
+           {
+              /* Wait for the media group downloader(s) to quit */
+              pthread_join(pSession->groupDownloader[ii], NULL);
+              pSession->groupDownloader[ii] = 0;
+           }
         }
 
         /* Make sure we end up back in PREPARED state if we didn't
@@ -1178,6 +1271,8 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
     srcPlayerSetData_t playerSetData;
     srcPlayerMode_t playerMode;
 
+    int ii = 0;
+
     if(pSession == NULL)
     {
         ERROR("invalid parameter");
@@ -1415,6 +1510,25 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
                         break;
                     }
 
+                    for(ii = 0; ii < pSession->currentGroupCount; ii++)
+                    {
+                       rval = matchPlaylistPosition(pSession,
+                                                    pSession->pCurrentPlaylist,
+                                                    pSession->pCurrentGroup[ii]->pPlaylist);
+                       if(HLS_OK != rval)
+                       {
+                          ERROR("Failed to match playlist positon of group(%s) playlist with main playlist",
+                                pSession->pCurrentGroup[ii]->groupID);
+                          break;
+                       }
+                    }
+                    if(HLS_OK != rval) 
+                    {
+                        /* Release playlist lock */
+                        pthread_rwlock_unlock(&(pSession->playlistRWLock));
+                        break;
+                    }
+
                     /* Release playlist lock */
                     pthread_rwlock_unlock(&(pSession->playlistRWLock));
                 }
@@ -1469,6 +1583,8 @@ hlsStatus_t hlsSession_stop(hlsSession_t* pSession)
     playbackControllerSignal_t* pSignal = NULL;
 
     llStatus_t llerror = LL_OK;
+        
+    int ii = 0;
 
     if(pSession == NULL)
     {
@@ -1543,7 +1659,7 @@ hlsStatus_t hlsSession_stop(hlsSession_t* pSession)
         /* Wake up downloader thread if it is sleeping */
         if(pthread_mutex_lock(&(pSession->downloaderWakeMutex)) == 0)
         {
-            if(pthread_cond_signal(&(pSession->downloaderWakeCond)) == 0)
+            if(pthread_cond_broadcast(&(pSession->downloaderWakeCond)) == 0)
             {
                 pthread_mutex_unlock(&(pSession->downloaderWakeMutex));
             }
@@ -1556,6 +1672,16 @@ hlsStatus_t hlsSession_stop(hlsSession_t* pSession)
             pSession->downloader = 0;
         }
         
+        for(ii = 0; ii < pSession->currentGroupCount; ii++)
+        {
+           if(0 != pSession->groupDownloader[ii])
+           {
+              /* Wait for the media group downloader(s) to quit */
+              pthread_join(pSession->groupDownloader[ii], NULL);
+              pSession->groupDownloader[ii] = 0;
+           }
+        }
+        
         pSession->bKillDownloader = 0;
 
         /* Check if downloader exited cleanly */
@@ -1564,6 +1690,16 @@ hlsStatus_t hlsSession_stop(hlsSession_t* pSession)
             ERROR("downloader exited with status: %d", pSession->downloaderStatus);
             rval = pSession->downloaderStatus;
             break;
+        }
+        
+        for(ii = 0; ii < pSession->currentGroupCount; ii++)
+        {
+           if((pSession->groupDownloaderStatus[ii] != HLS_OK) && (pSession->groupDownloaderStatus[ii] != HLS_CANCELLED))
+           {
+              ERROR("groupDownloader(%d) exited with status: %d", ii, pSession->groupDownloaderStatus[ii]);
+              rval = pSession->groupDownloaderStatus[ii];
+              break;
+           }
         }
 
         /* Flush the decoder cache */
@@ -1615,10 +1751,10 @@ hlsStatus_t hlsSession_seek(hlsSession_t* pSession, float position)
     hlsPlaylist_t* pMediaPlaylist = NULL;
 
     hlsSegment_t* pSegment = NULL;
+ 
+    int ii = 0;
 
-    llNode_t* pSegmentNode = NULL;
-
-    double positionFromEnd = 0;
+    int seqNum = -1;
 
     if(pSession == NULL)
     {
@@ -1674,70 +1810,39 @@ hlsStatus_t hlsSession_seek(hlsSession_t* pSession, float position)
 
         /* Get playlist WRITE lock */
         pthread_rwlock_wrlock(&(pSession->playlistRWLock));
-
-        if((pSession->pCurrentPlaylist == NULL) ||
-           (pSession->pCurrentPlaylist->type != PL_MEDIA) ||
-           (pSession->pCurrentPlaylist->pMediaData == NULL))
-        {
-            ERROR("current playlist invalid");
-            rval = HLS_ERROR;
-            /* Release playlist lock */
-            pthread_rwlock_unlock(&(pSession->playlistRWLock));
-            break;
-        }
-
-        pMediaPlaylist = pSession->pCurrentPlaylist;
-
-        /* Need to account for the startOffset of the playlist when determining absolute
-           position. */
-        position += pMediaPlaylist->pMediaData->startOffset;
         
-        /* Get the segment which contains the desired position */
-        rval = getSegmentXSecFromStart(pMediaPlaylist, position, &pSegment);
+        rval = playlistSeek(pSession->pCurrentPlaylist, position, &seqNum);
         if(rval != HLS_OK) 
         {
-            ERROR("failed to find segment in playlist");
+            ERROR("failed to seek in playlist");
             /* Release playlist lock */
             pthread_rwlock_unlock(&(pSession->playlistRWLock));
             break;
         }
 
-        DEBUG(DBG_INFO,"Playback will resume at segment %d", pSegment->seqNum);
-
-        /* Reset our positionFromEnd to be the starting position from end of the above segment */
-        rval = getPositionFromEnd(pMediaPlaylist, pSegment, &(positionFromEnd));
-        if(rval != HLS_OK) 
-        {
-            ERROR("problem getting initial playlist position");
-            /* Release playlist lock */
-            pthread_rwlock_unlock(&(pSession->playlistRWLock));
-            break;
-        }
+        DEBUG(DBG_INFO,"Main playlist - playback will resume at segment with seqNum: %d", 
+              seqNum);
         
-        /* Get the segment's node */
-        if(pSegment->pParentNode != NULL) 
+        for(ii = 0; ii < pSession->currentGroupCount; ii++)
         {
-            pSegmentNode = pSegment->pParentNode;
+           rval = playlistSeek(pSession->pCurrentGroup[ii]->pPlaylist, position, &seqNum);
+           if(rval != HLS_OK) 
+           {
+              ERROR("failed to seek in playlist");
+              break;
+           }
+           DEBUG(DBG_INFO,"Group playlist(%d) - playback will resume at segment with seqNum: %d", 
+                 ii, seqNum);
         }
-        else
-        {
-            ERROR("segment has no parent node");
-            rval = HLS_ERROR;
-            /* Release playlist lock */
-            pthread_rwlock_unlock(&(pSession->playlistRWLock));
-            break;
-        }
-
-        /* pSegmentNode is the first node we want to download, so we need to set
-           pLastDownloadedSegmentNode to pSegmentNode->pPrev */
-        pSegmentNode = pSegmentNode->pPrev;
-
-        /* Write new playlist values */
-        pMediaPlaylist->pMediaData->positionFromEnd = positionFromEnd;
-        pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode = pSegmentNode;
 
         /* Release playlist lock */
         pthread_rwlock_unlock(&(pSession->playlistRWLock));
+
+        if(HLS_OK != rval)
+        {
+           ERROR("Failed to seek in group playlist");
+           break;
+        }
 
         /* Restart playback */
         rval = hlsSession_play(pSession);
@@ -2051,6 +2156,8 @@ void hlsSession_playerEvtCallback(hlsSession_t* pSession, srcPlayerEvt_t* pEvt)
 
     long long tempPTS;
 
+    int ii = 0;
+
     playbackControllerSignal_t* pSignal = NULL;
 
     llStatus_t llerror = LL_OK;
@@ -2158,6 +2265,11 @@ void hlsSession_playerEvtCallback(hlsSession_t* pSession, srcPlayerEvt_t* pEvt)
 
                   /* Update our position */
                   pSession->pCurrentPlaylist->pMediaData->positionFromEnd -= ptsToSeconds(tempPTS) - ptsToSeconds(pSession->lastPTS);
+                 
+                  for(ii = 0; ii < pSession->currentGroupCount; ii++)
+                  {
+                     pSession->pCurrentGroup[ii]->pPlaylist->pMediaData->positionFromEnd -= ptsToSeconds(tempPTS) - ptsToSeconds(pSession->lastPTS);
+                  }
 
                   /* Save the new PTS */
                   pSession->lastPTS = tempPTS;

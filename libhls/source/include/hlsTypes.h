@@ -107,6 +107,9 @@ extern "C" {
 /*! Local storage path */
 #define LOCAL_PATH "/tmp/HLS/"
 
+/*! EXT-X_MEDIA group type - one for discrete audio/video */
+#define MAX_NUM_MEDIA_GROUPS (1)
+
 /*! \enum hlsStatus_t
  * Enumeration of available return status HLS functions
  */
@@ -194,8 +197,30 @@ typedef enum {
     EXT_X_CISCO_PROT_HEADER,    
     EXT_X_I_FRAME_STREAM_INF,   /*!< In variant playlists only */
     EXT_X_I_FRAMES_ONLY,        /*!< In media playlists only */
+    EXT_X_MEDIA,                /*!< In variant playlists only */
     NUM_SUPPORTED_TAGS
 } m3u8Tag_t;
+
+/*! \enum hlsMediaType_t
+ * Supported media types
+ */
+typedef enum {
+   HLS_MEDIA_TYPE_INVALID,
+
+   HLS_MEDIA_TYPE_AUDIO,
+   HLS_MEDIA_TYPE_VIDEO,
+
+   HLS_MEDIA_TYPE_MAX
+
+} hlsMediaType_t;
+
+/*! \enum hlsYesNo_t
+ * HLS yes/no enumerated-string 
+ */
+typedef enum {
+   HLS_NO,
+   HLS_YES
+}hlsYesNo_t;
 
 /*! \struct hlsMediaPlaylistData_t
  * Structure representing additional playlist data when playlist type == HLS_MEDIA
@@ -224,6 +249,8 @@ typedef struct {
     int width;      /*!< Video width (from EXT-X-STREAM-INF) */
     int height;     /*!< Video height (from EXT-X-STREAM-INF) */
     char* codecs;   /*!< Codecs string (from EXT-X-STREAM-INF) */
+    char* audio;    /*!< Audio string (from EXT-X-STREAM-INF) */
+    char* video;    /*!< Video string (from EXT-X-STREAM-INF) */
 
     /*! Playlist target duration (from EXT-X-TARGETDURATION) */
     int targetDuration; 
@@ -261,6 +288,11 @@ typedef struct {
         If #type == HLS_VARIANT --> linked list of #hlsProgram_t
         If #type == HLS_MEDIA --> linked list of #hlsSegment_t */
     llist_t* pList;
+
+    /*! Linked list of group(EXT-X-MEDIA) playlist contents. 
+        If #type == HLS_VARIANT --> linked list of #hlsGroup_t 
+        else NULL */
+    llist_t* pGroupList;
 
     /*! The absolute time value that should pass 
         before attempting to redownload the playlist
@@ -333,6 +365,26 @@ typedef struct {
     llNode_t* pParentNode;
 } hlsProgram_t;
 
+/*! \struct hlsGroup_t 
+ * Describes an HLS Group (EXT-X-MEDIA) contained in a variant playlist
+ */
+typedef struct {
+    char *groupID;  /*!< Group ID number (from EXT-X-MEDIA)*/
+
+    /*! hlsPlaylist_t structure pointer */ 
+    hlsPlaylist_t* pPlaylist;      
+    
+    hlsMediaType_t type;   /*!< type string (from EXT-X-MEDIA) */ 
+    char *language;        /*!< language string (from EXT-X-MEDIA) */ 
+    char *name;            /*!< name string (from EXT-X-MEDIA) */
+    hlsYesNo_t def;        /*!< default (yes/no) (from EXT-X-MEDIA) */
+    hlsYesNo_t autoSelect; /*!< autoSelect (yes/no) (from EXT-X-MEDIA) */
+
+    /*! Pointer to the parent node when this structure is contained in the 
+        llNode_t::pData field */
+    llNode_t* pParentNode;
+} hlsGroup_t;
+
 /*! \enum playbackControllerSignal_t
  * Playback controller thread signals
  */
@@ -359,6 +411,12 @@ typedef struct {
     /*! Mutex that ensures that the curl handle isn't used by 
         multiple threads at the same time. */
     pthread_mutex_t curlMutex;
+   
+    /*! Curl object which will be used by the media group downloader thread */
+    CURL* pMediaGroupCurl[MAX_NUM_MEDIA_GROUPS];
+
+    /*! Mutex to protect the mediagroup curl object */
+    pthread_mutex_t mediaGroupCurlMutex[MAX_NUM_MEDIA_GROUPS];
     
     //TODO: clarify the below...
 
@@ -366,17 +424,25 @@ typedef struct {
         pPlaylist
         pCurrentProgram
         pCurrentPlaylist
+        pCurrentGroup
       */
     pthread_rwlock_t playlistRWLock;
 
     hlsPlaylist_t* pPlaylist;
     hlsProgram_t *pCurrentProgram;
     hlsPlaylist_t* pCurrentPlaylist;
+    hlsGroup_t *pCurrentGroup[MAX_NUM_MEDIA_GROUPS];
+
+    /*! Number of active alternative group media */
+    unsigned int currentGroupCount;
 
     /*! Rate at which last segment was downloaded (bps) */
     float lastSegmentDldRate;   
     /*! Average segment download rate (bps) */
     float avgSegmentDldRate;
+   
+    /*! Mutex to protect lastSegmentDldRate and avgSegmentDldRate */
+    pthread_mutex_t dldRateMutex;
 
     /*! Absolute time at which last bitrate change occured */
     struct timespec lastBitrateChange;
@@ -430,6 +496,10 @@ typedef struct {
     int bKillDownloader;                    /*!< Downloader thread kill signal */
     pthread_mutex_t downloaderWakeMutex;    /*!< Downloader thread wake mutex */
     pthread_cond_t downloaderWakeCond;      /*!< Downloader thread wake condition */
+    
+    /* Media group downloader thread(s) */
+    pthread_t groupDownloader[MAX_NUM_MEDIA_GROUPS];          /*!< Media group downloader thread handle */          
+    hlsStatus_t groupDownloaderStatus[MAX_NUM_MEDIA_GROUPS];  /*!< Media group downloader thread status */
 
     /* Playback Controller thread */
     pthread_t playbackController;                   /*!< Playback controller thread handle */
@@ -439,6 +509,8 @@ typedef struct {
     pthread_cond_t playbackControllerWakeCond;      /*!< Playback controller thread wake condition */
 
     msgQueue_t* playbackControllerMsgQueue; /*!< Playback controller thread message queue */
+
+    int eofCount; /*!< count of eof recieved from the downloader thread(s) */
 
 } hlsSession_t;
 

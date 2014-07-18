@@ -96,11 +96,14 @@ struct _Gstciscdemux
   GstElement element;
 
   GstPad *sinkpad, *srcpad;
+  /* Array of discrete source pads */
+  GstPad **srcpad_discrete;
   
   GstPad *downstream_peer_pad;
 
   gchar    *LicenseID;
-  GstCaps *inputStreamCap;
+  /* Array of src pad caps */
+  GstCaps **inputStreamCap;
 
   gboolean  silent;
   gboolean  capsSet;
@@ -115,6 +118,9 @@ struct _Gstciscdemux
   gboolean        bKillPTSThread;
   gboolean        bGetPTSThreadRunning;
   gfloat          speed;
+  guint           numSrcPadsActive;
+  gboolean        bDisableMainStreamAudio;
+  gint64          bufferPts;
 };
 
 struct _GstciscdemuxClass 

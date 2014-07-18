@@ -51,6 +51,169 @@ extern "C" {
 
 /* Loop duration in seconds */
 #define DOWNLOADER_LOOP_SECS 1
+
+#define DOWNLOADER_THREADS_POS_DIFF_SECS (30)
+
+/**
+ * Function to sleep on downloaderWakeCond 
+ *  
+ * @param pSession - pointer to the HLS session
+ * @param sleepMSec - Seconds to sleep 
+ * 
+ * @return #hlsStatus_t 
+ */
+static hlsStatus_t hlsDownloaderSleep(hlsSession_t* pSession, unsigned int sleepMSec)
+{
+   hlsStatus_t     rval = HLS_OK;
+   struct timespec wakeTime = {};
+   int             pthread_status = -1;
+   time_t          sec = 0;
+   long            nsec = 0;
+
+   do {
+      /* Get current time */
+      if(clock_gettime(CLOCK_MONOTONIC, &wakeTime) != 0) 
+      {
+         ERROR("failed to get current time");
+         rval = HLS_ERROR;
+         break;
+      }
+
+      /* Lock the downloader wake mutex */
+      if(pthread_mutex_lock(&(pSession->downloaderWakeMutex)) != 0)
+      {
+         ERROR("failed to lock downloader wake mutex");
+         rval = HLS_ERROR;
+         break;
+      }
+      
+      sec = sleepMSec / 1000;
+      nsec = (sleepMSec - (1000 * sec)) * 1000000;
+
+      wakeTime.tv_sec += sec;
+
+      if (wakeTime.tv_nsec + nsec > 1000000000)
+         wakeTime.tv_sec++;
+
+      wakeTime.tv_nsec = (wakeTime.tv_nsec + nsec) % 1000000000;
+
+      /* Wait until wakeTime */
+      pthread_status = PTHREAD_COND_TIMEDWAIT(&(pSession->downloaderWakeCond), &(pSession->downloaderWakeMutex), &wakeTime);
+
+      /* Unlock the downloader wake mutex */
+      if(pthread_mutex_unlock(&(pSession->downloaderWakeMutex)) != 0)
+      {
+         ERROR("failed to unlock downloader wake mutex");
+         rval = HLS_ERROR;
+         break;
+      }
+
+      /* If the timedwait call failed we need to bail */
+      if((pthread_status != ETIMEDOUT) && (pthread_status != 0))
+      {
+         ERROR("failed to timedwait on the downloader wake condition with status %d", pthread_status);
+         rval = HLS_ERROR;
+         break;
+      }
+   }while(0);
+
+   return rval;
+}
+
+/**
+ * Call this function to make sure the group download position is 
+ * not greater than DOWNLOADER_THREADS_POS_DIFF_SECS
+ *  
+ * @param pSession       - pointer to the HLS session
+ * @param mediaGroupIdx  - array index of the group in currentMediaGroup
+ * @param pGroupPlaylist - Media group playlist
+ * @param pCurrentGroupSeg - The next media group segment to be downloaded
+ * 
+ * @return #hlsStatus_t 
+ */
+static hlsStatus_t hlsDwnldThreadsSync(hlsSession_t *pSession, 
+                                       int mediaGroupIdx,
+                                       hlsPlaylist_t *pGroupPlaylist,
+                                       hlsSegment_t *pCurrentGroupSeg)
+{
+   hlsStatus_t status = HLS_OK;
+   double      mainSegPFE = -1;
+   double      grpSegPFE = -1;
+   
+   do 
+   {
+      if((NULL == pSession) ||
+         (NULL == pGroupPlaylist) ||
+         (NULL == pCurrentGroupSeg))
+      {
+         ERROR("Invalid parameter");
+         status = HLS_INVALID_PARAMETER;
+         break;
+      }
+
+      if(pSession->bKillDownloader == 1)
+      {
+         status = HLS_CANCELLED;
+         break;
+      }
+
+      mainSegPFE = -1;
+
+      /* Find the position of the main playlist segment downloader */
+      pthread_rwlock_rdlock(&(pSession->playlistRWLock));
+      
+      if((NULL != pSession->pCurrentPlaylist) &&
+         (NULL != pSession->pCurrentPlaylist->pMediaData) &&   
+         (NULL != pSession->pCurrentPlaylist->pMediaData->pLastDownloadedSegmentNode))
+      {
+         status = getPositionFromEnd(pSession->pCurrentPlaylist, 
+                                     pSession->pCurrentPlaylist->pMediaData->pLastDownloadedSegmentNode->pData, 
+                                     &mainSegPFE);
+         if(status != HLS_OK) 
+         {
+            ERROR("problem getting main playlist segment position");
+            pthread_rwlock_unlock(&(pSession->playlistRWLock));
+            break;
+         }
+      }
+      
+      pthread_rwlock_unlock(&(pSession->playlistRWLock));
+
+      if(-1 != mainSegPFE)
+      {
+         status = getPositionFromEnd(pGroupPlaylist, pCurrentGroupSeg, &grpSegPFE);
+         if(status != HLS_OK) 
+         {
+            ERROR("problem getting segment position for media group: %s", 
+                  pSession->pCurrentGroup[mediaGroupIdx]->groupID);
+            break;
+         }
+         
+         DEBUG(DBG_INFO, "Main Seg PFE: %f seconds Media Group: %s segmentPositionFromEnd: %f seconds", 
+               mainSegPFE, pSession->pCurrentGroup[mediaGroupIdx]->groupID, grpSegPFE);
+
+         if(mainSegPFE - grpSegPFE > DOWNLOADER_THREADS_POS_DIFF_SECS)
+         {
+            DEBUG(DBG_INFO, "Sleeping for 1 sec - diff of main downloader pos and grp(%s) download pos is > %d sec",
+                  pSession->pCurrentGroup[mediaGroupIdx]->groupID, DOWNLOADER_THREADS_POS_DIFF_SECS);
+            hlsDownloaderSleep(pSession, 1000);
+         }
+         else
+         {
+            break;
+         }
+      }
+      else
+      {
+         /* Main playlist segment downloader has not finished downloading the first segment */
+         break;
+      }
+   
+   }while(1);
+
+   return status;
+}
+
 hlsStatus_t hlsSegmentDownloadLoop(hlsSession_t* pSession)
 {
     hlsStatus_t status = HLS_OK;
@@ -180,7 +343,8 @@ hlsStatus_t hlsSegmentDownloadLoop(hlsSession_t* pSession)
                 {
                    playerMode = SRC_PLAYER_MODE_NORMAL;
                 }
-                status = downloadAndPushSegment(pSession, pSegmentCopy, wakeTime, playerMode);
+                status = downloadAndPushSegment(pSession, pSegmentCopy, wakeTime, playerMode,
+                                                SRC_STREAM_NUM_MAIN);
                 if(status != HLS_OK) 
                 {
                     if(status == HLS_CANCELLED) 
@@ -550,7 +714,8 @@ hlsStatus_t hlsIFrameDownloadLoop(hlsSession_t* pSession)
                 /* Release playlist lock */
                 pthread_rwlock_unlock(&(pSession->playlistRWLock));
 
-                status = downloadAndPushSegment(pSession, pSegmentCopy, wakeTime, SRC_PLAYER_MODE_LOW_DELAY);
+                status = downloadAndPushSegment(pSession, pSegmentCopy, wakeTime, SRC_PLAYER_MODE_LOW_DELAY,
+                                                SRC_STREAM_NUM_MAIN);
                 if(status != HLS_OK) 
                 {
                     if(status == HLS_CANCELLED) 
@@ -766,6 +931,307 @@ void hlsDownloaderThread(hlsSession_t* pSession)
 
     DEBUG(DBG_INFO,"session %p download thread exiting with status %d", pSession, status);
     pthread_exit(NULL);
+}
+
+/**
+ * Media group segment downloader loop 
+ *  
+ * @param pSession - pointer to the HLS session
+ * @param mediaGroupIdx - array index of the group in currentMediaGroup
+ * 
+ * @return #hlsStatus_t 
+ */
+hlsStatus_t hlsGrpSegDwnldLoop(hlsSession_t* pSession,
+                               int mediaGroupIdx)
+{
+   hlsStatus_t status = HLS_OK;
+
+   int pthread_status = 0;
+
+   hlsPlaylist_t* pMediaPlaylist = NULL;
+
+   hlsSegment_t* pSegment = NULL;
+   hlsSegment_t* pSegmentCopy = NULL;
+
+   int proposedBitrateIndex = 0;
+   struct timespec wakeTime;
+   llStatus_t llerror = LL_OK;
+   playbackControllerSignal_t* pSignal = NULL;
+   struct timespec oldLastBitrateChange;
+   srcPlayerMode_t playerMode;
+
+   TIMESTAMP(DBG_INFO, "Starting %s - Media group: %s", 
+         __FUNCTION__, pSession->pCurrentGroup[mediaGroupIdx]->groupID);
+
+   if(pSession == NULL)
+   {
+      ERROR("invalid parameter: psession");
+      return HLS_INVALID_PARAMETER;
+   }
+   if(mediaGroupIdx >= pSession->currentGroupCount)
+   {
+      ERROR("invalid parameter: mediaGroupIdx");
+      return HLS_INVALID_PARAMETER;
+   }
+
+   do
+   {
+      pMediaPlaylist = pSession->pCurrentGroup[mediaGroupIdx]->pPlaylist;
+
+      /* Allocate a segment to keep a local copy of segment information */
+      pSegmentCopy = newHlsSegment();
+      if(pSegmentCopy == NULL) 
+      {
+         ERROR("newHlsSegment() failed");
+         status = HLS_MEMORY_ERROR;
+         break;
+      }
+
+      while(status == HLS_OK) 
+      {
+         /* If the downloader was signalled to exit, return HLS_CANCELLED */
+         if(pSession->bKillDownloader) 
+         {
+            DEBUG(DBG_WARN, "downloader signalled to stop");
+            status = HLS_CANCELLED;
+            break;
+         }
+
+         /* Get current time */
+         if(clock_gettime(CLOCK_MONOTONIC, &wakeTime) != 0) 
+         {
+            ERROR("failed to get current time");
+            status = HLS_ERROR;
+            break;
+         }
+
+         /* Get playlist READ lock */
+         pthread_rwlock_rdlock(&(pSession->playlistRWLock));
+
+         /* Get the next segment */
+         status = getNextSegment(pMediaPlaylist, &pSegment);
+         if(status != HLS_OK) 
+         {
+            ERROR("failed to find next segment");
+            /* Release playlist lock */
+            pthread_rwlock_unlock(&(pSession->playlistRWLock));
+            break;
+         }
+
+         /* Did we get a valid segment? */
+         if(pSegment != NULL) 
+         {
+            /* Make a local copy of the segment */
+            status = copyHlsSegment(pSegment, pSegmentCopy);
+            if(status != HLS_OK) 
+            {
+               ERROR("failed to make local segment copy");
+               /* Release playlist lock */
+               pthread_rwlock_unlock(&(pSession->playlistRWLock));
+               break;
+            }
+
+            /* Prepend the playlist's baseURL, if necessary */
+            status = createFullURL(&(pSegmentCopy->URL), pMediaPlaylist->baseURL);
+            if(status != HLS_OK) 
+            {
+               ERROR("error creating full URL");
+               /* Release playlist lock */
+               pthread_rwlock_unlock(&(pSession->playlistRWLock));
+               break;
+            }
+
+            /* We no longer need a reference to the parsed segment */
+            pSegment = NULL;
+
+            /* Release playlist lock */
+            pthread_rwlock_unlock(&(pSession->playlistRWLock));  
+
+            /* Determine the player mode based on speed */
+            if(pSession->speed == 0.0)
+            {
+               playerMode = SRC_PLAYER_MODE_PAUSE;
+            }
+            else
+            {
+               playerMode = SRC_PLAYER_MODE_NORMAL;
+            }
+
+            status = hlsDwnldThreadsSync(pSession, mediaGroupIdx, pMediaPlaylist, pSegmentCopy);
+            if(HLS_OK != status) 
+            {
+               break;
+            }
+
+            status = downloadAndPushSegment(pSession, pSegmentCopy, wakeTime, playerMode, 
+                                            SRC_STREAM_NUM_MAIN + mediaGroupIdx + 1);
+            if(status != HLS_OK) 
+            {
+               if(status == HLS_CANCELLED) 
+               {
+                  DEBUG(DBG_WARN, "downloader signalled to stop");
+                  break;
+               }
+               else
+               {
+                  ERROR("Failed to download segment");
+                  break;
+               }
+            }
+         }
+         else
+         {
+            /* If we aren't playing then we never even got the first segment, so quit */
+            if(pSession->state != HLS_PLAYING)
+            {
+               ERROR("failed to get first segment");
+               status = HLS_ERROR;
+               /* Release playlist lock */
+               pthread_rwlock_unlock(&(pSession->playlistRWLock));
+               break;
+            }
+
+            if(!pMediaPlaylist->pMediaData->bHaveCompletePlaylist) /* Live stream */
+            {
+               /* Release playlist lock */
+               pthread_rwlock_unlock(&(pSession->playlistRWLock));
+
+               /* If we didn't get a segment we've hit EOS */
+               DEBUG(DBG_NOISE,"EOS -- no more segments in live playlist");
+
+               /* If we have hit EOS on a live stream, then we just need
+                  to wait for the playlist to update with new segments */
+
+               /* Lock the downloader wake mutex */
+               if(pthread_mutex_lock(&(pSession->downloaderWakeMutex)) != 0)
+               {
+                  ERROR("failed to lock downloader wake mutex");
+                  status = HLS_ERROR;
+                  break;
+               }
+
+               /* Wait for LOOP_SECS before going again */
+               wakeTime.tv_sec += DOWNLOADER_LOOP_SECS;
+
+               DEBUG(DBG_NOISE,"sleeping %d seconds until %d", (int)DOWNLOADER_LOOP_SECS, (int)wakeTime.tv_sec);
+
+               /* Wait until wakeTime */
+               pthread_status = PTHREAD_COND_TIMEDWAIT(&(pSession->downloaderWakeCond), &(pSession->downloaderWakeMutex), &wakeTime);
+
+               /* Unlock the downloader wake mutex */
+               if(pthread_mutex_unlock(&(pSession->downloaderWakeMutex)) != 0)
+               {
+                  ERROR("failed to unlock downloader wake mutex");
+                  status = HLS_ERROR;
+                  break;
+               }
+
+               /* If the timedwait call failed we need to bail */
+               if((pthread_status != ETIMEDOUT) && (pthread_status != 0))
+               {
+                  ERROR("failed to timedwait on the downloader wake condition");
+                  status = HLS_ERROR;
+                  break;
+               }
+            }
+            else /* VOD stream */
+            {
+               /* Release playlist lock */
+               pthread_rwlock_unlock(&(pSession->playlistRWLock));
+
+               DEBUG(DBG_INFO,"EOF(VOD) - Media Group %s download loop", pSession->pCurrentGroup[mediaGroupIdx]->groupID);
+                    
+               /* Allocate a new playback controller signal */
+               pSignal = malloc(sizeof(playbackControllerSignal_t));
+               if(pSignal == NULL) 
+               {
+                   ERROR("malloc error");
+                   status = HLS_MEMORY_ERROR;
+                   break;
+               }
+               
+               *pSignal = PBC_DOWNLOAD_COMPLETE;
+
+               /* Push the message to the playback controller message queue */
+               llerror = pushMsg(pSession->playbackControllerMsgQueue, (void*)pSignal);
+               if(llerror != LL_OK) 
+               {
+                  ERROR("failed to signal the playback controller");
+                  free(pSignal);
+                  status = HLS_ERROR;
+                  break;
+               }
+                
+               /* Release reference to signal -- playback controller will free */
+               pSignal = NULL;
+
+               break;
+            }
+         }
+
+         /* Make sure we're still in a valid state */
+         if(pSession->state == HLS_INVALID_STATE) 
+         {
+            status = HLS_STATE_ERROR;
+            break;
+         }
+      }
+      if(status != HLS_OK) 
+      {
+         break;
+      }
+
+   } while (0);
+
+   /* Clean up */
+   freeSegment(pSegmentCopy);
+
+   return status;
+}
+
+/**
+ * Media group segment downloader thread 
+ *  
+ * @param pData - pointer to hlsGrpDwnldData_t 
+ */
+void hlsGrpDownloaderThread(hlsGrpDwnldData_t* pData)
+{
+   hlsStatus_t status = HLS_OK;
+   hlsSession_t *pSession = NULL;
+
+   if(pData == NULL)
+   {
+      ERROR("pData == NULL");
+      pthread_exit(NULL);
+   }
+
+   pSession = pData->pSession;
+   if(pSession == NULL)
+   {
+      ERROR("pSession == NULL");
+   }
+
+   TIMESTAMP(DBG_INFO, "Starting %s for media group: %d", 
+         __FUNCTION__, pData->mediaGrpIdx);
+
+
+   status = hlsGrpSegDwnldLoop(pSession, pData->mediaGrpIdx);
+    
+   pSession->groupDownloaderStatus[pData->mediaGrpIdx]= status;
+
+   if((status != HLS_OK) && (status != HLS_CANCELLED))
+   {
+      /* Send asynchronous error message to the player */
+      srcPluginErr_t error;
+      error.errCode = SRC_PLUGIN_ERR_SESSION_RESOURCE_FAILED;
+      snprintf(error.errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("session %p download thread quit with status: %d", pSession, status));
+      hlsPlayer_pluginErrCallback(pSession->pHandle, &error);
+
+      ERROR("session %p - Media group download thread quit with status: %d", pSession, status);
+   }
+
+   DEBUG(DBG_INFO,"session %p - Media group download thread exiting with status %d", pSession, status);
+   pthread_exit(NULL);
 }
 
 #ifdef __cplusplus

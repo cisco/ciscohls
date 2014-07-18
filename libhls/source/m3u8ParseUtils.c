@@ -70,7 +70,8 @@ const char *m3u8TagStrings[NUM_SUPPORTED_TAGS] =
     "#EXT-X-CISCO-KEY",
     "#EXT-X-CISCO-PROT-HEADER",
     "#EXT-X-I-FRAME-STREAM-INF",
-    "#EXT-X-I-FRAMES-ONLY"
+    "#EXT-X-I-FRAMES-ONLY",
+    "#EXT-X-MEDIA"
 };
 
 /* Local function prototypes */
@@ -97,6 +98,7 @@ static hlsStatus_t m3u8ParseKey(char* tagLine, srcEncType_t* pEncType, char** pI
 static hlsStatus_t m3u8ParseByteRange(char* tagLine, hlsSegment_t* pSegment, long* pNextSegmentOffset);
 static hlsStatus_t m3u8ParseProtHeader(char* tagLine, hlsSession_t* pSession);
 static hlsStatus_t m3u8ParseIFrameStreamInf(char *tagLine, char* baseURL, llist_t* pProgramList);
+static hlsStatus_t m3u8ParseMedia(char *tagLine, char* baseURL, llist_t* pGroupList);
 
 static hlsStatus_t addSegmentEncInfo(hlsSegment_t* pSegment, srcEncType_t encType, char* iv, char* keyURI);
 static hlsStatus_t incCtrIv(char ** pIV);
@@ -257,6 +259,7 @@ hlsStatus_t m3u8ParsePlaylist(hlsPlaylist_t* pPlaylist, hlsSession_t* pSession)
             ERROR("error generating local path");
             break;
         }
+        DEBUG(DBG_INFO, "Local playlist path: %s", filePath);
 
         do
         {
@@ -719,6 +722,7 @@ static hlsStatus_t m3u8PreprocessPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pPlay
                     case EXTINF:
                         pPlaylist->type = PL_MEDIA;
                         break;
+                    case EXT_X_MEDIA:
                     case EXT_X_STREAM_INF:
                         pPlaylist->type = PL_VARIANT;
                         break;
@@ -979,6 +983,22 @@ static hlsStatus_t m3u8ProcessVariantPlaylist(FILE* fpPlaylist, hlsPlaylist_t* p
     
                         /* Parse the tag */    
                         rval = m3u8ParseIFrameStreamInf(parseLine, pPlaylist->baseURL, pPlaylist->pList);
+                        break;
+                    case EXT_X_MEDIA:
+                        DEBUG(DBG_INFO,"got EXT-X-MEDIA tag");
+                        /* Create program list if it doesn't exist */
+                        if(pPlaylist->pGroupList == NULL) 
+                        {
+                            pPlaylist->pGroupList = newLinkedList();
+                            if(pPlaylist->pGroupList == NULL) 
+                            {
+                                ERROR("problem allocating group list");
+                                rval = HLS_ERROR;
+                                break;
+                            }
+                        }
+                        
+                        rval = m3u8ParseMedia(parseLine, pPlaylist->baseURL, pPlaylist->pGroupList);
                         break;
                     default:
                         DEBUG(DBG_WARN,"got unexpected tag, ignoring");
@@ -1350,7 +1370,7 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
 
                         /* Parse the key tag to get the relevant information */
                         rval = m3u8ParseKey(parseLine, &encType, &iv, &keyURI);
-                        if(rval) 
+                        if(rval || (NULL == keyURI)) 
                         {
                             break;
                         }
@@ -2225,6 +2245,8 @@ static hlsStatus_t m3u8ParseStreamInf(char *tagLine, char* urlLine, llist_t* pPr
     int i = 0;
     int sortTemp = 0;
     char* codecs = NULL;
+    char* audio = NULL;
+    char* video = NULL;
 
     llNode_t* pProgramNode = NULL;
     hlsProgram_t* pProgram = NULL;
@@ -2307,6 +2329,44 @@ static hlsStatus_t m3u8ParseStreamInf(char *tagLine, char* urlLine, llist_t* pPr
                 memset(codecs, 0, strlen(pTok));
                 strncpy(codecs, pTok, strlen(pTok)-1); // Ignore trailing " character
             }
+            else if(strncmp(pTok, "AUDIO", strlen("AUDIO")) == 0) 
+            {
+                /* the attribute will be a quoted-string -- we want
+                   to strip off the " characters */
+
+                pTok += strlen("AUDIO=");
+                pTok++; // Jump over leading " character
+                
+                audio = malloc(strlen(pTok)); // Don't need to copy trailing "
+                if(audio == NULL) 
+                {
+                    ERROR("malloc error");
+                    rval = HLS_MEMORY_ERROR;
+                    break;
+                }
+                memset(audio, 0, strlen(pTok));
+                strncpy(audio, pTok, strlen(pTok)-1); // Ignore trailing " character
+                DEBUG(DBG_INFO,"audio = %s", audio);
+            }
+            else if(strncmp(pTok, "VIDEO", strlen("VIDEO")) == 0) 
+            {
+                /* the attribute will be a quoted-string -- we want
+                   to strip off the " characters */
+
+                pTok += strlen("VIDEO=");
+                pTok++; // Jump over leading " character
+                
+                video = malloc(strlen(pTok)); // Don't need to copy trailing "
+                if(video == NULL) 
+                {
+                    ERROR("malloc error");
+                    rval = HLS_MEMORY_ERROR;
+                    break;
+                }
+                memset(video, 0, strlen(pTok));
+                strncpy(video, pTok, strlen(pTok)-1); // Ignore trailing " character
+                DEBUG(DBG_INFO,"video = %s", video);
+            }
             
             pTok = strtok(NULL, ",");
         }
@@ -2326,6 +2386,8 @@ static hlsStatus_t m3u8ParseStreamInf(char *tagLine, char* urlLine, llist_t* pPr
         DEBUG(DBG_NOISE,"bitrate = %d", bitrate);
         DEBUG(DBG_NOISE,"resolution = %d x %d", width, height);
         DEBUG(DBG_NOISE,"codecs = %s", codecs);
+        DEBUG(DBG_NOISE,"audio = %s", audio);
+        DEBUG(DBG_NOISE,"video = %s", video);
         
         /* Look for a program node with matching program ID */
         pProgramNode = pProgramList->pHead;
@@ -2419,6 +2481,16 @@ static hlsStatus_t m3u8ParseStreamInf(char *tagLine, char* urlLine, llist_t* pPr
         /* Release the local reference to codecs */
         codecs = NULL;
 
+        /* Copy audio into our structure */
+        pStreamPL->pMediaData->audio = audio;
+        /* Release the local reference to audio */
+        audio = NULL;
+        
+        /* Copy video into our structure */
+        pStreamPL->pMediaData->video = video;
+        /* Release the local reference to video */
+        video = NULL;
+
         /* Copy URL into our structure */
         pStreamPL->playlistURL = (char*)malloc(strlen(urlLine)+1);
         if(pStreamPL->playlistURL == NULL) 
@@ -2482,6 +2554,8 @@ static hlsStatus_t m3u8ParseStreamInf(char *tagLine, char* urlLine, llist_t* pPr
     if(rval != HLS_OK) 
     {
         free(codecs);
+        free(audio);
+        free(video);
     }
 
     return rval;    
@@ -2832,6 +2906,292 @@ static hlsStatus_t m3u8ParseKey(char* tagLine, srcEncType_t* pEncType, char** pI
     } while (0);
     
     return rval;
+}
+
+/** 
+ * 
+ * 
+ * @param tagLine
+ * @param pProgramList
+ * 
+ * @return #hlsStatus_t
+ */
+static hlsStatus_t m3u8ParseMedia(char *tagLine, char* baseURL, llist_t* pGroupList)
+{
+   hlsStatus_t rval = HLS_OK;
+   llStatus_t llerror = LL_OK;
+
+   int i = 0;
+   int sortTemp = 0;
+
+   char* uri = NULL;
+   hlsMediaType_t type = HLS_MEDIA_TYPE_INVALID;
+   char* groupID = NULL;
+   char* language = NULL;
+   char* name = NULL;
+   int def = HLS_NO;
+   int autoSelect = HLS_NO;
+
+   llNode_t* pGroupNode = NULL;
+   hlsGroup_t* pGroup = NULL;
+   hlsPlaylist_t* pStreamPL = NULL;
+
+   char* pTemp = NULL;
+   char* pTok = NULL;
+   char* pIndex = NULL;
+
+   if((tagLine == NULL) || (baseURL == NULL) || (pGroupList == NULL))
+   {
+      ERROR("invalid parameter");
+      return HLS_INVALID_PARAMETER;
+   }
+
+   DEBUG(DBG_NOISE,"parsing: %s", tagLine);
+
+   do
+   {
+      /* Get to the start of the attribute list */
+      pTemp = tagLine + strlen("#EXT-X-MEDIA:");
+
+      /* Tokenize and parse attributes */
+      pTok = strtok(pTemp, ",");
+      while(pTok != NULL) 
+      {
+
+         /* Because attributes can include whitespace, we don't want to
+            tokenzie using the ' ' character.  Because of this, we have
+            to remove any leading whitespace following a ',' in the
+            attribute list */
+         while(pTok[0] == ' ') 
+         {
+            pTok++;
+         }
+         DEBUG(DBG_NOISE,"got token \"%s\"", pTok);
+
+         if(strncmp(pTok, "URI", strlen("URI")) == 0) 
+         {
+            /* the attribute will be a quoted-string -- we want
+               to strip off the " characters */
+
+            pTok += strlen("URI=");
+            pTok++; // Jump over leading " character
+
+            uri = malloc(strlen(pTok)); // Don't need to copy trailing "
+            if(uri == NULL) 
+            {
+               ERROR("malloc error");
+               rval = HLS_MEMORY_ERROR;
+               break;
+            }
+            memset(uri, 0, strlen(pTok));
+            strncpy(uri, pTok, strlen(pTok)-1); // Ignore trailing " character
+            
+            /* Prepend the baseURL, if necessary */
+            rval = createFullURL(&uri, baseURL);
+            if(rval != HLS_OK) 
+            {
+               ERROR("error creating full URL");
+               break;
+            }
+         }
+         else if(strncmp(pTok, "TYPE", strlen("TYPE")) == 0) 
+         {
+            pTok += strlen("TYPE=");
+            if(!strncmp(pTok, "AUDIO", strlen(pTok)))
+            {
+               type = HLS_MEDIA_TYPE_AUDIO;
+            }
+            else if(!strncmp(pTok, "VIDEO", strlen(pTok)))
+            {
+               type = HLS_MEDIA_TYPE_VIDEO;
+            }
+            else
+            {
+               ERROR("Type attribute of EXT-X-MEDIA has invalid value: %s", pTok);
+               rval = HLS_ERROR;
+               break;
+            }
+         }
+         else if(strncmp(pTok, "GROUP-ID", strlen("GROUP-ID")) == 0) 
+         {
+            /* the attribute will be a quoted-string -- we want
+               to strip off the " characters */
+
+            pTok += strlen("GROUP-ID=");
+            pTok++; // Jump over leading " character
+
+            groupID = malloc(strlen(pTok)); // Don't need to copy trailing "
+            if(groupID == NULL) 
+            {
+               ERROR("malloc error");
+               rval = HLS_MEMORY_ERROR;
+               break;
+            }
+            memset(groupID, 0, strlen(pTok));
+            strncpy(groupID, pTok, strlen(pTok)-1); // Ignore trailing " character
+         }
+         else if(strncmp(pTok, "LANGUAGE", strlen("LANGUAGE")) == 0) 
+         {
+            /* the attribute will be a quoted-string -- we want
+               to strip off the " characters */
+
+            pTok += strlen("LANGUAGE=");
+            pTok++; // Jump over leading " character
+
+            language = malloc(strlen(pTok)); // Don't need to copy trailing "
+            if(language == NULL) 
+            {
+               ERROR("malloc error");
+               rval = HLS_MEMORY_ERROR;
+               break;
+            }
+            memset(language, 0, strlen(pTok));
+            strncpy(language, pTok, strlen(pTok)-1); // Ignore trailing " character
+         }
+         else if(strncmp(pTok, "NAME", strlen("NAME")) == 0) 
+         {
+            /* the attribute will be a quoted-string -- we want
+               to strip off the " characters */
+
+            pTok += strlen("NAME=");
+            pTok++; // Jump over leading " character
+
+            name = malloc(strlen(pTok)); // Don't need to copy trailing "
+            if(name == NULL) 
+            {
+               ERROR("malloc error");
+               rval = HLS_MEMORY_ERROR;
+               break;
+            }
+            memset(name, 0, strlen(pTok));
+            strncpy(name, pTok, strlen(pTok)-1); // Ignore trailing " character
+         }
+         else if(strncmp(pTok, "DEFAULT", strlen("DEFAULT")) == 0) 
+         {
+            pTok += strlen("DEFAULT=");
+            if(!strncmp(pTok, "YES", strlen(pTok)))
+            {
+               def = HLS_YES;
+            }
+            else if(!strncmp(pTok, "NO", strlen(pTok)))
+            {
+               def = HLS_NO;
+            }
+            else
+            {
+               ERROR("Default attribute of EXT-X-MEDIA has invalid value: %s", pTok);
+               rval = HLS_ERROR;
+               break;
+            }
+         }
+         else if(strncmp(pTok, "AUTOSELECT", strlen("AUTOSELECT")) == 0) 
+         {
+            pTok += strlen("AUTOSELECT=");
+            if(!strncmp(pTok, "YES", strlen(pTok)))
+            {
+               autoSelect = HLS_YES;
+            }
+            else if(!strncmp(pTok, "NO", strlen(pTok)))
+            {
+               autoSelect = HLS_NO;
+            }
+            else
+            {
+               ERROR("Autoselect attribute of EXT-X-MEDIA has invalid value: %s", pTok);
+               rval = HLS_ERROR;
+               break;
+            }
+         }
+
+         pTok = strtok(NULL, ",");
+      }
+      if(rval) 
+      {
+         break;
+      }
+
+      DEBUG(DBG_INFO,"uri = %s", uri);
+      DEBUG(DBG_INFO,"type = %d", type);
+      DEBUG(DBG_INFO,"group ID = %s", groupID);
+      DEBUG(DBG_INFO,"language = %s", language);
+      DEBUG(DBG_INFO,"name = %s", name);
+      DEBUG(DBG_INFO,"default = %s", (def == HLS_YES)?"YES":"NO");
+      DEBUG(DBG_INFO,"autoselect = %s", (autoSelect == HLS_YES)?"YES":"NO");
+
+      /* Allocate a new group */ 
+      pGroup = newHlsGroup();
+      if(pGroup == NULL) 
+      {
+         ERROR("newHlsGroup() failed");
+         rval = HLS_MEMORY_ERROR;
+         break;
+      }
+
+      /* Insert new node at end of list */
+      llerror = insertTail(pGroupList, pGroup);
+      if(llerror != LL_OK) 
+      {
+         ERROR("problem adding Group node");
+         /* Clean up before quitting */
+         freeGroup(pGroup);
+         pGroup = NULL;
+         rval = HLS_ERROR;
+         break;
+      }
+      
+      /* Save reference to parent node */
+      pGroup->pParentNode = pGroupList->pTail;
+      
+      /* Set Group ID of new node */
+      pGroup->groupID = groupID;
+      groupID = NULL;
+
+      if(NULL != uri)
+      {
+         /* Create new stream playlist structure */
+         pStreamPL = newHlsMediaPlaylist();
+         if(pStreamPL == NULL) 
+         {
+            ERROR("newHlsMediaPlaylist() failed");
+            rval = HLS_MEMORY_ERROR;
+            break;
+         }
+
+         /* Copy URL into our structure */
+         pStreamPL->playlistURL = uri;
+         /* Release the local reference to uri */
+         uri = NULL;
+
+         pGroup->pPlaylist = pStreamPL;
+      }
+      
+      pGroup->type = type;
+
+      /* Copy language into our structure */
+      pGroup->language = language;
+      /* Release the local reference to codecs */
+      language = NULL;
+
+      /* Copy name into our structure */
+      pGroup->name = name;
+      /* Release the local reference to codecs */
+      name = NULL;
+
+      pGroup->def = def;
+      pGroup->autoSelect = autoSelect;
+
+   } while (0);
+
+   /* Clean up if we errored */
+   if(rval != HLS_OK) 
+   {
+      free(uri);
+      free(language);
+      free(name);
+      free(groupID);
+   }
+
+   return rval;    
 }
 
 /** 

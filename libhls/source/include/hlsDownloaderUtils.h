@@ -42,11 +42,19 @@ hlsStatus_t getNextIFrame(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegmen
 
 double iFrameTrickDuration(double duration, float speed);
 
+hlsStatus_t matchPlaylistPosition(hlsSession_t *pSession,
+                                  hlsPlaylist_t *pPlaylist1, 
+                                  hlsPlaylist_t *pPlaylist2);
+
 hlsStatus_t changeCurrentPlaylist(hlsSession_t* pSession, hlsPlaylist_t* pNewMediaPlaylist);
 
 hlsStatus_t changeBitrate(hlsSession_t* pSession, int newBitrate);
 
-hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession, hlsSegment_t* pSegment, struct timespec waitTime, srcPlayerMode_t playerMode);
+hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession, 
+                                   hlsSegment_t* pSegment, 
+                                   struct timespec waitTime, 
+                                   srcPlayerMode_t playerMode, 
+                                   int streamNum);
 
 #ifdef __cplusplus
 }

@@ -67,6 +67,8 @@ typedef struct
     long* pBytesDownloaded;         /*!< Pointer to integer into which to write the number of bytes downloaded */
     int* pbKillThread;              /*!< Pointer to flag which will signal the thread to terminate when it is TRUE */
     hlsStatus_t* pDownloadStatus;   /*!< Pointer to #hlsStatus_t which will contain the thread's exit status */
+    CURL* pCurl;                    /*!< Curl handle to use to download */ 
+    pthread_mutex_t *curlMutex;     /*!< mutex to protect the curl handle */
 } asyncDlDesc_t;
 
 /* Local function prototypes */
@@ -87,7 +89,7 @@ void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc);
  *  
  * This function returns the next segment given the 
  * pLastDownloadedSegmentNode of *pMediaPlaylist.  If 
- * pLastDownloadedSegmentNode is NULL, returns either the fist 
+ * pLastDownloadedSegmentNode is NULL, returns either the first 
  * segment (VoD) or the segment 3*TARGET_DURATION from the end 
  * of the playlist (live). 
  *  
@@ -631,6 +633,198 @@ hlsStatus_t getNextIFrame(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegmen
 }
 
 /**
+ * This function updates the download/play position in playlist2 
+ * to match playlist1 
+ *  
+ * @param pSession   - session we are operating on
+ * @param pPlaylist1 - source playlist
+ * @param pPlaylist2 - destination playlist
+ * 
+ * @return #hlsStatus_t 
+ */
+hlsStatus_t matchPlaylistPosition(hlsSession_t *pSession,
+                                  hlsPlaylist_t *pPlaylist1, 
+                                  hlsPlaylist_t *pPlaylist2)
+{
+   hlsStatus_t rval = HLS_OK;
+   hlsSegment_t* pSegment = NULL;
+   double targetPosition = 0;
+
+   do 
+   {
+      if(pSession == NULL)
+      {
+         ERROR("invalid pSession parameter");
+         rval = HLS_INVALID_PARAMETER;
+         break;
+      }
+      /* Validate playlist1 */
+      if((pPlaylist1 == NULL) ||
+         (pPlaylist1->type != PL_MEDIA) || 
+         (pPlaylist1->pMediaData == NULL)) 
+      {
+         ERROR("invalid media playlist1");
+         rval = HLS_ERROR;
+         break;
+      }
+
+      /* Validate playlist2 */
+      if((pPlaylist2 == NULL) || 
+         (pPlaylist2->type != PL_MEDIA) || 
+         (pPlaylist2->pMediaData == NULL)) 
+      {
+         ERROR("invalid media playlist2");
+         rval = HLS_ERROR;
+         break;
+      }
+
+      /* If this is live, we need to update both playlists */ 
+      if(!(pPlaylist1->pMediaData->bHaveCompletePlaylist))
+      {
+         rval = m3u8ParsePlaylist(pPlaylist1, pSession);
+         if(rval != HLS_OK) 
+         {
+            ERROR("problem updating playlist1");
+            break;
+         }
+
+         rval = m3u8ParsePlaylist(pPlaylist2, pSession);
+         if(rval != HLS_OK) 
+         {
+            ERROR("problem updating playlist2");
+            break;
+         }
+      }
+      else if(!(pPlaylist2->pMediaData->bHaveCompletePlaylist)) 
+      {
+         /* If for some reason we have have all of playlist1
+            but not all of the playlist2, update playlist2
+            to synchronize them */
+         rval = m3u8ParsePlaylist(pPlaylist2, pSession);
+         if(rval != HLS_OK) 
+         {
+            ERROR("problem updating new playlist");
+            break;
+         }
+      }
+
+      /* If one playlist is rotating but the other isn't, we don't have any way of matching them up */
+      if(pPlaylist1->pMediaData->bHaveCompletePlaylist != pPlaylist2->pMediaData->bHaveCompletePlaylist) 
+      {
+         ERROR("one playlist is VoD and one is Live -- can't sync");
+         rval = HLS_ERROR;
+         break;
+      }
+
+      /* If we've started fetching from playlist1, we want to match that in playlist2 */
+      if(pPlaylist1->pMediaData->pLastDownloadedSegmentNode != NULL)
+      {
+         /* If we're currently playing, we want to match the two playlists based on the current DOWNLOAD position,
+            i.e. the first data we fetch from the new playlist should directly follow the last piece of data we
+            fetched from the playlist1.  So, we match on the positionFromEnd of playlist1's
+            pLastDownloadedSegmentNode->next. */
+         if(pSession->state == HLS_PLAYING) 
+         {
+            pSegment = (hlsSegment_t*)(pPlaylist1->pMediaData->pLastDownloadedSegmentNode->pData);
+
+            if(pSegment == NULL) 
+            {
+               ERROR("invalid segment");
+               rval = HLS_ERROR;
+               break;
+            }
+
+            // TODO: noise
+            DEBUG(DBG_INFO,"last downloaded segment %d", pSegment->seqNum);
+
+            /* Get position from end of the last downloaded segment */
+            rval = getPositionFromEnd(pPlaylist1, pSegment, &targetPosition);
+            if(rval != HLS_OK) 
+            {
+               ERROR("problem getting position in old playlist");
+               break;
+            }
+
+            // TODO: noise or delete
+            DEBUG(DBG_INFO,"old position from end = %f", targetPosition);
+
+            /* We want to match on the position of the next segment we would download from
+               playlist1, so subtract the last downloaded segment's duration */
+            targetPosition -= pSegment->duration;
+         }
+         else
+         {
+            /* If we're not currently PLAYING, then we want to match the two playlists based
+               on the PLAY position, i.e. use the playlist1's current positionFromEnd. */
+            targetPosition = pPlaylist1->pMediaData->positionFromEnd;
+         }
+
+         // TODO: noise or delete
+         DEBUG(DBG_INFO,"matching position from end = %f", targetPosition);
+
+         /* Find the next segment we would download from playlist2 (if targetPosition == 0
+            this will return the last node in playlist2). */
+         rval = getSegmentXSecFromEnd(pPlaylist2, targetPosition, &pSegment);
+         if(rval != HLS_OK) 
+         {
+            ERROR("problem finding segment in new playlist");
+            break;
+         }
+
+         if(pSegment == NULL) 
+         {
+            ERROR("invalid segment");
+            rval = HLS_ERROR;
+            break;
+         }
+
+         /* Update the pLastDownloadedSegmentNode */  
+         if(pSegment->pParentNode != NULL)
+         {
+            /* There is a special case if the next segment we would download hasn't been
+               added to the new playlist yet (i.e. targetPosition == 0) -- handle it here. */
+            if(targetPosition == 0)
+            {
+               // TODO: noise
+               DEBUG(DBG_INFO,"next segment will be %d", (pSegment->seqNum)+1);
+
+               pPlaylist2->pMediaData->pLastDownloadedSegmentNode = pSegment->pParentNode;
+            }
+            else
+            {
+               // TODO: noise
+               DEBUG(DBG_INFO,"next segment will be %d", pSegment->seqNum);
+
+               pPlaylist2->pMediaData->pLastDownloadedSegmentNode = pSegment->pParentNode->pPrev;
+            }
+         }
+         else
+         {
+            ERROR("segment has no parent node");
+            rval = HLS_ERROR;
+            break;
+         }
+      }
+      else
+      {
+         /* If we haven't fetched anything from playlist1, treat playlist2 the same */
+         pPlaylist2->pMediaData->pLastDownloadedSegmentNode = NULL;
+      }
+
+      /* Update the positionFromEnd (we'll need to update this if our guess was off) */
+      pPlaylist2->pMediaData->positionFromEnd = pPlaylist1->pMediaData->positionFromEnd;
+
+      /* TODO: verify that our guess was correct...
+         compare PTS of old segment and new segment
+         if the same --> we were right
+         if different --> go back or forward 1 segment, repeat
+         --> increment/decrement positionFromEnd in new playlist */
+   }while(0);
+
+   return rval;
+}
+
+/**
  * Assumes calling thread has playlist WRITE lock 
  *  
  * This function changes the pCurrentPlaylist for pSession to 
@@ -649,12 +843,7 @@ hlsStatus_t changeCurrentPlaylist(hlsSession_t* pSession, hlsPlaylist_t* pNewMed
 {
     hlsStatus_t rval = HLS_OK;
 
-    hlsPlaylist_t* pOldMediaPlaylist = NULL;
-    hlsSegment_t* pSegment = NULL;
-
     srcPluginEvt_t event;
-
-    double targetPosition = 0;
    
     if((pSession == NULL) || (pNewMediaPlaylist == NULL))
     {
@@ -664,169 +853,12 @@ hlsStatus_t changeCurrentPlaylist(hlsSession_t* pSession, hlsPlaylist_t* pNewMed
 
     do
     {
-        /* Validate new playlist */
-        if((pNewMediaPlaylist->type != PL_MEDIA) || 
-           (pNewMediaPlaylist->pMediaData == NULL)) 
+        rval = matchPlaylistPosition(pSession, pSession->pCurrentPlaylist, pNewMediaPlaylist);
+        if(HLS_OK != rval)
         {
-            ERROR("invalid media playlist");
-            rval = HLS_ERROR;
-            break;
+           ERROR("Failed to match old and new playlist position\n");
+           break;
         }
-
-        /* Get current playlist */
-        pOldMediaPlaylist = pSession->pCurrentPlaylist;
-
-        /* Validate current playlist */
-        if((pOldMediaPlaylist == NULL) || 
-           (pOldMediaPlaylist->type != PL_MEDIA) || 
-           (pOldMediaPlaylist->pMediaData == NULL)) 
-        {
-            ERROR("invalid media playlist");
-            rval = HLS_ERROR;
-            break;
-        }
-     
-        /* If this is live, we need to update both playlists */ 
-        if(!(pOldMediaPlaylist->pMediaData->bHaveCompletePlaylist))
-        {
-            rval = m3u8ParsePlaylist(pOldMediaPlaylist, pSession);
-            if(rval != HLS_OK) 
-            {
-                ERROR("problem updating old playlist");
-                break;
-            }
-
-            rval = m3u8ParsePlaylist(pNewMediaPlaylist, pSession);
-            if(rval != HLS_OK) 
-            {
-                ERROR("problem updating new playlist");
-                break;
-            }
-        }
-        else if(!(pNewMediaPlaylist->pMediaData->bHaveCompletePlaylist)) 
-        {
-            /* If for some reason we have have all of the old playlist
-               but not all of the new playlist, update the new playlist
-               to synchronize them */
-            rval = m3u8ParsePlaylist(pNewMediaPlaylist, pSession);
-            if(rval != HLS_OK) 
-            {
-                ERROR("problem updating new playlist");
-                break;
-            }
-        }
-
-        /* If one playlist is rotating but the other isn't, we don't have any way of matching them up */
-        if(pOldMediaPlaylist->pMediaData->bHaveCompletePlaylist != pNewMediaPlaylist->pMediaData->bHaveCompletePlaylist) 
-        {
-            ERROR("one playlist is VoD and one is Live -- can't sync");
-            rval = HLS_ERROR;
-            break;
-        }
-
-        /* If we've started fetching from our old playlist, we want to match that in our new playlist */
-        if(pOldMediaPlaylist->pMediaData->pLastDownloadedSegmentNode != NULL)
-        {
-            /* If we're currently playing, we want to match the two playlists based on the current DOWNLOAD position,
-               i.e. the first data we fetch from the new playlist should directly follow the last piece of data we
-               fetched from the old playlist.  So, we match on the positionFromEnd of the old playlist's
-               pLastDownloadedSegmentNode->next. */
-            if(pSession->state == HLS_PLAYING) 
-            {
-                pSegment = (hlsSegment_t*)(pOldMediaPlaylist->pMediaData->pLastDownloadedSegmentNode->pData);
-    
-                if(pSegment == NULL) 
-                {
-                    ERROR("invalid segment");
-                    rval = HLS_ERROR;
-                    break;
-                }
-        
-                // TODO: noise
-                DEBUG(DBG_INFO,"last downloaded segment %d", pSegment->seqNum);
-                
-                /* Get position from end of the last downloaded segment */
-                rval = getPositionFromEnd(pOldMediaPlaylist, pSegment, &targetPosition);
-                if(rval != HLS_OK) 
-                {
-                    ERROR("problem getting position in old playlist");
-                    break;
-                }
-        
-                // TODO: noise or delete
-                DEBUG(DBG_INFO,"old position from end = %f", targetPosition);
-                    
-                /* We want to match on the position of the next segment we would download from the old
-                   playlist, so subtract the last downloaded segment's duration */
-                targetPosition -= pSegment->duration;
-            }
-            else
-            {
-                /* If we're not currently PLAYING, then we want to match the two playlists based
-                   on the PLAY position, i.e. use the old playlist's current positionFromEnd. */
-                targetPosition = pOldMediaPlaylist->pMediaData->positionFromEnd;
-            }
-
-            // TODO: noise or delete
-            DEBUG(DBG_INFO,"matching position from end = %f", targetPosition);
-    
-            /* Find the next segment we would download from the new playlist (if targetPosition == 0
-               this will return the last node in the new playlist). */
-            rval = getSegmentXSecFromEnd(pNewMediaPlaylist, targetPosition, &pSegment);
-            if(rval != HLS_OK) 
-            {
-                ERROR("problem finding segment in new playlist");
-                break;
-            }
-    
-            if(pSegment == NULL) 
-            {
-                ERROR("invalid segment");
-                rval = HLS_ERROR;
-                break;
-            }
-
-            /* Update the pLastDownloadedSegmentNode */  
-            if(pSegment->pParentNode != NULL)
-            {
-                /* There is a special case if the next segment we would download hasn't been
-                   added to the new playlist yet (i.e. targetPosition == 0) -- handle it here. */
-                if(targetPosition == 0)
-                {
-                    // TODO: noise
-                    DEBUG(DBG_INFO,"next segment will be %d", (pSegment->seqNum)+1);
-    
-                    pNewMediaPlaylist->pMediaData->pLastDownloadedSegmentNode = pSegment->pParentNode;
-                }
-                else
-                {
-                    // TODO: noise
-                    DEBUG(DBG_INFO,"next segment will be %d", pSegment->seqNum);
-    
-                    pNewMediaPlaylist->pMediaData->pLastDownloadedSegmentNode = pSegment->pParentNode->pPrev;
-                }
-            }
-            else
-            {
-                ERROR("segment has no parent node");
-                rval = HLS_ERROR;
-                break;
-            }
-        }
-        else
-        {
-            /* If we haven't fetched anything from the old playlist, treat our new playlist the same */
-            pNewMediaPlaylist->pMediaData->pLastDownloadedSegmentNode = NULL;
-        }
-            
-        /* Update the positionFromEnd (we'll need to update this if our guess was off) */
-        pNewMediaPlaylist->pMediaData->positionFromEnd = pOldMediaPlaylist->pMediaData->positionFromEnd;
-
-        /* TODO: verify that our guess was correct...
-           compare PTS of old segment and new segment
-           if the same --> we were right
-           if different --> go back or forward 1 segment, repeat
-                        --> increment/decrement positionFromEnd in new playlist */
                         
         /* Update pCurrentPlaylist */
         pSession->pCurrentPlaylist = pNewMediaPlaylist;
@@ -934,10 +966,15 @@ hlsStatus_t changeBitrate(hlsSession_t* pSession, int newBitrate)
  * @param playerMode - #srcPlayerMode_t specifying what mode to 
  *                   put the player into once we have sent it
  *                   some data
+ * @param streamNum - stream Number( main, media group streams...)
  * 
  * @return #hlsStatus_t 
  */
-hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession, hlsSegment_t* pSegment, struct timespec waitTime, srcPlayerMode_t playerMode)
+hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession, 
+                                   hlsSegment_t* pSegment, 
+                                   struct timespec waitTime, 
+                                   srcPlayerMode_t playerMode, 
+                                   int streamNum)
 {
     hlsStatus_t rval = HLS_OK;
 
@@ -969,9 +1006,9 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession, hlsSegment_t* pSegmen
     long fileSize = 0;
     long bytesRead = 0;
 
-    int bufferCount = 0;
-
     void    *pPrivate;
+    char tag[128] = "";
+    unsigned char *ptr = NULL;
 
     if((pSession == NULL) || (pSegment == NULL))
     {
@@ -1008,6 +1045,16 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession, hlsSegment_t* pSegmen
         desc.pBytesDownloaded = &bytesDownloaded;
         desc.pDownloadStatus = &dlStatus;
         desc.pbKillThread = &bKillThread;
+        if(streamNum > SRC_STREAM_NUM_MAIN)
+        {
+           desc.pCurl = pSession->pMediaGroupCurl[streamNum - 1];
+           desc.curlMutex = &pSession->mediaGroupCurlMutex[streamNum - 1];
+        }
+        else
+        {
+           desc.pCurl = pSession->pCurl;
+           desc.curlMutex = &pSession->curlMutex;
+        }
 
         /* Kick off a separate thread to go off and do the download */
         if(pthread_create(&(asyncDlThread), NULL, (void*)asyncSegmentDownloadThread, &desc))
@@ -1053,7 +1100,10 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession, hlsSegment_t* pSegmen
         memcpy( bufferMeta.iv,pSegment->iv, 16);
         bufferMeta.keyURI = pSegment->keyURI;
         memcpy( bufferMeta.key,pSegment->key, 16);
-        
+        bufferMeta.streamNum = streamNum;
+        /* Alternate streams + one main stream */
+        bufferMeta.totalNumStreams = pSession->currentGroupCount + 1;
+        bufferMeta.pts = INVALID_PTS;
         
         /* Keep going as long as we don't hit an error */
         while(rval == HLS_OK) 
@@ -1112,7 +1162,7 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession, hlsSegment_t* pSegmen
                 /* If the above results in a bufferSize of 0, just send it back empty */
                 if(bufferSize == 0)
                 {
-                    status = hlsPlayer_sendBuffer(pSession->pHandle, buffer, 0, NULL, pPrivate);
+                    status = hlsPlayer_sendBuffer(pSession->pHandle, buffer, 0, &bufferMeta, pPrivate);
                     if(status != SRC_SUCCESS)
                     {
                         ERROR("failed to send buffer to player");
@@ -1160,15 +1210,15 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession, hlsSegment_t* pSegmen
                                    /* Wait for more data... */
                                    time_t sec = DATA_WAIT_MSECS / 1000;
                                    long nsec = (DATA_WAIT_MSECS - (1000 * sec)) * 1000000;
- 
+
                                    wakeTime.tv_sec += sec;
 
                                    if (wakeTime.tv_nsec + nsec > 1000000000)
                                        wakeTime.tv_sec++;
- 
+
                                    wakeTime.tv_nsec = (wakeTime.tv_nsec + nsec) % 1000000000;
 
-                                   DEBUG(DBG_WARN, "wait for %d milliseconds until more data is downloaded", DATA_WAIT_MSECS);
+                                   DEBUG(DBG_NOISE, "wait for %d milliseconds until more data is downloaded", DATA_WAIT_MSECS);
                                    pthread_mutex_lock(&(pSession->downloaderWakeMutex));
 
                                    PTHREAD_COND_TIMEDWAIT(&(pSession->downloaderWakeCond), &(pSession->downloaderWakeMutex), &wakeTime);
@@ -1206,23 +1256,36 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession, hlsSegment_t* pSegmen
                     // segment can use that as the IV if requested.
                     // FIXME
                     //memcpy(pSegment->last4bytes,(buffer+(readSize -4)) , 4);
-
-                    /* We need to send the buffer metadata only with the first buffer for the segment */
-                    if(bufferCount == 0)
+                    if(bytesRead == 0)
                     {
-                       /* Datafill buffer metadata struct */
-                       bufferMeta.encType = pSegment->encType;
-                       memcpy( bufferMeta.iv,pSegment->iv, 16);
-
-                       bufferMeta.keyURI = pSegment->keyURI;
-                       memcpy( bufferMeta.key,pSegment->key, 16);
-                       DEBUG(DBG_NOISE, "Sending metadata info - first buffer of the segment");
-                       status = hlsPlayer_sendBuffer(pSession->pHandle, buffer, readSize, &bufferMeta, pPrivate);
+                       bufferMeta.bFirstBufferInSegment = 1;
+                       /* Search for ID3 tag with com.apple.streaming.transportStreamTimestamp PRIV owner identifier
+                         at the beginning of each segment */
+                       if(readSize > 128)
+                       {
+                          memcpy(tag, buffer, 128);
+                          tag[127] = 0;
+                          DEBUG(DBG_INFO, "Checking for ID3 TAG...\n");
+                          if ((ptr = (unsigned char *)strstr(&tag[20], "com.apple.streaming.transportStreamTimestamp")) != NULL)
+                          {
+                             bufferMeta.pts = ((unsigned long long)ptr[45] << 56) |
+                                              ((unsigned long long)ptr[46] << 48) |
+                                              ((unsigned long long)ptr[47] << 40) |
+                                              ((unsigned long long)ptr[48] << 32) |
+                                              ((unsigned long long)ptr[49] << 24) |
+                                              ((unsigned long long)ptr[50] << 16) |
+                                              ((unsigned long long)ptr[51] << 8) |
+                                              ((unsigned long long)ptr[52]);
+                             DEBUG(DBG_INFO, "Found com.apple.streaming.transportStreamTimestamp identifier, PTS: %llu\n", bufferMeta.pts);
+                          }
+                       }
                     }
                     else
                     {
-                        status = hlsPlayer_sendBuffer(pSession->pHandle, buffer, readSize, NULL, pPrivate);
+                       bufferMeta.bFirstBufferInSegment = 0;
                     }
+
+                    status = hlsPlayer_sendBuffer(pSession->pHandle, buffer, readSize, &bufferMeta, pPrivate);
                     if(status != SRC_SUCCESS)
                     {
                         ERROR("failed to send buffer to player");
@@ -1268,10 +1331,7 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession, hlsSegment_t* pSegmen
 
                     /* Release our reference to the buffer */
                     buffer = NULL;
-                    
-                    /* Increment bufferCount */
-                    bufferCount++;
-                        
+
                     /* Increment the total bytes read */
                     bytesRead += readSize;         
 
@@ -1347,7 +1407,7 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession, hlsSegment_t* pSegmen
        then send it back empty to make sure we don't leak memory. */
     if(buffer != NULL) 
     {
-        status = hlsPlayer_sendBuffer(pSession->pHandle, buffer, 0, NULL, pPrivate);
+        status = hlsPlayer_sendBuffer(pSession->pHandle, buffer, 0, &bufferMeta, pPrivate);
         if(status != SRC_SUCCESS)
         {
             ERROR("failed to send buffer to player");
@@ -1400,6 +1460,7 @@ void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc)
 
     char* filePath = NULL;
     FILE* fpWrite = NULL;
+    float lastSegmentDldRate = 0.0f;   
 
     downloadHandle_t dlHandle;
     srcPluginErr_t error;
@@ -1466,17 +1527,17 @@ void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc)
             }
 
             /* Lock cURL mutex */
-            pthread_mutex_lock(&(pDesc->pSession->curlMutex));
+            pthread_mutex_lock(pDesc->curlMutex);
 
             /* Download segment */
-            status = curlDownloadFile(pDesc->pSession->pCurl, pDesc->pSegment->URL, &dlHandle, dlOffset, dlLength);
+            status = curlDownloadFile(pDesc->pCurl, pDesc->pSegment->URL, &dlHandle, dlOffset, dlLength);
             if(status)
             {
                 if(status == HLS_CANCELLED) 
                 {
                     DEBUG(DBG_WARN, "download stopped");
                     /* Unlock cURL mutex */
-                    pthread_mutex_unlock(&(pDesc->pSession->curlMutex));
+                    pthread_mutex_unlock(pDesc->curlMutex);
                     break;
                 }
                 else if(status == HLS_DL_ERROR) 
@@ -1487,7 +1548,7 @@ void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc)
                     status = HLS_OK;
 
                     /* Unlock cURL mutex */
-                    pthread_mutex_unlock(&(pDesc->pSession->curlMutex));
+                    pthread_mutex_unlock(pDesc->curlMutex);
                 
                     /* Flush all data to disk */
                     if(fflush(fpWrite) != 0) 
@@ -1518,7 +1579,7 @@ void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc)
                 {
                     ERROR("failed to download segment");
                     /* Unlock cURL mutex */
-                    pthread_mutex_unlock(&(pDesc->pSession->curlMutex));
+                    pthread_mutex_unlock(pDesc->curlMutex);
 
                     break;
                 }
@@ -1539,17 +1600,17 @@ void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc)
         }
 
         /* Get the download throughput */
-        status = getCurlTransferInfo(pDesc->pSession->pCurl, NULL, &(pDesc->pSession->lastSegmentDldRate), NULL);
+        status = getCurlTransferInfo(pDesc->pCurl, NULL, &lastSegmentDldRate, NULL);
         if(status)
         {
             ERROR("failed to get segment download rate");
             /* Unlock cURL mutex */
-            pthread_mutex_unlock(&(pDesc->pSession->curlMutex));
+            pthread_mutex_unlock(pDesc->curlMutex);
             break;
         }
         
         /* Unlock cURL mutex */
-        pthread_mutex_unlock(&(pDesc->pSession->curlMutex));
+        pthread_mutex_unlock(pDesc->curlMutex);
                 
         /* Flush all data to disk */
         if(fflush(fpWrite) != 0) 
@@ -1582,6 +1643,9 @@ void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc)
 
         fpWrite = NULL;
 
+        pthread_mutex_lock(&(pDesc->pSession->dldRateMutex));
+        pDesc->pSession->lastSegmentDldRate = lastSegmentDldRate;
+
         /* Add bitrate to exponentially weighted moving average for this session */
         if(pDesc->pSession->avgSegmentDldRate == 0)
         {
@@ -1591,6 +1655,7 @@ void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc)
         {
             pDesc->pSession->avgSegmentDldRate = abrClientAddThroughputToAvg(pDesc->pSession->lastSegmentDldRate, pDesc->pSession->avgSegmentDldRate);
         }
+        pthread_mutex_unlock(&(pDesc->pSession->dldRateMutex));
 
         /* Signal download complete */
         *(pDesc->pbDownloadComplete) = 1;

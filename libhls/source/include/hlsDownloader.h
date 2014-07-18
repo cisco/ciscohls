@@ -36,7 +36,18 @@ extern "C" {
 
 #include "hlsTypes.h"
 
+/*! \struct hlsGrpDwnldData_t
+ * Data passed to the media group downloader threads 
+ */
+typedef struct
+{
+   int mediaGrpIdx;
+   hlsSession_t *pSession;
+}hlsGrpDwnldData_t;
+
 void hlsDownloaderThread(hlsSession_t* pSession);
+
+void hlsGrpDownloaderThread(hlsGrpDwnldData_t* pData);
 
 #ifdef __cplusplus
 }

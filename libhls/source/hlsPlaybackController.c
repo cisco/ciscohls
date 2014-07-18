@@ -228,10 +228,17 @@ void hlsPlaybackControllerThread(hlsSession_t* pSession)
                         (i.e., we do no need to wait for the player to consume buffers) because
                         The EOF we send will be processed by the gstreamer pipeline only after
                         decoder buffers are consumed */
-                        DEBUG(DBG_INFO, "sending SRC_PLUGIN_EOF to player");
-                        event.eventCode = SRC_PLUGIN_EOF;
-                        event.pData = NULL;
-                        hlsPlayer_pluginEvtCallback(pSession->pHandle, &event);
+                        
+                        pSession->eofCount++;
+                        DEBUG(DBG_INFO, "eofCount = %d", pSession->eofCount);
+                        if(pSession->eofCount >= pSession->currentGroupCount + 1)
+                        {
+                           DEBUG(DBG_INFO, "sending SRC_PLUGIN_EOF to player");
+                           event.eventCode = SRC_PLUGIN_EOF;
+                           event.pData = NULL;
+                           hlsPlayer_pluginEvtCallback(pSession->pHandle, &event);
+                           pSession->eofCount = 0;
+                        }
                     }
                     else /* Trickplay */
                     {
