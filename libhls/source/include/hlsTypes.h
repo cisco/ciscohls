@@ -396,6 +396,15 @@ typedef enum {
     PBC_NUM_SIGNALS
 } playbackControllerSignal_t;
 
+/*! \struct hlsGrpDwnldData_t
+ * Data passed to the media group downloader threads 
+ */
+typedef struct
+{
+   int mediaGrpIdx;
+   void *pSession;
+}hlsGrpDwnldData_t;
+
 /*! \struct hlsSession_t 
  * Describes one HLS plugin session 
  */
@@ -500,6 +509,7 @@ typedef struct {
     /* Media group downloader thread(s) */
     pthread_t groupDownloader[MAX_NUM_MEDIA_GROUPS];          /*!< Media group downloader thread handle */          
     hlsStatus_t groupDownloaderStatus[MAX_NUM_MEDIA_GROUPS];  /*!< Media group downloader thread status */
+    hlsGrpDwnldData_t grpThreadData[MAX_NUM_MEDIA_GROUPS];    /*!< Media group downloader thread param */
 
     /* Playback Controller thread */
     pthread_t playbackController;                   /*!< Playback controller thread handle */

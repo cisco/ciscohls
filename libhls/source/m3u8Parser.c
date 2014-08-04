@@ -232,11 +232,12 @@ void m3u8ParserThread(hlsSession_t* pSession)
                status = findAudioGroup(pSession);
                if(HLS_OK != status)
                {
+                  DEBUG(DBG_WARN, "Failed to find audio group: %s",
+                        pSession->pCurrentPlaylist->pMediaData->audio);
                   /* Release playlist lock */
                   pthread_rwlock_unlock(&(pSession->playlistRWLock));
                   break;
                }
-
             }
                         
             DEBUG(DBG_INFO, "currentGroupCount = %u", pSession->currentGroupCount);
@@ -569,6 +570,8 @@ static hlsStatus_t findAudioGroupByAttrib(hlsSession_t *pSession,
       }
    }
    }while(0);
+
+   return status;
 }
 
 #ifdef __cplusplus

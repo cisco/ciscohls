@@ -744,8 +744,6 @@ hlsStatus_t hlsSession_play(hlsSession_t* pSession)
 
     int ii = 0;
     
-    hlsGrpDwnldData_t grpThreadData = {0, pSession};
-
     if(pSession == NULL)
     {
         ERROR("invalid parameter");
@@ -791,9 +789,10 @@ hlsStatus_t hlsSession_play(hlsSession_t* pSession)
            for(ii = 0; ii < pSession->currentGroupCount; ii++)
            {
               pSession->groupDownloaderStatus[ii] = HLS_OK;
-              grpThreadData.mediaGrpIdx = ii;
+              pSession->grpThreadData[ii].pSession = (void *)pSession;
+              pSession->grpThreadData[ii].mediaGrpIdx = ii;
               if(pthread_create(&(pSession->groupDownloader[ii]), NULL, 
-                                (void*)hlsGrpDownloaderThread, &grpThreadData))
+                                (void*)hlsGrpDownloaderThread, &pSession->grpThreadData[ii]))
               {
                  ERROR("failed to create group downloader thread %d", ii);
                  rval = HLS_ERROR;

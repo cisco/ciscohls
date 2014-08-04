@@ -1205,7 +1205,7 @@ void hlsGrpDownloaderThread(hlsGrpDwnldData_t* pData)
       pthread_exit(NULL);
    }
 
-   pSession = pData->pSession;
+   pSession = (hlsSession_t *)pData->pSession;
    if(pSession == NULL)
    {
       ERROR("pSession == NULL");
