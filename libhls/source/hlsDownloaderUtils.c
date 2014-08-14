@@ -1347,6 +1347,14 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession,
             }
             else
             {
+               /* If we were told to stop downloading, return HLS_CANCELLED */
+                if(pSession->bKillDownloader)
+                {
+                    DEBUG(DBG_WARN, "download signalled to stop");
+                    rval = HLS_CANCELLED;
+                    break;
+                }
+
                 /* If we get back a buffer of size 0, the player is out of buffers.  Wait for a bit then try again */
                 DEBUG(DBG_INFO,"player out of buffers, back off for a second");
 

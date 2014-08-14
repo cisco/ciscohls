@@ -85,8 +85,9 @@ static GstStateChangeReturn gst_cscohlsdemuxer_change_state (GstElement * elemen
 
 static GstClockTime gst_cisco_hls_get_duration (Gstciscdemux *demux);
 static gboolean cisco_hls_initialize (Gstciscdemux *demux);
-static gboolean cisco_hls_open(Gstciscdemux *demux);
-static gboolean cisco_hls_start(Gstciscdemux *demux, char *pPlaylistUri);
+static gboolean cisco_hls_open(Gstciscdemux *demux, char *pPlaylistUri);
+static gboolean cisco_hls_start(Gstciscdemux *demux);
+static gboolean cisco_hls_pause(Gstciscdemux *demux);
 static gboolean cisco_hls_close(Gstciscdemux *demux);
 static gboolean cisco_hls_finalize(Gstciscdemux *demux);
 static gboolean gst_cisco_hls_seek (Gstciscdemux *demux, GstEvent *event);
@@ -305,6 +306,7 @@ gst_ciscdemux_class_init (GstciscdemuxClass * klass)
    g_object_class_install_property (gobject_class, PROP_SILENT,
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output ?",
       FALSE, G_PARAM_READWRITE));
+
    gstelement_class->change_state = GST_DEBUG_FUNCPTR(gst_cscohlsdemuxer_change_state);
 
 #if GST_CHECK_VERSION(1,0,0)
@@ -361,7 +363,7 @@ gst_ciscdemux_init (Gstciscdemux * demux, GstciscdemuxClass * gclass)
    demux->downstream_peer_pad = NULL;
    demux->uri = NULL;
    demux->bGetPTSThreadRunning = FALSE;
-   demux->speed = 1.0;
+   demux->speed = 0.0;
    demux->bDisableMainStreamAudio = FALSE;
    demux->bufferPts = INVALID_PTS;
 
@@ -698,8 +700,6 @@ static gboolean gst_cscohlsdemuxer_sink_event (GstPad * pad, GstEvent * event)
 {
    Gstciscdemux *demux;
    gboolean ret;
-   gchar *uri;
-   GstQuery *query;
 
 #if GST_CHECK_VERSION(1,0,0)
    demux = GST_CISCDEMUX (parent);
@@ -716,53 +716,11 @@ static gboolean gst_cscohlsdemuxer_sink_event (GstPad * pad, GstEvent * event)
    switch ( GST_EVENT_TYPE(event) )
    {
       case GST_EVENT_EOS:
-         GST_WARNING_OBJECT(demux, "Got EOS for the playlist");
-         /* This means that the source was able to retreive the m3u8 url playlist.
-         * we need to get this url and pass it to the cisco HLS plugin.
-         */
-         query = gst_query_new_uri();
-         ret = gst_pad_peer_query (demux->sinkpad, query);
-         if (ret)
-         {
-            // http://foobar.com/index.m3u8?LicenseID=abcde456785345a&another
-            gst_query_parse_uri(query, &uri);
-
-            //
-            // Parse for a LicenseID to pass down stream.
-            //
-            do
-            {
-               gchar *str = NULL;
-               gchar **array = NULL;
-               gchar delimiter ='&';
-
-               str =  g_strstr_len (uri, -1, "LicenseID=");
-               if (str == NULL) break;
-               // copy string until you find '&'
-               array = g_strsplit (str, &delimiter, 1024);
-               // the first array element string should hold what we need.
-               GST_WARNING_OBJECT(demux,"Setting LicenseID to: %s\n",array[0]);
-               if (demux->LicenseID != NULL)
-               {
-                  g_free(demux->LicenseID);
-               }
-               demux->LicenseID = strdup (array[0]);
-               g_strfreev(array);
-
-            }while(0);
-
-            // we can now set the uri with the cisco plugin.
-            cisco_hls_start(demux, uri); 
-
-            //ok free the uri string
-            g_free(uri);
-         }
-         else
-         {
-            GST_WARNING_OBJECT(demux, "This should not have happened, I'm unable to get the url from pipeline. NOT starting HLS");
-         }
+      {
+         cisco_hls_start(demux);
          gst_event_unref(event);
          break;
+      }
 
 #if GST_CHECK_VERSION(1,0,0)
       case GST_EVENT_SEGMENT:
@@ -805,6 +763,8 @@ static GstStateChangeReturn gst_cscohlsdemuxer_change_state (GstElement * elemen
       return GST_STATE_CHANGE_FAILURE;
    }
 
+   GST_DEBUG("HLS demux state change From %d To %d\n", (transition >> 3),(transition & 0x07));
+
    pSession = demux->pCscoHlsSession;
 
    switch (transition)
@@ -813,38 +773,57 @@ static GstStateChangeReturn gst_cscohlsdemuxer_change_state (GstElement * elemen
          cisco_hls_initialize (demux);
          break;
       case GST_STATE_CHANGE_READY_TO_PAUSED:
-         cisco_hls_open(demux);
-         break;
-      case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
-         /* Start the streaming loop in paused only if we already received
-         the main playlist. It might have been stopped if we were in PAUSED
-         state and we filled our queue with enough cached fragments
-         */
       {
-         if(NULL == demux->uri)
+         gboolean ret;
+         gchar *uri;
+         GstQuery *query;
+
+         query = gst_query_new_uri();
+         ret = gst_pad_peer_query (demux->sinkpad, query);
+         if (ret)
          {
-            break;
+            // http://foobar.com/index.m3u8?LicenseID=abcde456785345a&another
+            gst_query_parse_uri(query, &uri);
+
+            //
+            // Parse for a LicenseID to pass down stream.
+            //
+            do
+            {
+               gchar *str = NULL;
+               gchar **array = NULL;
+               gchar delimiter ='&';
+
+               str =  g_strstr_len (uri, -1, "LicenseID=");
+               if (str == NULL) break;
+               // copy string until you find '&'
+               array = g_strsplit (str, &delimiter, 1024);
+               // the first array element string should hold what we need.
+               GST_WARNING_OBJECT(demux,"Setting LicenseID to: %s\n",array[0]);
+               if (demux->LicenseID != NULL)
+               {
+                  g_free(demux->LicenseID);
+               }
+               demux->LicenseID = strdup (array[0]);
+               g_strfreev(array);
+
+            }while(0);
+
+            cisco_hls_open(demux, uri);
+
+            //ok free the uri string
+            g_free(uri);
          }
-         if(NULL == pSession)
+         else
          {
-            GST_ERROR("libhls session ptr is NULL\n");
+            GST_ERROR("Could not query the HLS URI\n");
             return GST_STATE_CHANGE_FAILURE;
          }
-  
-         setData.setCode = SRC_PLUGIN_SET_SPEED;
-         speed = 1.0;
-         setData.pData = &speed;
-         stat = demux->HLS_pluginTable.set( pSession->pSessionID, &setData, &errTable );
-         if(stat)
-         {
-            GST_ERROR( "%s: Error %d while setting speed to %f: %s", 
-                       __FUNCTION__, errTable.errCode, speed, errTable.errMsg);
-         }
-
-         demux->speed = speed;
-
          break;
       }
+      case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+         cisco_hls_start(demux);
+         break;
       default:
          break;
    }
@@ -854,27 +833,8 @@ static GstStateChangeReturn gst_cscohlsdemuxer_change_state (GstElement * elemen
    switch (transition)
    {
       case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
-      {
-         if(NULL == pSession)
-         {
-            GST_ERROR("libhls session ptr is NULL\n");
-            return GST_STATE_CHANGE_FAILURE;
-         }
-  
-         setData.setCode = SRC_PLUGIN_SET_SPEED;
-         speed = 0.0;
-         setData.pData = &speed;
-         stat = demux->HLS_pluginTable.set( pSession->pSessionID, &setData, &errTable );
-         if(stat)
-         {
-            GST_ERROR( "%s: Error %d while setting speed to %f: %s", 
-                       __FUNCTION__, errTable.errCode, speed, errTable.errMsg);
-         }
-
-         demux->speed = speed;
-
+         cisco_hls_pause(demux);
          break;
-      }
       case GST_STATE_CHANGE_PAUSED_TO_READY:
          cisco_hls_close(demux);
          break;
@@ -1217,6 +1177,7 @@ srcStatus_t hlsPlayer_sendBuffer(void* pHandle, char* buffer, int size, srcBuffe
 #endif
 
       gst_pad_push(srcpad, buf);
+
       status = SRC_SUCCESS;
 
    }while(0);
@@ -1351,7 +1312,7 @@ static gboolean cisco_hls_initialize (Gstciscdemux *demux)
    return bError;
 }
 
-static gboolean cisco_hls_open (Gstciscdemux *demux)
+static gboolean cisco_hls_open (Gstciscdemux *demux, char *pPlaylistUri)
 {
    srcStatus_t stat = SRC_SUCCESS;
    srcPluginErr_t errTable;
@@ -1368,7 +1329,7 @@ static gboolean cisco_hls_open (Gstciscdemux *demux)
       if (stat != SRC_SUCCESS)
       {
          GST_ERROR(" Hummm there was an error opening the HLS plugin:%s\n", errTable.errMsg);
-         bError =TRUE;
+         bError = TRUE;
          break;
       }
       else
@@ -1385,71 +1346,113 @@ static gboolean cisco_hls_open (Gstciscdemux *demux)
          GST_ERROR( "%s: Error %d while setting minBitrate to %d: %s", 
                     __FUNCTION__, errTable.errCode, minBitrate, errTable.errMsg);
       }
+
+      // First save the uri to our local object
+      if (demux->uri)
+      {
+         g_free(demux->uri);
+      }
+
+      if (gst_uri_is_valid(pPlaylistUri))
+      {
+         demux->uri = strndup(pPlaylistUri, 512);
+      }
+      else
+      {
+         GST_WARNING_OBJECT(demux, "Passed in URI is NOT valid");
+         bError = TRUE;
+         break;
+      }
+
+      //Now set the uri with the cisco hls plugin and let's kick it off.
+      setData.setCode = SRC_PLUGIN_SET_DATA_SOURCE;
+      setData.pData = strndup(demux->uri, 512 );
+
+      GST_LOG("Setting location to : %s \n",(char*) setData.pData);
+
+      /* now set the location of the m3u8 url to the HLS plugin */
+      stat = demux->HLS_pluginTable.set(pSession->pSessionID, &setData, &errTable);
+
+      g_free(setData.pData);
+
+      if (stat != SRC_SUCCESS)
+      {
+         GST_ERROR(" Hummm there was an error setting the url to the HLS plugin:%s\n", errTable.errMsg);
+         bError = TRUE;
+         break;
+      }
+
+      /* prepare */
+      stat = demux->HLS_pluginTable.prepare(pSession->pSessionID, &errTable );
+      if(stat)
+      {
+         GST_ERROR( "%s: Error %d while preparing playlist: %s", __FUNCTION__, errTable.errCode, errTable.errMsg);
+         bError = TRUE;
+      }
    
    }while(0);
 
    return bError;
 }
 
-static gboolean cisco_hls_start(Gstciscdemux *demux, char *pPlaylistUri)
+static gboolean cisco_hls_start(Gstciscdemux *demux)
 {
    srcStatus_t stat = SRC_SUCCESS;
    srcPluginErr_t errTable;
    srcPluginSetData_t setData;
    tSession *pSession = demux->pCscoHlsSession;
 
-   // First save the uri to our local object
-   if (demux->uri)
+   if (demux->speed != 1.0)
    {
-      g_free(demux->uri);
-   }
+      GST_DEBUG( "%s: Setting HLS to playing...\n", __FUNCTION__);
 
-   if (gst_uri_is_valid(pPlaylistUri))
-   {
-      demux->uri = strndup(pPlaylistUri, 512);
-   }
-   else
-   {
-      GST_WARNING_OBJECT(demux, "Passed in URI is NOT valid");
-   }
-
-   //Now set the uri with the cisco hls plugin and let's kick it off.
-   setData.setCode = SRC_PLUGIN_SET_DATA_SOURCE;
-   setData.pData = strndup(demux->uri,512 );
-
-   GST_LOG("Setting location to : %s \n",(char*) setData.pData);
-
-   /* now set the location of the m3u8 url to the HLS plugin */
-   stat = demux->HLS_pluginTable.set(pSession->pSessionID, &setData, &errTable);
-   if (stat != SRC_SUCCESS)
-   {
-      GST_ERROR(" Hummm there was an error setting the url to the HLS plugin:%s\n", errTable.errMsg);
-   }
-   g_free(setData.pData);
-
-   /* prepare */
-   stat = demux->HLS_pluginTable.prepare(pSession->pSessionID,&errTable );
-   if(stat)
-   {
-      GST_ERROR( "%s: Error %d while preparing playlist: %s", __FUNCTION__, errTable.errCode, errTable.errMsg);
-      return FALSE;
-   }
-
-   setData.setCode = SRC_PLUGIN_SET_SPEED;
-   setData.pData = g_malloc(sizeof(float));
-   *(float *)(setData.pData) = 1;
-   /* setSpeed (play) */
-   stat = demux->HLS_pluginTable.set( pSession->pSessionID, &setData, &errTable );
-   if(stat)
-   {
-      GST_ERROR( "%s: Error %d while setting speed to 1: %s", __FUNCTION__, errTable.errCode, errTable.errMsg);
+      setData.setCode = SRC_PLUGIN_SET_SPEED;
+      setData.pData = g_malloc(sizeof(float));
+      *(float *)(setData.pData) = 1.0;
+      /* setSpeed (play) */
+      stat = demux->HLS_pluginTable.set( pSession->pSessionID, &setData, &errTable );
+      if(stat)
+      {
+         GST_ERROR( "%s: Error %d while setting speed to 1: %s", __FUNCTION__, errTable.errCode, errTable.errMsg);
+         g_free(setData.pData);
+         return FALSE;
+      }
       g_free(setData.pData);
-      return FALSE;
-   }
-   g_free(setData.pData);
-   setData.pData = NULL;
+      setData.pData = NULL;
 
-   demux->speed = 1.0;
+      demux->speed = 1.0;
+   }
+
+   return TRUE;
+}
+
+static gboolean cisco_hls_pause(Gstciscdemux *demux)
+{
+   srcStatus_t stat = SRC_SUCCESS;
+   srcPluginErr_t errTable;
+   srcPluginSetData_t setData;
+   tSession *pSession = demux->pCscoHlsSession;
+
+   if (demux->speed != 0.0)
+   {
+      GST_DEBUG( "%s: Setting HLS to playing...\n", __FUNCTION__);
+
+      setData.setCode = SRC_PLUGIN_SET_SPEED;
+      setData.pData = g_malloc(sizeof(float));
+      *(float *)(setData.pData) = 0.0;
+      /* setSpeed (play) */
+      stat = demux->HLS_pluginTable.set( pSession->pSessionID, &setData, &errTable );
+      if(stat)
+      {
+         GST_ERROR( "%s: Error %d while setting speed to 0: %s", __FUNCTION__, errTable.errCode, errTable.errMsg);
+         g_free(setData.pData);
+         return FALSE;
+      }
+      g_free(setData.pData);
+      setData.pData = NULL;
+
+      demux->speed = 0.0;
+   }
 
    return TRUE;
 }
@@ -1615,9 +1618,20 @@ static gboolean gst_cisco_hls_seek (Gstciscdemux *demux, GstEvent *event)
    }
 
    gst_event_parse_seek (event, &rate, &format, &flags, &curType, &cur, &stopType, &stop);
+
+   GST_WARNING("[cischlsdemux] current speed: %f, rate: %f\n", speed, rate);
   
    if((speed == rate) && (GST_FORMAT_TIME == format))
    {
+      //if we are paused currently, before doing a seek, send a flush downstream to
+      //empty the demux buffers and unblock the libhls internal download loop
+      //otherwise libhls may deadlock badly trying to kill the downloader
+      //thread which may be blocked on demux buffers
+      if (GST_STATE(demux) == GST_STATE_PAUSED)
+      {
+         if (NULL != demux->srcpad)
+            gst_ciscdemux_flush(demux->srcpad);
+      }
       setData.setCode = SRC_PLUGIN_SET_POSITION;
       position = (gfloat)(cur / GST_MSECOND);
       setData.pData = &position;
@@ -1830,35 +1844,36 @@ static gboolean gst_ciscdemux_flush(GstPad *srcpad)
    gboolean ret = FALSE;
 
    do {
-   if (srcpad == NULL)
-   {
-      GST_ERROR("source pad not linked!\n");
-      break;
-   }
 
-   event = gst_event_new_flush_start ();
-   if (event == NULL)
-   {
-      break;
-   }
+      if (srcpad == NULL)
+      {
+         GST_ERROR("source pad not linked!\n");
+         break;
+      }
 
-   GST_LOG("cisco demux sending flush start downstream...\n");
-   gst_pad_push_event (srcpad, event);
+      event = gst_event_new_flush_start ();
+      if (event == NULL)
+      {
+         break;
+      }
+
+      GST_LOG("cisco demux sending flush start downstream...\n");
+      gst_pad_push_event (srcpad, event);
 
 #if GST_CHECK_VERSION(1,0,0)
-   event = gst_event_new_flush_stop (FALSE);
+      event = gst_event_new_flush_stop (FALSE);
 #else
-   event = gst_event_new_flush_stop ();
+      event = gst_event_new_flush_stop ();
 #endif
-   if (event == NULL)
-   {
-      break;
-   }
+      if (event == NULL)
+      {
+         break;
+      }
 
-   GST_LOG("cisco demux sending flush stop downstream...\n");
-   gst_pad_push_event (srcpad, event);
+      GST_LOG("cisco demux sending flush stop downstream...\n");
+      gst_pad_push_event (srcpad, event);
 
-   ret = TRUE;
+      ret = TRUE;
    }while(0);
    
    return ret;
@@ -1924,7 +1939,7 @@ static gboolean gst_ciscdemux_send_eos(GstPad *srcpad)
 static gboolean
 ciscdemux_init (GstPlugin * ciscdemux)
 {
-   gboolean value =TRUE;
+   gboolean value = TRUE;
    /* debug category for fltering log messages
    *
    */
