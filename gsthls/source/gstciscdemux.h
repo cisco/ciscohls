@@ -121,6 +121,8 @@ struct _Gstciscdemux
   guint           numSrcPadsActive;
   gboolean        bDisableMainStreamAudio;
   gint64          bufferPts;
+  gint64          seekpos;
+  gboolean        isFlushOnSeek;
 };
 
 struct _GstciscdemuxClass 

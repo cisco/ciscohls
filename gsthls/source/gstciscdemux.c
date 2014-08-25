@@ -95,7 +95,7 @@ static void * getCurrentPTSNotify(void *data);
 static gboolean gst_ciscdemux_get_caps(srcBufferMetadata_t *metadata,
                                        GstBuffer *buf,
                                        GstCaps **caps);
-static gboolean gst_ciscdemux_flush(GstPad *srcpad);
+static gboolean gst_ciscdemux_flush(Gstciscdemux *demux, GstPad *srcpad);
 static gboolean gst_ciscdemux_disable_main_stream_audio(Gstciscdemux *demux);
 static gboolean gst_ciscdemux_send_eos(GstPad *srcpad);
 /* GObject vmethod implementations */
@@ -366,6 +366,7 @@ gst_ciscdemux_init (Gstciscdemux * demux, GstciscdemuxClass * gclass)
    demux->speed = 0.0;
    demux->bDisableMainStreamAudio = FALSE;
    demux->bufferPts = INVALID_PTS;
+   demux->isFlushOnSeek = FALSE;
 
    if(0 != pthread_mutex_init(&demux->PTSMutex, NULL))
    {
@@ -1199,14 +1200,14 @@ srcStatus_t hlsPlayer_set(void *pHandle, srcPlayerSetData_t *pSetData)
    {
       case SRC_PLAYER_SET_BUFFER_FLUSH:
          {
-            if(TRUE != gst_ciscdemux_flush(demux->srcpad))
+            if(TRUE != gst_ciscdemux_flush(demux, demux->srcpad))
             {
                status = SRC_ERROR;
                break;
             }
             for(ii = 0; ii < demux->numSrcPadsActive - 1; ii++)
             {
-               if(TRUE != gst_ciscdemux_flush(demux->srcpad_discrete[ii]))
+               if(TRUE != gst_ciscdemux_flush(demux, demux->srcpad_discrete[ii]))
                {
                   status = SRC_ERROR;
                   break;
@@ -1630,8 +1631,12 @@ static gboolean gst_cisco_hls_seek (Gstciscdemux *demux, GstEvent *event)
       if (GST_STATE(demux) == GST_STATE_PAUSED)
       {
          if (NULL != demux->srcpad)
-            gst_ciscdemux_flush(demux->srcpad);
+            gst_ciscdemux_flush(demux, demux->srcpad);
       }
+
+      demux->isFlushOnSeek = TRUE;
+      demux->seekpos = cur;
+
       setData.setCode = SRC_PLUGIN_SET_POSITION;
       position = (gfloat)(cur / GST_MSECOND);
       setData.pData = &position;
@@ -1640,6 +1645,7 @@ static gboolean gst_cisco_hls_seek (Gstciscdemux *demux, GstEvent *event)
       if ( stat == SRC_ERROR )
       {
          GST_WARNING("Failed to set position on the source plugin: %s\n", errTable.errMsg);
+         demux->isFlushOnSeek = FALSE;
          return FALSE;
       }
    }
@@ -1838,9 +1844,10 @@ static gboolean gst_ciscdemux_get_caps(srcBufferMetadata_t *metadata,
    return ret;
 }
 
-static gboolean gst_ciscdemux_flush(GstPad *srcpad)
+static gboolean gst_ciscdemux_flush(Gstciscdemux *demux, GstPad *srcpad)
 {
    GstEvent *event;
+   GstEvent *segmentEvent = NULL;
    gboolean ret = FALSE;
 
    do {
@@ -1872,6 +1879,32 @@ static gboolean gst_ciscdemux_flush(GstPad *srcpad)
 
       GST_LOG("cisco demux sending flush stop downstream...\n");
       gst_pad_push_event (srcpad, event);
+
+      if (demux->isFlushOnSeek == TRUE)
+      {
+         //Send a segment event downstream
+#if GST_CHECK_VERSION(1,0,0)
+         GstSegment segment;
+         segment.rate = 1.0;
+         segment.applied_rate = 1.0;
+         segment.format = GST_FORMAT_TIME;
+         segment.start = demux->seekpos;
+         segment.stop = GST_CLOCK_TIME_NONE;
+         segment.position = 0;
+
+         segmentEvent = gst_event_new_segment (&segment);
+#else
+         segmentEvent = gst_event_new_new_segment (FALSE, 1.0, GST_FORMAT_TIME, demux->seekpos, GST_CLOCK_TIME_NONE, 0);
+#endif
+         if (NULL != segmentEvent)
+         {
+            GST_WARNING("[cischlsdemux] sending segment event downstream for timestamp %"G_GINT64_FORMAT"...\n", demux->seekpos);
+            if (gst_pad_push_event (srcpad, segmentEvent) != TRUE)
+               GST_WARNING("[cischlsdemux] sending segment event downstream failed!");
+         }
+
+         demux->isFlushOnSeek = FALSE;
+      }
 
       ret = TRUE;
    }while(0);
