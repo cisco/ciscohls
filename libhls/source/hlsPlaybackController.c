@@ -146,6 +146,7 @@ void hlsPlaybackControllerThread(hlsSession_t* pSession)
                     event.pData = NULL;
                     hlsPlayer_pluginEvtCallback(pSession->pHandle, &event);
 
+                    pSession->boundaryReached = 1;
                     bRestartPlayback = 1;
                 }
 
@@ -238,6 +239,7 @@ void hlsPlaybackControllerThread(hlsSession_t* pSession)
                            event.pData = NULL;
                            hlsPlayer_pluginEvtCallback(pSession->pHandle, &event);
                            pSession->eofCount = 0;
+                           pSession->boundaryReached = 1;
                         }
                     }
                     else /* Trickplay */
@@ -295,13 +297,17 @@ void hlsPlaybackControllerThread(hlsSession_t* pSession)
                         pthread_rwlock_unlock(&(pSession->playlistRWLock));
 
                         event.pData = NULL;
-                        
+               
+#if 0
                         /* Pause the player */
                         // TODO: should we quit if we fail, or just roll with it?
                         if(hlsSession_setSpeed(pSession, 0.0) != HLS_OK) 
                         {
                             DEBUG(DBG_WARN, "failed to pause playback");
                         }
+#endif
+                           
+                        pSession->boundaryReached = 1;
 
                         /* Signal EOF/BOF to player */
                         hlsPlayer_pluginEvtCallback(pSession->pHandle, &event);

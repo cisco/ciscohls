@@ -1536,6 +1536,12 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
             /* Set the new speed */
             pSession->speed = speed;
         }
+
+        if(1 == pSession->boundaryReached)
+        {
+           pSession->boundaryReached = 0;
+           hlsSession_stop(pSession);
+        }
                 
         /* Start playback to get back into HLS_PLAYING state
            We do this even if we are NOT changing speed, since the expectation

@@ -98,6 +98,9 @@ static gboolean gst_ciscdemux_get_caps(srcBufferMetadata_t *metadata,
 static gboolean gst_ciscdemux_flush(Gstciscdemux *demux, GstPad *srcpad);
 static gboolean gst_ciscdemux_disable_main_stream_audio(Gstciscdemux *demux);
 static gboolean gst_ciscdemux_send_eos(GstPad *srcpad);
+static gboolean gst_ciscdemux_send_low_delay_videomask_event(Gstciscdemux *demux, gboolean enable);
+static gboolean gst_ciscdemux_send_event_to_all_srcpads(Gstciscdemux *demux, GstEvent *event);
+static gboolean gst_ciscdemux_send_flush_to_all_srcpads(Gstciscdemux *demux);
 /* GObject vmethod implementations */
 
 /* These global variables must be removed*/
@@ -880,7 +883,11 @@ void hlsPlayer_pluginEvtCallback(void* pHandle, srcPluginEvt_t* pEvt)
 
    switch( pEvt->eventCode )
    {
+      case SRC_PLUGIN_EOS:
       case SRC_PLUGIN_EOF:
+      case SRC_PLUGIN_BOF:
+      case SRC_PLUGIN_BOS:
+         GST_INFO("Received boundary event(BOS/BOF/EOF/EOS)");
          gst_ciscdemux_send_eos(demux->srcpad);
          
          for(ii = 0; ii < demux->numSrcPadsActive - 1; ii++)
@@ -888,6 +895,7 @@ void hlsPlayer_pluginEvtCallback(void* pHandle, srcPluginEvt_t* pEvt)
             gst_ciscdemux_send_eos(demux->srcpad_discrete[ii]);
          }
          break;
+#if 0
       case SRC_PLUGIN_BOF:
          gst_element_post_message(GST_ELEMENT_CAST(demux),
                                   gst_message_new_element(GST_OBJECT_CAST(demux),
@@ -895,6 +903,7 @@ void hlsPlayer_pluginEvtCallback(void* pHandle, srcPluginEvt_t* pEvt)
                                   "notification", G_TYPE_STRING, "BOF",
                                   NULL)));
          break;
+#endif
    }
    return;
 }
@@ -1189,7 +1198,6 @@ srcStatus_t hlsPlayer_sendBuffer(void* pHandle, char* buffer, int size, srcBuffe
 srcStatus_t hlsPlayer_set(void *pHandle, srcPlayerSetData_t *pSetData)
 {
    srcStatus_t status = SRC_SUCCESS;
-   gint ii = 0;
 
    Gstciscdemux *demux = (Gstciscdemux *)pHandle;   
 
@@ -1200,18 +1208,10 @@ srcStatus_t hlsPlayer_set(void *pHandle, srcPlayerSetData_t *pSetData)
    {
       case SRC_PLAYER_SET_BUFFER_FLUSH:
          {
-            if(TRUE != gst_ciscdemux_flush(demux, demux->srcpad))
+            GST_INFO_OBJECT(demux, "Received SRC_PLAYER_SET_BUFFER_FLUSH");
+            if(TRUE != gst_ciscdemux_send_flush_to_all_srcpads(demux))
             {
                status = SRC_ERROR;
-               break;
-            }
-            for(ii = 0; ii < demux->numSrcPadsActive - 1; ii++)
-            {
-               if(TRUE != gst_ciscdemux_flush(demux, demux->srcpad_discrete[ii]))
-               {
-                  status = SRC_ERROR;
-                  break;
-               }
             }
          }
          break;
@@ -1219,6 +1219,28 @@ srcStatus_t hlsPlayer_set(void *pHandle, srcPlayerSetData_t *pSetData)
       case SRC_PLAYER_SET_DISABLE_MAIN_STREAM_AUDIO:
          {
             demux->bDisableMainStreamAudio = TRUE;
+         }
+         break;
+
+      case SRC_PLAYER_SET_MODE:
+         {
+            GST_INFO_OBJECT(demux, "Received SRC_PLAYER_SET_MODE");
+            if(NULL == pSetData)
+            {
+               GST_WARNING_OBJECT(demux, "SRC_PLAYER_SET_MODE - pData is NULL");
+               break;
+            }
+
+            if(SRC_PLAYER_MODE_LOW_DELAY == *((srcPlayerMode_t *)pSetData->pData))
+            {
+               GST_INFO_OBJECT(demux, "Received SRC_PLAYER_MODE_LOW_DELAY");
+               gst_ciscdemux_send_low_delay_videomask_event(demux, TRUE);
+            }
+            else if(SRC_PLAYER_MODE_NORMAL == *((srcPlayerMode_t *)pSetData->pData))
+            {
+               GST_INFO_OBJECT(demux, "Received SRC_PLAYER_MODE_NORMAL");
+               gst_ciscdemux_send_low_delay_videomask_event(demux, FALSE);
+            }
          }
          break;
 
@@ -1757,9 +1779,9 @@ static void * getCurrentPTSNotify(void *data)
 
          memcpy((gchar *)&pts_45khz, (gchar *)&ptr, sizeof(pts_45khz)); 
 
-         GST_DEBUG("Current 45khz based PTS %u\n", pts_45khz);
+         GST_LOG("Current 45khz based PTS %u\n", pts_45khz);
          pts_90khz = ((long long)pts_45khz) << 1;
-         GST_DEBUG("Current 90khz based PTS %lld\n", pts_90khz);
+         GST_LOG("Current 90khz based PTS %lld\n", pts_90khz);
 
          gst_query_unref(query);
 
@@ -1961,6 +1983,130 @@ static gboolean gst_ciscdemux_send_eos(GstPad *srcpad)
          GST_WARNING("Error sending the eos event down stream\n");
       }
    }
+
+   return ret;
+}
+
+static gboolean gst_ciscdemux_send_low_delay_videomask_event(Gstciscdemux *demux, gboolean enable)
+{
+   gboolean     ret = FALSE;
+   GstEvent     *event = NULL;
+   GstStructure *structure = NULL;       
+   gchar        video_mask_str[16] = "";
+  
+   do {
+   if(TRUE == enable)
+   {
+      strncpy(video_mask_str, "i_only", sizeof(video_mask_str));
+   }
+   else
+   {
+      strncpy(video_mask_str, "all", sizeof(video_mask_str));
+   }
+   video_mask_str[sizeof(video_mask_str) - 1] = '\0';
+
+   structure = gst_structure_new("low-delay", "enable", G_TYPE_BOOLEAN, enable, NULL);
+   if(NULL == structure)
+   {
+      GST_ERROR("Error creating low-delay structure\n");
+      break;
+   }
+
+   event = gst_event_new_custom(GST_EVENT_CUSTOM_DOWNSTREAM, structure);
+   if(NULL == event)
+   {
+      GST_ERROR("Error creating low-delay event\n");
+      break;
+   }
+
+   GST_DEBUG("Sending low-delay custom downstream event\n");
+
+   ret = gst_ciscdemux_send_event_to_all_srcpads(demux, event);
+   if(TRUE != ret)
+   {
+      GST_ERROR("Error sending low-delay event\n");
+      break;
+   }
+   
+   structure = gst_structure_new("video-mask", "video-mask-str", G_TYPE_STRING, video_mask_str, NULL);
+   if(NULL == structure)
+   {
+      GST_ERROR("Error creating video-mask structure\n");
+      break;
+   }
+
+   event = gst_event_new_custom(GST_EVENT_CUSTOM_DOWNSTREAM, structure);
+   if(NULL == event)
+   {
+      GST_ERROR("Error creating video-mask event\n");
+      break;
+   }
+
+   GST_DEBUG("Sending video-mask custom downstream event\n");
+
+   ret = gst_ciscdemux_send_event_to_all_srcpads(demux, event);
+   if(TRUE != ret)
+   {
+      GST_ERROR("Error sending video-mask event\n");
+      break;
+   }
+   
+   ret = TRUE;
+   }while(0); 
+
+   return ret;
+}
+
+static gboolean gst_ciscdemux_send_event_to_all_srcpads(Gstciscdemux *demux, GstEvent *event)
+{
+   gboolean ret = FALSE;
+   int      ii = 0;
+
+   do {
+   ret = gst_pad_push_event(demux->srcpad, event);
+   if(TRUE != ret)
+   {
+      GST_ERROR("Error sending low-delay event\n");
+      break;
+   }
+
+   for(ii = 0; ii < demux->numSrcPadsActive - 1; ii++)
+   {
+      ret = gst_pad_push_event(demux->srcpad_discrete[ii], event);
+      if(TRUE != ret)
+      {
+         GST_ERROR("Error sending low-delay event\n");
+         break;
+      }
+   }
+
+   }while(0);
+
+   return ret;
+}
+
+static gboolean gst_ciscdemux_send_flush_to_all_srcpads(Gstciscdemux *demux)
+{
+   gboolean ret = FALSE;
+   gint ii = 0;
+
+   do {
+   ret = gst_ciscdemux_flush(demux, demux->srcpad);
+   if(TRUE != ret)
+   {
+      break;
+   }
+   
+   for(ii = 0; ii < demux->numSrcPadsActive - 1; ii++)
+   {
+      ret = gst_ciscdemux_flush(demux, demux->srcpad_discrete[ii]);
+      if(TRUE != ret)
+      {
+         break;
+      }
+   }
+
+   }while(0);
 
    return ret;
 }

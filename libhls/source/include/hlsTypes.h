@@ -521,6 +521,7 @@ typedef struct {
     msgQueue_t* playbackControllerMsgQueue; /*!< Playback controller thread message queue */
 
     int eofCount; /*!< count of eof recieved from the downloader thread(s) */
+    int boundaryReached /*!< Boolean - whether playback reached the boundary */
 
 } hlsSession_t;
 
