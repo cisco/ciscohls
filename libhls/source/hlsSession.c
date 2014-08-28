@@ -1449,7 +1449,7 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
                 DEBUG(DBG_INFO,"session %p speed %f -> %f: stop playback and switch playlists", pSession, pSession->speed, speed);
     
                 /* Stop playback */
-                rval = hlsSession_stop(pSession);
+                rval = hlsSession_stop(pSession, 1);
                 if(rval != HLS_OK) 
                 {
                     ERROR("failed to stop playback");
@@ -1537,12 +1537,6 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
             pSession->speed = speed;
         }
 
-        if(1 == pSession->boundaryReached)
-        {
-           pSession->boundaryReached = 0;
-           hlsSession_stop(pSession);
-        }
-                
         /* Start playback to get back into HLS_PLAYING state
            We do this even if we are NOT changing speed, since the expectation
            is that when this function returns we are in HLS_PLAYING state */
@@ -1574,10 +1568,11 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
  * HLS_PREPARED state. 
  *  
  * @param pSession
+ * @param bFlush - 1->flush, 0->don't flush
  * 
  * @return #hlsStatus_t
  */
-hlsStatus_t hlsSession_stop(hlsSession_t* pSession)
+hlsStatus_t hlsSession_stop(hlsSession_t* pSession, int bFlush)
 {
     hlsStatus_t rval = HLS_OK;
     srcStatus_t status = SRC_SUCCESS;
@@ -1615,7 +1610,21 @@ hlsStatus_t hlsSession_stop(hlsSession_t* pSession)
         /* If we're already prepared, do nothing */
         if(pSession->state == HLS_PREPARED) 
         {
-            break;
+           /* Flush to reset the media pipeline */
+           if(1 == bFlush)
+           {
+              /* Flush the decoder cache */
+              playerSetData.setCode = SRC_PLAYER_SET_BUFFER_FLUSH;
+              playerSetData.pData = NULL;
+              status = hlsPlayer_set(pSession->pHandle, &playerSetData);
+              if(status != SRC_SUCCESS) 
+              {
+                 ERROR("failed to flush player buffers");
+                 rval = HLS_ERROR;
+                 break;
+              }
+           }
+           break;
         }
 
         /* Signal that playback is stopping to the playback controller thread */
@@ -1707,15 +1716,18 @@ hlsStatus_t hlsSession_stop(hlsSession_t* pSession)
            }
         }
 
-        /* Flush the decoder cache */
-        playerSetData.setCode = SRC_PLAYER_SET_BUFFER_FLUSH;
-        playerSetData.pData = NULL;
-        status = hlsPlayer_set(pSession->pHandle, &playerSetData);
-        if(status != SRC_SUCCESS) 
+        if(1 == bFlush)
         {
-            ERROR("failed to flush player buffers");
-            rval = HLS_ERROR;
-            break;
+           /* Flush the decoder cache */
+           playerSetData.setCode = SRC_PLAYER_SET_BUFFER_FLUSH;
+           playerSetData.pData = NULL;
+           status = hlsPlayer_set(pSession->pHandle, &playerSetData);
+           if(status != SRC_SUCCESS) 
+           {
+              ERROR("failed to flush player buffers");
+              rval = HLS_ERROR;
+              break;
+           }
         }
 
         /* Set session state to HLS_PREPARED */
@@ -1801,16 +1813,12 @@ hlsStatus_t hlsSession_seek(hlsSession_t* pSession, float position)
         /* Convert position from milliseconds to seconds */
         position /= 1000;
 
-        /* Stop playback */
-        if(pSession->state == HLS_PLAYING) 
+        /* Stop downloading and flush decoder cache */
+        rval = hlsSession_stop(pSession, 1);
+        if(rval != HLS_OK) 
         {
-            /* Stop downloading and flush decoder cache */
-            rval = hlsSession_stop(pSession);
-            if(rval != HLS_OK) 
-            {
-                ERROR("failed to stop playback");
-                break;
-            }
+           ERROR("failed to stop playback");
+           break;
         }
 
         /* Get playlist WRITE lock */

@@ -49,7 +49,7 @@ hlsStatus_t hlsSession_getBitrates(hlsSession_t* pSession, int numBitrates, int*
 hlsStatus_t hlsSession_getCurrentBitrate(hlsSession_t* pSession, int* pBitrate);
 hlsStatus_t hlsSession_setBitrateLimit(hlsSession_t* pSession, hlsBitrateLimit_t limitType, int limit);
 hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed);
-hlsStatus_t hlsSession_stop(hlsSession_t* pSession);
+hlsStatus_t hlsSession_stop(hlsSession_t* pSession, int bFlush);
 hlsStatus_t hlsSession_seek(hlsSession_t* pSession, float position);
 hlsStatus_t hlsSession_getDuration(hlsSession_t* pSession, float* pDuration);
 hlsStatus_t hlsSession_getCurrentPosition(hlsSession_t* pSession, float* pPosition);
