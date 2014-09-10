@@ -1443,6 +1443,16 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
                     ((speed < 0) || (speed > 1))) /* TRICKPLAY -> TRICKPLAY */
             {
                 DEBUG(DBG_INFO,"session %p speed %f -> %f: change trickplay speed", pSession, pSession->speed, speed);
+                /* Flush the decoder cache */
+                playerSetData.setCode = SRC_PLAYER_SET_BUFFER_FLUSH;
+                playerSetData.pData = NULL;
+                status = hlsPlayer_set(pSession->pHandle, &playerSetData);
+                if(status != SRC_SUCCESS) 
+                {
+                   ERROR("failed to flush player buffers");
+                   rval = HLS_ERROR;
+                   break;
+                }
             }
             else /* ((1x PLAY || PAUSE) -> TRICKPLAY) || (TRICKPLAY -> (1x PLAY || PAUSE)) */
             {
