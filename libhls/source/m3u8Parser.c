@@ -34,6 +34,8 @@ extern "C" {
 #include <time.h>
 #include <errno.h>
 
+#include <AbrAlgorithmInterface.h>
+
 #include "hlsSession.h"
 #include "hlsSessionUtils.h"
 #include "hlsPlayerInterface.h"
@@ -173,6 +175,17 @@ void m3u8ParserThread(hlsSession_t* pSession)
             if(pSession->pCurrentProgram->pStreams == NULL)
             {
                 ERROR("malformed variant playlist");
+                status = HLS_ERROR;
+                /* Release playlist lock */
+                pthread_rwlock_unlock(&(pSession->playlistRWLock));
+                break;
+            }
+
+            if( ABR_ALGORITHM_NO_ERROR != setAvailableBitrates(pSession->abrAlgorithmObject, 
+                                 pSession->pCurrentProgram->pAvailableBitrates, 
+                                 pSession->pCurrentProgram->pStreams->numElements))
+            {
+                ERROR("problem setting bitrates to ABR algorithm");
                 status = HLS_ERROR;
                 /* Release playlist lock */
                 pthread_rwlock_unlock(&(pSession->playlistRWLock));

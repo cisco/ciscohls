@@ -22,6 +22,8 @@
 #include "gstciscdemux.h"
 #include "string.h"
 
+#include <AbrAlgorithmInterface.h>
+ 
 GST_DEBUG_CATEGORY_STATIC (gst_ciscdemux_debug);
 #define GST_CAT_DEFAULT gst_ciscdemux_debug
 #define DRM_TYPE_VERIMATRIX "ENCRYPTED_VERIMATRIX_HLS"
@@ -38,7 +40,8 @@ enum
 enum
 {
    PROP_0,
-   PROP_SILENT
+   PROP_SILENT,
+   PROP_ALGORITHM
 };
 
 /* the capabilities of the inputs and outputs.
@@ -309,6 +312,9 @@ gst_ciscdemux_class_init (GstciscdemuxClass * klass)
    g_object_class_install_property (gobject_class, PROP_SILENT,
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output ?",
       FALSE, G_PARAM_READWRITE));
+   g_object_class_install_property (gobject_class, PROP_ALGORITHM,
+      g_param_spec_int ("algorithm", "Algorithm", "Select ABR Algorithm: 1.Adaptech 2.Panda",
+      ABR_ALGORITHM_ADAPTEC, ABR_ALGORITHM_PANDA, ABR_ALGORITHM_ADAPTEC, G_PARAM_READWRITE));
 
    gstelement_class->change_state = GST_DEBUG_FUNCPTR(gst_cscohlsdemuxer_change_state);
 
@@ -370,6 +376,7 @@ gst_ciscdemux_init (Gstciscdemux * demux, GstciscdemuxClass * gclass)
    demux->bDisableMainStreamAudio = FALSE;
    demux->bufferPts = INVALID_PTS;
    demux->isFlushOnSeek = FALSE;
+   demux->algorithm = ABR_ALGORITHM_ADAPTEC;
 
    if(0 != pthread_mutex_init(&demux->PTSMutex, NULL))
    {
@@ -392,6 +399,9 @@ gst_ciscdemux_set_property (GObject * object, guint prop_id,
        case PROP_SILENT:
           demux->silent = g_value_get_boolean (value);
           break;
+       case PROP_ALGORITHM:
+          demux->algorithm = g_value_get_int (value);
+          break;
        default:
           G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
           break;
@@ -407,6 +417,9 @@ gst_ciscdemux_get_property (GObject * object, guint prop_id,
    switch (prop_id) {
        case PROP_SILENT:
           g_value_set_boolean (value, demux->silent);
+          break;
+       case PROP_ALGORITHM:
+          g_value_set_int (value, demux->algorithm);
           break;
        default:
           G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -1403,6 +1416,19 @@ static gboolean cisco_hls_open (Gstciscdemux *demux, char *pPlaylistUri)
          GST_ERROR(" Hummm there was an error setting the url to the HLS plugin:%s\n", errTable.errMsg);
          bError = TRUE;
          break;
+      }
+ 
+      //Now set the ABR algorithm type with the cisco hls plugin and let's kick it off.
+      setData.setCode = SRC_PLUGIN_SET_ABR_ALGORITHM;
+      setData.pData = &demux->algorithm;
+ 
+      GST_LOG("Setting Algorithm to : %d \n",*((int*) setData.pData));
+ 
+      /* now set the algoirthm type to HLS plugin */
+      stat = demux->HLS_pluginTable.set(pSession->pSessionID, &setData, &errTable);
+      if (stat != SRC_SUCCESS)
+      {
+         GST_ERROR(" Hummm there was an error setting the ABR algorithm to the HLS plugin:%s\n", errTable.errMsg);
       }
 
       /* prepare */

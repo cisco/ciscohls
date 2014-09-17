@@ -793,6 +793,23 @@ srcStatus_t hlsPlugin_set(srcSessionId_t sessionId, srcPluginSetData_t* pSetData
                     break;
                 }
                 break;
+            case SRC_PLUGIN_SET_ABR_ALGORITHM:
+                DEBUG(DBG_INFO,"setting ABR algorithm type = %d for session %p", *((int*)(pSetData->pData)), (void *)sessionId);
+
+                /* setAbrAlgorithm on the session */
+                status = hlsSession_setAbrAlgorithm(thePlugin.hlsSessions[sessionIndex], *((int*)(pSetData->pData)));
+                if(status != HLS_OK) 
+                {
+                    ERROR("hlsSession_setAbrAlgorithm failed on session %p with status: %d", (void*)sessionId, status);
+                    if(pErr != NULL) 
+                    {
+                        pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
+                        snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("hlsSession_setAbrAlgorithm failed on session %p with status: %d", (void*)sessionId, status));
+                    }
+                    rval = SRC_ERROR;
+                    break;
+                }
+                break;
             case SRC_PLUGIN_SET_SPEED:
                 DEBUG(DBG_INFO,"setting speed = %f on session %p", *(float*)(pSetData->pData), (void*)sessionId);
         

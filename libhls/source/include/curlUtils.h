@@ -52,6 +52,7 @@ hlsStatus_t curlInit(CURL** ppCurl);
 hlsStatus_t curlTerm(CURL* pCurl);
 
 hlsStatus_t curlDownloadFile(CURL* pCurl, char* URL, downloadHandle_t* pHandle, long byteOffset, long byteLength);
+hlsStatus_t getCurlDownloadDuration(CURL* pCurl, float* pDownloadDuration);
 hlsStatus_t getCurlTransferInfo(CURL* pCurl, char** ppRedirectURL, float* pThroughput, long* pDownloadSize);
 
 hlsStatus_t getBaseURL(char* URL, char** pBaseURL);

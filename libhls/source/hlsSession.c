@@ -50,6 +50,7 @@ extern "C" {
 #include "curlUtils.h"
 
 #include "debug.h"
+#include "AbrAlgorithmInterface.h"
 
 /* 
  *  TODO: Add commentary about call flow...
@@ -546,6 +547,56 @@ hlsStatus_t hlsSession_setDataSource(hlsSession_t* pSession, char* playlistURL)
     /* Release playlist lock */
     pthread_rwlock_unlock(&(pSession->playlistRWLock));
 
+    return rval;
+}
+
+/** 
+ * Sets the ABR Algorithm for this session.
+ *
+ * playlistRWLock MUST NOT be held by the calling thread
+ * 
+ * @param pSession - handle to streamer object
+ * @param algorithmType - Integer number to hold the algorithm type
+ * 
+ * @return #hlsStatus_t
+ */
+hlsStatus_t hlsSession_setAbrAlgorithm(hlsSession_t* pSession, int algorithmType)
+{
+    hlsStatus_t rval = HLS_OK;
+    ABR_SESSION_CONFIG config;
+
+    if((pSession == NULL) || 
+          ((algorithmType != ABR_ALGORITHM_ADAPTEC) && (algorithmType != ABR_ALGORITHM_PANDA)))
+    {
+        ERROR("invalid parameter");
+        return HLS_INVALID_PARAMETER;
+    }
+
+    TIMESTAMP(DBG_INFO,"%s: Algorithm Type = %d", __FUNCTION__, algorithmType);
+
+    do
+    {
+        AbrAlgorithmError abrError = ABR_ALGORITHM_NO_ERROR;
+        /* Check for valid state */
+        if(pSession->state != HLS_INITIALIZED) 
+        {
+            ERROR("%s invalid in state %d", __FUNCTION__, pSession->state);
+            rval = HLS_STATE_ERROR;
+            break;
+        }
+
+        if( ABR_ALGORITHM_NO_ERROR == getAbrDefaultConfiguration(algorithmType, &config) )
+        {
+            abrError = getAbrAlgorithm(algorithmType, &config, &pSession->abrAlgorithmObject);
+            if( ABR_ALGORITHM_NO_ERROR != abrError )
+            {
+                 pSession->abrAlgorithmObject = NULL;
+                 rval = HLS_ERROR;
+                 break;
+            }
+        }
+    } while(0);
+    
     return rval;
 }
 

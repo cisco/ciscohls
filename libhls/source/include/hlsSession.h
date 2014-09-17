@@ -40,6 +40,7 @@ hlsStatus_t hlsSession_init(hlsSession_t** ppSession, void* pHandle);
 void hlsSession_term(hlsSession_t* pSession);
 
 hlsStatus_t hlsSession_setDataSource(hlsSession_t* pSession, char* playlistURL);
+hlsStatus_t hlsSession_setAbrAlgorithm(hlsSession_t* pSession, int algorithmType);
 hlsStatus_t hlsSession_prepare(hlsSession_t* pSession);
 
 hlsStatus_t hlsSession_play(hlsSession_t* pSession);

@@ -41,7 +41,7 @@ extern "C" {
 
 #include "m3u8ParseUtils.h"
 
-#include "adaptech.h"
+#include "AbrAlgorithmInterface.h"
 
 #include "llUtils.h"
 #include "curlUtils.h"
@@ -1617,6 +1617,16 @@ void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc)
             break;
         }
         
+        /* Get the download throughput */
+        status = getCurlDownloadDuration(pDesc->pSession->pCurl, &(pDesc->pSession->downloadDuration));
+        if(status)
+        {
+            ERROR("failed to get segment download rate");
+            /* Unlock cURL mutex */
+            pthread_mutex_unlock(&(pDesc->pSession->curlMutex));
+            break;
+        }
+       
         /* Unlock cURL mutex */
         pthread_mutex_unlock(pDesc->curlMutex);
                 

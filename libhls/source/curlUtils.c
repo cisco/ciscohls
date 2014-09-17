@@ -412,6 +412,27 @@ hlsStatus_t curlDownloadFile(CURL* pCurl, char* URL, downloadHandle_t* pHandle, 
     return rval;
 }
 
+hlsStatus_t getCurlDownloadDuration(CURL* pCurl, float* pDownloadDuration)
+{
+    hlsStatus_t rval = HLS_OK;
+    double tempDouble;
+    /* Return the download size, if requested */
+    if(pDownloadDuration != NULL)
+    {
+        CURLcode curlResult;
+        curlResult = curl_easy_getinfo(pCurl, CURLINFO_TOTAL_TIME, &tempDouble);
+        if( CURLE_OK != curlResult )
+        {
+            rval = HLS_ERROR;
+            ERROR("Failed to set curl_easy_getinfo() with CURLINFO_TOTAL_TIME; Error %d: %s", curlResult, curl_easy_strerror(curlResult) );
+        }
+        DEBUG(DBG_NOISE,"curl_easy_getinfo(CURLINFO_TOTAL_TIME) download duration: %5.2f seconds", tempDouble);
+
+        *pDownloadDuration = tempDouble;
+    }
+    return(rval);
+}
+
 /** 
  * Retrieves information about the last transfer performed by 
  * the cURL handle pCurl.  If ppRedirectURL is non-NULL, 
