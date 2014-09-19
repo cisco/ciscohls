@@ -46,36 +46,13 @@ extern "C" {
 #include "hlsDownloaderUtils.h"
 
 #include "debug.h"
+#include "adaptech.h"
 #include "curlUtils.h"
 
 /* Loop duration in seconds */
 #define DOWNLOADER_LOOP_SECS 1
 
 #define DOWNLOADER_THREADS_POS_DIFF_SECS (30)
- 
-#define MILLISECONDS_IN_A_SECOND 1000
-#define NANOSECONDS_IN_A_MILLISECOND 1000000
-#define NANOSECONDS_IN_A_SECOND 1000000000
- 
-#include "AbrAlgorithmInterface.h"
- 
-struct timespec timeDifference(struct timespec x, struct timespec y)
-{
-    struct timespec result={0,0};
-    if(x.tv_nsec < y.tv_nsec)
-    {
-        x.tv_sec -= 1;
-        x.tv_nsec += NANOSECONDS_IN_A_SECOND;
-    }
- 
-    if(x.tv_sec < y.tv_sec)
-    {
-        return(result); // returns 0.
-    }
-    result.tv_sec = x.tv_sec - y.tv_sec;
-    result.tv_nsec = x.tv_nsec - y.tv_nsec;
-    return(result);
-}
 
 /**
  * Function to sleep on downloaderWakeCond 
@@ -255,12 +232,7 @@ hlsStatus_t hlsSegmentDownloadLoop(hlsSession_t* pSession)
     struct timespec oldLastBitrateChange;
     srcPlayerMode_t playerMode;
 
-    /* Time to sleep before the next download.
-       This value will be given by ABR Algorithms */
-    struct timespec downloadSleepTime={0,0};
-	 
-    struct timespec currSleepTime={0,0};
-    struct timespec prevSleepTime={0,0};
+
 
     if(pSession == NULL)
     {
@@ -292,40 +264,12 @@ hlsStatus_t hlsSegmentDownloadLoop(hlsSession_t* pSession)
             }
 
             /* Get current time */
-            if(clock_gettime(CLOCK_MONOTONIC, &currSleepTime) != 0)
-            {
-                ERROR("failed to get current time");
-                status = HLS_ERROR;
-                break;
-            }
- 
-            /* if prevSleepTime is not zero ie., not at first time in loop */
-            if( (prevSleepTime.tv_sec != 0) || (prevSleepTime.tv_nsec != 0) )  
-            {
-                struct timespec downloadInterval;
-                struct timespec actualSleepTime;
- 
-                downloadInterval = timeDifference(currSleepTime, prevSleepTime);
-                if( (downloadSleepTime.tv_sec != 0) || (downloadSleepTime.tv_nsec != 0) )
-                {
-                     actualSleepTime = timeDifference(downloadSleepTime, downloadInterval);
-                     if( (actualSleepTime.tv_sec != 0) || (actualSleepTime.tv_nsec != 0) )
-                     {
-                          DEBUG(DBG_INFO, "Sleeping for %u.%lu seconds to delay the download of next segment", actualSleepTime.tv_sec, actualSleepTime.tv_nsec);
-                          nanosleep(&actualSleepTime, NULL);
-                     }
-                }
-            }
- 
-            /* Get current time */
             if(clock_gettime(CLOCK_MONOTONIC, &wakeTime) != 0) 
             {
                 ERROR("failed to get current time");
                 status = HLS_ERROR;
                 break;
             }
-
-            prevSleepTime = wakeTime;
 
             /* Get playlist READ lock */
             pthread_rwlock_rdlock(&(pSession->playlistRWLock));
@@ -436,44 +380,14 @@ hlsStatus_t hlsSegmentDownloadLoop(hlsSession_t* pSession)
                        (pSession->pCurrentProgram->pAvailableBitrates != NULL) && 
                        (pSession->pCurrentProgram->pStreams != NULL))
                     {
-                        ABR_INPUT_PARAM abr_input;
-                        ABR_OUTPUT_PARAM abr_output;
-                        int index;
                         /* Save off pSession->lastBitrateChange in case we fail to shift and need to revert to old values */
                         oldLastBitrateChange.tv_sec = pSession->lastBitrateChange.tv_sec;
                         oldLastBitrateChange.tv_nsec = pSession->lastBitrateChange.tv_nsec;
 
-                        abr_input._lastFragmentThroughput = pSession->lastSegmentDldRate;
-                        abr_input._avgFragmentThroughput = pSession->avgSegmentDldRate;
-                        abr_input._bufferLength = (float)(pSession->timeBuffered) * MILLISECONDS_IN_A_SECOND;
-                        abr_input._currentBitrate = pMediaPlaylist->pMediaData->bitrate;
-                        abr_input._rateMin = pSession->minBitrate;
-                        abr_input._rateMax = pSession->maxBitrate;
-                        abr_input._previousIncreaseTimeStamp = &(pSession->lastBitrateChange);
-                        abr_input._startTimeStamp = &(pSession->playbackStart);
-                        abr_input._downloadTime = (int) (pSession->downloadDuration * MILLISECONDS_IN_A_SECOND);
-                        abr_input._chunkDuration = 2000;
-
-                        if( ABR_ALGORITHM_NO_ERROR == getNewBitRate(pSession->abrAlgorithmObject, &abr_input, &abr_output ))
-                        {
-                              DEBUG(DBG_INFO, "Delay given by ABR algorithm is: %u", abr_output._delay);
-                              for(index=0; index < pSession-> pCurrentProgram->pStreams->numElements; index++)
-                              {
-                                     if(abr_output._newBitrate == pSession->pCurrentProgram->pAvailableBitrates[index])
-                                     {
-                                            proposedBitrateIndex = index;
-                                            break;
-                                     }
-                              }
-                              downloadSleepTime.tv_sec = abr_output._delay / MILLISECONDS_IN_A_SECOND;
-                              downloadSleepTime.tv_nsec = (abr_output._delay - (downloadSleepTime.tv_sec * MILLISECONDS_IN_A_SECOND) ) *
-                                                                                                       NANOSECONDS_IN_A_MILLISECOND;
-                        }
-                        else
-                        {
-                              proposedBitrateIndex = 0;
-                        }
-
+                        proposedBitrateIndex = abrClientGetNewBitrate(pSession->lastSegmentDldRate, pSession->avgSegmentDldRate, (float)(pSession->timeBuffered),
+                                                                      pSession->pCurrentProgram->pStreams->numElements, pSession->pCurrentProgram->pAvailableBitrates,
+                                                                      pMediaPlaylist->pMediaData->bitrate, pSession->minBitrate, pSession->maxBitrate,
+                                                                      &(pSession->lastBitrateChange), &(pSession->playbackStart));
                         if((proposedBitrateIndex < 0) || (proposedBitrateIndex >= pSession->pCurrentProgram->pStreams->numElements))
                         {
                             // TODO: ??? Anything else?

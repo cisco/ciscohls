@@ -19,7 +19,8 @@ libHls_@HLS_API_VERSION@_la_SOURCES= curlUtils.c               \
 												 hlsSessionUtils.c 			\
 												 m3u8Parser.c 					\
 												 m3u8ParseUtils.c 		   \
-												 llUtils.c						
+												 llUtils.c						\
+												 adaptech.c							
 
 libHls_@HLS_API_VERSION@_la_CPPFLAGS = -I$(top_srcdir)/source/include 
 libHls_@HLS_API_VERSION@_la_CFLAGS = -I$(top_srcdir)/source/include 
@@ -47,7 +48,7 @@ libHls_includedir = $(includedir)/libHls-$(HLS_API_VERSION)
 
 #This is the list of header files to be installed in the directory that was created on the target
 # libHls_includedir from above.
-nobase_libHls_include_HEADERS =  include/hlsPlugin.h include/sourcePlugin.h include/llUtils.h 
+nobase_libHls_include_HEADERS =  include/adaptech.h include/hlsPlugin.h include/sourcePlugin.h include/llUtils.h 
 
 
 

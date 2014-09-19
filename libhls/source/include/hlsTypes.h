@@ -522,8 +522,6 @@ typedef struct {
 
     int eofCount; /*!< count of eof recieved from the downloader thread(s) */
 
-    float downloadDuration; /*!< Download Duration for the last segment */
-    void* abrAlgorithmObject; /*!< This is the ABR algorithm's object to find the next bit rate */
 } hlsSession_t;
 
 /*! \struct hlsPlugin_t 

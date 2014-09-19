@@ -160,11 +160,6 @@ else
    AC_MSG_ERROR([Your math library is missing floorf])
 fi
 
-PKG_CHECK_MODULES([LIBABRALGO],[libabralgo >= 1.00.00])
-LIBS="$LIBS $LIBABRALGO_LIBS"
-CFLAGS="$CFLAGS $LIBABRALGO_CFLAGS"
-CXXFLAGS="$CXXFLAGS $LIBABRALGO_CXXFLAGS"
-
 #
 # options for building
 # this will enable basic DRM, meaning the library will pull the key url and get the key

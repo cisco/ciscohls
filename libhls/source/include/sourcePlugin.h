@@ -121,7 +121,6 @@ typedef enum
 typedef enum
 {
     SRC_PLUGIN_SET_DATA_SOURCE,     /*!< pData -> char* containing the URL to use for playback */ 
-    SRC_PLUGIN_SET_ABR_ALGORITHM,   /*!< pData -> int* containing the ABR Algorithm type */ 
     SRC_PLUGIN_SET_SPEED,           /*!< pData -> float* containing the desired playback speed */ 
     SRC_PLUGIN_SET_POSITION,        /*!< pData -> float* containing the desired position, in ms */ 
     SRC_PLUGIN_SET_MAX_BITRATE,     /*!< pData -> int* containg the maxinum bitrate, in bps */ 

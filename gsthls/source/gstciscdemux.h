@@ -123,7 +123,6 @@ struct _Gstciscdemux
   gint64          bufferPts;
   gint64          seekpos;
   gboolean        isFlushOnSeek;
-  gint            algorithm;
 };
 
 struct _GstciscdemuxClass 

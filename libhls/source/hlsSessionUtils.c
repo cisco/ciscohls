@@ -40,7 +40,7 @@ extern "C" {
 
 #include "hlsDownloaderUtils.h"
 
-#include "AbrAlgorithmInterface.h"
+#include "adaptech.h"
 
 #include "debug.h"
 
