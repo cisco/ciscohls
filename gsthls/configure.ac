@@ -256,52 +256,6 @@ AC_SUBST(plugindir)
 #
 
 #
-# DRM requirements
-#
-dnl set an options flag to force Verimatrix DRM only support
-AC_MSG_CHECKING(Enabled Verimatrix support ...)
-AC_ARG_ENABLE([force-verimatrix],
-[
-   AS_HELP_STRING([--enable-force-verimatrix],
-      [If set to =yes then we will force Verimatrix only support])
-],
-[
-   AC_MSG_RESULT(yes)
-   AC_DEFINE([OPT_FORCE_VERIMATRIX],[1],[Force Verimatrix only])
-   verimatrix_support=yes
-],
-[
-   AC_MSG_RESULT(no)
-   verimatrix_support=no
-])
-
-dnl set an option flag to force Video Gaurd DRM only support
-AC_MSG_CHECKING(Enabled VGDRM support ...)
-AC_ARG_ENABLE([force-vgdrm],
-[
-   AS_HELP_STRING([--enable-force-vgdrm],
-      [If set to =yes then we will force VGDRM only support])
-],
-[
-   AC_MSG_RESULT(yes)
-   AC_DEFINE([OPT_FORCE_VGDRM],[1],[Force VGDRM only])
-   vgdrm_support=yes
-],
-[
-   AC_MSG_RESULT(no)
-   vgdrm_support=no
-])
-
-AS_IF([test "x$verimatrix_support" = "xyes" && test "x$vgdrm_support" = "xyes"],
-[
-   AC_MSG_ERROR([You can only force one DRM type. Remove --enable-force-verimatrix or --enable-force-vgdrm and re-rerun ./configure])
-])
-
-#
-# Enf of DRM requirements
-#
-
-#
 # We MUST have the cisco libHLS installed
 #
 PKG_CHECK_MODULES([LIBHLS],[libhls >= 1.00.00])

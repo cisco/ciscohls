@@ -101,7 +101,8 @@ struct _Gstciscdemux
   
   GstPad *downstream_peer_pad;
 
-  gchar    *LicenseID;
+  gchar    *LicenseID;  
+  gchar    *drmType;
   /* Array of src pad caps */
   GstCaps **inputStreamCap;
 

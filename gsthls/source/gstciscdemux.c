@@ -27,6 +27,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_ciscdemux_debug);
 #define DRM_TYPE_VERIMATRIX "ENCRYPTED_VERIMATRIX_HLS"
 #define DRM_TYPE_VGDRM "ENCRYPTED_VGDRM_HLS"
 #define DRM_TYPE_BASIC "ENCRYPTED_BASIC_HLS"
+#define MAX_URI_LEN	100
 
 /* demux signals and args */
 enum
@@ -92,9 +93,10 @@ static gboolean cisco_hls_close(Gstciscdemux *demux);
 static gboolean cisco_hls_finalize(Gstciscdemux *demux);
 static gboolean gst_cisco_hls_seek (Gstciscdemux *demux, GstEvent *event);
 static void * getCurrentPTSNotify(void *data);
-static gboolean gst_ciscdemux_get_caps(srcBufferMetadata_t *metadata,
-                                       GstBuffer *buf,
-                                       GstCaps **caps);
+static gboolean gst_ciscdemux_get_caps( Gstciscdemux *demux,
+												srcBufferMetadata_t *metadata,
+                                       			GstBuffer *buf,
+                                       			GstCaps **caps);
 static gboolean gst_ciscdemux_flush(Gstciscdemux *demux, GstPad *srcpad);
 static gboolean gst_ciscdemux_disable_main_stream_audio(Gstciscdemux *demux);
 static gboolean gst_ciscdemux_send_eos(GstPad *srcpad);
@@ -238,35 +240,44 @@ static GstEvent* gst_ciscdemux_create_decryption_event(  srcBufferMetadata_t* me
 
          }
 
-#ifdef OPT_FORCE_VERIMATRIX
-         char * drmType = DRM_TYPE_VERIMATRIX;
-         GST_LOG("Forcing DRM type to: \"%s\"\n", drmType);
-         structure = gst_structure_new(drmType,
-            "keyURI", G_TYPE_STRING, metadata->keyURI,
-            "iv",     G_TYPE_STRING, strIv,
-            NULL);
-#elif OPT_FORCE_VGDRM
-         char * drmType = DRM_TYPE_VGDRM;
-         GST_LOG("Forcing DRM type to: \"%s\"\n", drmType);
-         structure = gst_structure_new(drmType,
-            "keyURI",   G_TYPE_STRING, metadata->keyURI,
-            "iv",       G_TYPE_STRING, strIv,
-            "LicenseID",G_TYPE_STRING, demux->LicenseID,
-            NULL);
-#else
-         char * drmType = DRM_TYPE_BASIC;
-         structure = gst_structure_new(drmType,
-            "keyURI", G_TYPE_STRING, metadata->keyURI,
-            "iv",     G_TYPE_STRING, strIv,
-            NULL);
-#endif
+		if (demux->drmType)
+		{
+	  		if((g_strstr_len (demux->drmType, strlen(DRM_TYPE_VERIMATRIX), DRM_TYPE_VERIMATRIX) != NULL)
+				|| (g_strstr_len (demux->drmType, strlen(DRM_TYPE_BASIC), DRM_TYPE_BASIC) != NULL))
+			{
+		         GST_DEBUG("Forcing DRM type to: \"%s\"\n", demux->drmType);
+		         structure = gst_structure_new(	demux->drmType,
+									            "keyURI", G_TYPE_STRING, metadata->keyURI,
+									            "iv",     G_TYPE_STRING, strIv,
+									            NULL);
+			}
+			else if(g_strstr_len (demux->drmType, strlen(DRM_TYPE_VGDRM), DRM_TYPE_VGDRM) != NULL)
+			
+			{         
+				GST_DEBUG("Forcing DRM type to: \"%s\"\n", demux->drmType);
+	         	structure = gst_structure_new(	demux->drmType,
+									            "keyURI",   G_TYPE_STRING, metadata->keyURI,
+									            "iv",       G_TYPE_STRING, strIv,
+									            "LicenseID",G_TYPE_STRING, demux->LicenseID,
+									            NULL);
+			}
+			else
+			{
+	            GST_ERROR("demux->drmType should NOT be NULL at this point!\n");
+			}
+		}
+		else
+		{
+			GST_ERROR("Unknown DRM type!\n");
+		}			
+		
          if (structure == NULL)
          {
             GST_ERROR("Error creating event message\n");
          }
          else
          {
-            GST_LOG("sending out DRM info: %s \n", gst_structure_get_name(structure));
+            GST_DEBUG("sending out DRM info: %s \n", gst_structure_get_name(structure));
             event = gst_event_new_custom(GST_EVENT_CUSTOM_DOWNSTREAM, structure);
          }
       }
@@ -370,7 +381,7 @@ gst_ciscdemux_init (Gstciscdemux * demux, GstciscdemuxClass * gclass)
    demux->bDisableMainStreamAudio = FALSE;
    demux->bufferPts = INVALID_PTS;
    demux->isFlushOnSeek = FALSE;
-
+   demux->drmType = NULL;
    if(0 != pthread_mutex_init(&demux->PTSMutex, NULL))
    {
       GST_WARNING("Failed to init PTSMutex\n");
@@ -797,20 +808,46 @@ static GstStateChangeReturn gst_cscohlsdemuxer_change_state (GstElement * elemen
                gchar *str = NULL;
                gchar **array = NULL;
                gchar delimiter ='&';
-
+	
+			   GST_DEBUG("%s: Received URI = '%s'\n", __func__, uri);
+				
                str =  g_strstr_len (uri, -1, "LicenseID=");
-               if (str == NULL) break;
-               // copy string until you find '&'
-               array = g_strsplit (str, &delimiter, 1024);
-               // the first array element string should hold what we need.
-               GST_WARNING_OBJECT(demux,"Setting LicenseID to: %s\n",array[0]);
-               if (demux->LicenseID != NULL)
+               if (str != NULL)
                {
-                  g_free(demux->LicenseID);
+	               // copy string until you find '&'
+	               array = g_strsplit (str, &delimiter, 1024);
+	               // the first array element string should hold what we need.
+	               GST_INFO_OBJECT(demux,"Setting LicenseID to: %s\n",array[0]);
+	               if (demux->LicenseID != NULL)
+	               {
+	                  g_free(demux->LicenseID);
+	               }
+	               demux->LicenseID = strdup (array[0]);  
+				   g_strfreev(array);
                }
-               demux->LicenseID = strdup (array[0]);
-               g_strfreev(array);
-
+			   
+			   if (!g_strstr_len (uri, MAX_URI_LEN, "?drmType="))
+			   {
+				   demux->drmType = strdup(DRM_TYPE_BASIC);
+				   GST_INFO_OBJECT(demux, "Set drmType to: %s\n", demux->drmType);
+			   }
+			   else
+			   {
+					if (g_strstr_len (uri, MAX_URI_LEN, "verimatrix"))
+					{
+						demux->drmType = strdup(DRM_TYPE_VERIMATRIX);
+					   	GST_INFO_OBJECT(demux, "Set drmType to: %s\n", demux->drmType);
+					}
+					else if (g_strstr_len (uri, MAX_URI_LEN, "vgdrm"))
+					{
+						demux->drmType = strdup(DRM_TYPE_VGDRM);
+					   	GST_INFO_OBJECT(demux, "Set drmType to: %s\n", demux->drmType);
+					}
+					else
+					{
+						GST_ERROR("Unknown drmType!\n");
+					}
+			   }
             }while(0);
 
             cisco_hls_open(demux, uri);
@@ -1064,7 +1101,7 @@ srcStatus_t hlsPlayer_sendBuffer(void* pHandle, char* buffer, int size, srcBuffe
       
       if((metadata->streamNum > SRC_STREAM_NUM_MAIN) && (NULL == demux->srcpad_discrete[metadata->streamNum - 1]))
       {
-         if(TRUE != gst_ciscdemux_get_caps(metadata, buf, &demux->inputStreamCap[metadata->streamNum]))
+         if(TRUE != gst_ciscdemux_get_caps(demux, metadata, buf, &demux->inputStreamCap[metadata->streamNum]))
          {
             break;
          }
@@ -1103,7 +1140,7 @@ srcStatus_t hlsPlayer_sendBuffer(void* pHandle, char* buffer, int size, srcBuffe
       // check to see if we have setup the source pad yet to send out it's capabilities
       else if((SRC_STREAM_NUM_MAIN == metadata->streamNum) && (demux->capsSet == 0))
       {
-         if(TRUE != gst_ciscdemux_get_caps(metadata, buf, &demux->inputStreamCap[metadata->streamNum]))
+         if(TRUE != gst_ciscdemux_get_caps(demux, metadata, buf, &demux->inputStreamCap[metadata->streamNum]))
          {
             break;
          }
@@ -1803,9 +1840,10 @@ static void * getCurrentPTSNotify(void *data)
    pthread_exit(NULL);
 }
 
-static gboolean gst_ciscdemux_get_caps(srcBufferMetadata_t *metadata,
-                                       GstBuffer *buf,
-                                       GstCaps **caps)
+static gboolean gst_ciscdemux_get_caps( Gstciscdemux *demux,
+												srcBufferMetadata_t *metadata,
+		                                        GstBuffer *buf,
+		                                        GstCaps **caps)
 {
    gboolean ret = FALSE;
 
@@ -1819,14 +1857,27 @@ static gboolean gst_ciscdemux_get_caps(srcBufferMetadata_t *metadata,
    // this is for basic HLS
    if (metadata->encType == SRC_ENC_AES128_CBC)
    {
-#ifdef OPT_FORCE_VGDRM
-      *caps = gst_caps_new_simple ("drm/x-VGDRM", NULL, NULL);
-#elif OPT_FORCE_VERIMATRIX
-      *caps = gst_caps_new_simple ("drm/x-VERIMATRIX", NULL, NULL);
-#else
-      *caps = gst_caps_new_simple ("drm/x-BASIC_HLS", NULL, NULL);
-#endif
-   }
+   		if (demux->drmType)
+   		{
+			GST_DEBUG("%s: demux->drmType: %s", __func__, demux->drmType);
+	  		if(g_strstr_len (demux->drmType, strlen(DRM_TYPE_VGDRM), DRM_TYPE_VGDRM) != NULL)
+	  		{
+	      		*caps = gst_caps_new_simple ("drm/x-VGDRM", NULL, NULL);
+	  		}
+	  		else if(g_strstr_len (demux->drmType, strlen(DRM_TYPE_VERIMATRIX), DRM_TYPE_VERIMATRIX) != NULL)
+	  		{
+	      		*caps = gst_caps_new_simple ("drm/x-VERIMATRIX", NULL, NULL);
+	  		}
+		  	else if(g_strstr_len (demux->drmType, strlen(DRM_TYPE_BASIC), DRM_TYPE_BASIC) != NULL)
+		  	{
+	      		*caps = gst_caps_new_simple ("drm/x-BASIC_HLS", NULL, NULL);
+			} 
+   		}
+		else
+		{
+			GST_ERROR("demux->drmType should not be NULL at this point!");
+		}
+	}
    else if ( metadata->encType == SRC_ENC_NONE)
    {
       *caps = gst_type_find_helper_for_buffer(NULL, buf, NULL);
