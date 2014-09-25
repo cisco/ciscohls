@@ -1693,6 +1693,7 @@ static gboolean gst_cisco_hls_seek (Gstciscdemux *demux, GstEvent *event)
             gst_ciscdemux_flush(demux, demux->srcpad);
       }
 
+      //Set flush on seek before calling into HLS plugin
       demux->isFlushOnSeek = TRUE;
       demux->seekpos = cur;
 
@@ -1704,6 +1705,7 @@ static gboolean gst_cisco_hls_seek (Gstciscdemux *demux, GstEvent *event)
       if ( stat == SRC_ERROR )
       {
          GST_WARNING("Failed to set position on the source plugin: %s\n", errTable.errMsg);
+         //Reset the flag if call failed
          demux->isFlushOnSeek = FALSE;
          return FALSE;
       }
@@ -1712,15 +1714,20 @@ static gboolean gst_cisco_hls_seek (Gstciscdemux *demux, GstEvent *event)
    {
       setData.setCode = SRC_PLUGIN_SET_SPEED;
       speed = rate;
-      setData.pData = &speed; 
+      setData.pData = &speed;
+      //Set flush on seek before calling into HLS plugin
+      demux->isFlushOnSeek = TRUE;
       stat = demux->HLS_pluginTable.set( pSession->pSessionID, &setData, &errTable );
       if(stat)
       {
          GST_ERROR("%s: Error %d while setting speed to %f: %s", __FUNCTION__, 
                    errTable.errCode, speed, errTable.errMsg);
+         //Reset the flag if call failed
+         demux->isFlushOnSeek = FALSE;
          return FALSE;
-      }
-      GST_LOG("setSpeed returned\n");
+      }     
+
+      GST_LOG("SRC_PLUGIN_SET_SPEED returned\n");
    }
 
    demux->speed = speed;
@@ -2142,20 +2149,20 @@ static gboolean gst_ciscdemux_send_flush_to_all_srcpads(Gstciscdemux *demux)
    gint ii = 0;
 
    do {
-   ret = gst_ciscdemux_flush(demux, demux->srcpad);
-   if(TRUE != ret)
-   {
-      break;
-   }
-   
-   for(ii = 0; ii < demux->numSrcPadsActive - 1; ii++)
-   {
-      ret = gst_ciscdemux_flush(demux, demux->srcpad_discrete[ii]);
+      ret = gst_ciscdemux_flush(demux, demux->srcpad);
       if(TRUE != ret)
       {
          break;
       }
-   }
+      
+      for(ii = 0; ii < demux->numSrcPadsActive - 1; ii++)
+      {
+         ret = gst_ciscdemux_flush(demux, demux->srcpad_discrete[ii]);
+         if(TRUE != ret)
+         {
+            break;
+         }
+      }
 
    }while(0);
 
