@@ -99,6 +99,7 @@ static gboolean gst_ciscdemux_get_caps( Gstciscdemux *demux,
                                        			GstCaps **caps);
 static gboolean gst_ciscdemux_flush(Gstciscdemux *demux, GstPad *srcpad);
 static gboolean gst_ciscdemux_disable_main_stream_audio(Gstciscdemux *demux);
+static gboolean gst_ciscdemux_set_video_master(Gstciscdemux *demux);
 static gboolean gst_ciscdemux_send_eos(GstPad *srcpad);
 static gboolean gst_ciscdemux_send_low_delay_videomask_event(Gstciscdemux *demux, gboolean enable);
 static gboolean gst_ciscdemux_send_event_to_all_srcpads(Gstciscdemux *demux, GstEvent *event);
@@ -1277,6 +1278,11 @@ srcStatus_t hlsPlayer_set(void *pHandle, srcPlayerSetData_t *pSetData)
             {
                GST_INFO_OBJECT(demux, "Received SRC_PLAYER_MODE_NORMAL");
                gst_ciscdemux_send_low_delay_videomask_event(demux, FALSE);
+
+               //HLS may switch audio sample rate or codec. Making audio master makes playback 
+               //very sensitive to these events and can cause glitches. Therefore, we want video
+               //to be the master stream for HLS.
+               gst_ciscdemux_set_video_master(demux);
             }
          }
          break;
@@ -2010,6 +2016,7 @@ static gboolean gst_ciscdemux_disable_main_stream_audio(Gstciscdemux *demux)
       event = gst_event_new_custom(GST_EVENT_CUSTOM_DOWNSTREAM, structure);
       if(NULL == event)
       {
+         gst_structure_free(structure);
          GST_ERROR("Error creating disable-audio-stream event\n");
          break;
       }
@@ -2019,6 +2026,43 @@ static gboolean gst_ciscdemux_disable_main_stream_audio(Gstciscdemux *demux)
       if (gst_pad_push_event(demux->srcpad, event)== FALSE)
       {
          GST_ERROR(" Error sending audio-stream event down stream\n");
+         break;
+      }
+
+      ret = TRUE;
+   }while(0);
+
+   return ret;
+}
+
+static gboolean gst_ciscdemux_set_video_master(Gstciscdemux *demux)
+{
+   GstEvent     *event = NULL;
+   GstStructure *structure = NULL;       
+   gboolean     ret = FALSE;
+
+   do 
+   {
+      structure = gst_structure_new("set-video-master", NULL);
+      if(NULL == structure)
+      {
+         GST_ERROR("Error creating set-video-master structure\n");
+         break;
+      }
+
+      event = gst_event_new_custom(GST_EVENT_CUSTOM_DOWNSTREAM, structure);
+      if(NULL == event)
+      {
+         gst_structure_free(structure);
+         GST_ERROR("Error creating set-video-master event\n");
+         break;
+      }
+
+      GST_INFO("Sending set-video-master event downstream\n");
+
+      if (gst_pad_push_event(demux->srcpad, event)== FALSE)
+      {
+         GST_ERROR(" Error sending set-video-master event downstream\n");
          break;
       }
 
@@ -2073,6 +2117,7 @@ static gboolean gst_ciscdemux_send_low_delay_videomask_event(Gstciscdemux *demux
    event = gst_event_new_custom(GST_EVENT_CUSTOM_DOWNSTREAM, structure);
    if(NULL == event)
    {
+      gst_structure_free(structure);
       GST_ERROR("Error creating low-delay event\n");
       break;
    }
@@ -2096,6 +2141,7 @@ static gboolean gst_ciscdemux_send_low_delay_videomask_event(Gstciscdemux *demux
    event = gst_event_new_custom(GST_EVENT_CUSTOM_DOWNSTREAM, structure);
    if(NULL == event)
    {
+      gst_structure_free(structure);
       GST_ERROR("Error creating video-mask event\n");
       break;
    }
