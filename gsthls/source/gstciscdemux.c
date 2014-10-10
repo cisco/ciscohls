@@ -809,46 +809,46 @@ static GstStateChangeReturn gst_cscohlsdemuxer_change_state (GstElement * elemen
                gchar *str = NULL;
                gchar **array = NULL;
                gchar delimiter ='&';
-	
-			   GST_DEBUG("%s: Received URI = '%s'\n", __func__, uri);
-				
+
+               GST_DEBUG("%s: Received URI = '%s'\n", __func__, uri);
+
                str =  g_strstr_len (uri, -1, "LicenseID=");
                if (str != NULL)
                {
-	               // copy string until you find '&'
-	               array = g_strsplit (str, &delimiter, 1024);
-	               // the first array element string should hold what we need.
-	               GST_INFO_OBJECT(demux,"Setting LicenseID to: %s\n",array[0]);
-	               if (demux->LicenseID != NULL)
-	               {
-	                  g_free(demux->LicenseID);
-	               }
-	               demux->LicenseID = strdup (array[0]);  
-				   g_strfreev(array);
+                  // copy string until you find '&'
+                  array = g_strsplit (str, &delimiter, 1024);
+                  // the first array element string should hold what we need.
+                  GST_INFO_OBJECT(demux,"Setting LicenseID to: %s\n",array[0]);
+                  if (demux->LicenseID != NULL)
+                  {
+                     g_free(demux->LicenseID);
+                  }
+                  demux->LicenseID = strdup (array[0]);
+                  g_strfreev(array);
                }
-			   
-			   if (!g_strstr_len (uri, MAX_URI_LEN, "?drmType="))
-			   {
-				   demux->drmType = strdup(DRM_TYPE_BASIC);
-				   GST_INFO_OBJECT(demux, "Set drmType to: %s\n", demux->drmType);
-			   }
-			   else
-			   {
-					if (g_strstr_len (uri, MAX_URI_LEN, "verimatrix"))
-					{
-						demux->drmType = strdup(DRM_TYPE_VERIMATRIX);
-					   	GST_INFO_OBJECT(demux, "Set drmType to: %s\n", demux->drmType);
-					}
-					else if (g_strstr_len (uri, MAX_URI_LEN, "vgdrm"))
-					{
-						demux->drmType = strdup(DRM_TYPE_VGDRM);
-					   	GST_INFO_OBJECT(demux, "Set drmType to: %s\n", demux->drmType);
-					}
-					else
-					{
-						GST_ERROR("Unknown drmType!\n");
-					}
-			   }
+
+               if (!g_strstr_len (uri, MAX_URI_LEN, "?drmType="))
+               {
+                  demux->drmType = strdup(DRM_TYPE_BASIC);
+                  GST_INFO_OBJECT(demux, "Set drmType to: %s\n", demux->drmType);
+               }
+               else
+               {
+                  if (g_strstr_len (uri, MAX_URI_LEN, "verimatrix"))
+                  {
+                     demux->drmType = strdup(DRM_TYPE_VERIMATRIX);
+                     GST_INFO_OBJECT(demux, "Set drmType to: %s\n", demux->drmType);
+                  }
+                  else if (g_strstr_len (uri, MAX_URI_LEN, "vgdrm"))
+                  {
+                     demux->drmType = strdup(DRM_TYPE_VGDRM);
+                     GST_INFO_OBJECT(demux, "Set drmType to: %s\n", demux->drmType);
+                  }
+                  else
+                  {
+                     GST_ERROR("Unknown drmType!\n");
+                  }
+               }
             }while(0);
 
             cisco_hls_open(demux, uri);
@@ -1554,8 +1554,21 @@ static gboolean cisco_hls_close(Gstciscdemux *demux)
    }
    GST_DEBUG("Timestamp when hls close returns : %llu\n", (unsigned long long)time(NULL));
 
-   g_free(demux->pCscoHlsSession);
-   if(demux->LicenseID){g_free(demux->LicenseID);}
+   if (demux->pCscoHlsSession)
+   {
+      g_free(demux->pCscoHlsSession);
+   }
+
+   if (demux->LicenseID)
+   {
+      g_free(demux->LicenseID);
+   }
+
+   if (demux->drmType)
+   {
+      g_free(demux->drmType);
+   }
+
    demux->pCscoHlsSession = NULL;
 
    return TRUE;
@@ -1860,71 +1873,72 @@ static gboolean gst_ciscdemux_get_caps( Gstciscdemux *demux,
 {
    gboolean ret = FALSE;
 
-   do {
-   if((NULL == metadata) || (NULL == buf) || (NULL == caps))
+   do
    {
-      GST_ERROR("Invalid param\n");
-      break;
-   }
-
-   // this is for basic HLS
-   if (metadata->encType == SRC_ENC_AES128_CBC)
-   {
-   		if (demux->drmType)
-   		{
-			GST_DEBUG("%s: demux->drmType: %s", __func__, demux->drmType);
-	  		if(g_strstr_len (demux->drmType, strlen(DRM_TYPE_VGDRM), DRM_TYPE_VGDRM) != NULL)
-	  		{
-	      		*caps = gst_caps_new_simple ("drm/x-VGDRM", NULL, NULL);
-	  		}
-	  		else if(g_strstr_len (demux->drmType, strlen(DRM_TYPE_VERIMATRIX), DRM_TYPE_VERIMATRIX) != NULL)
-	  		{
-	      		*caps = gst_caps_new_simple ("drm/x-VERIMATRIX", NULL, NULL);
-	  		}
-		  	else if(g_strstr_len (demux->drmType, strlen(DRM_TYPE_BASIC), DRM_TYPE_BASIC) != NULL)
-		  	{
-	      		*caps = gst_caps_new_simple ("drm/x-BASIC_HLS", NULL, NULL);
-			} 
-   		}
-		else
-		{
-			GST_ERROR("demux->drmType should not be NULL at this point!");
-		}
-	}
-   else if ( metadata->encType == SRC_ENC_NONE)
-   {
-      *caps = gst_type_find_helper_for_buffer(NULL, buf, NULL);
-
-      if (NULL == *caps)
+      if((NULL == metadata) || (NULL == buf) || (NULL == caps))
       {
+         GST_ERROR("Invalid param\n");
          break;
       }
-      
-      GST_INFO("Stream %d capabilities: %" GST_PTR_FORMAT, metadata->streamNum, *caps);
 
-      if (gst_caps_get_size(*caps) > 0)
+      // this is for basic HLS
+      if (metadata->encType == SRC_ENC_AES128_CBC)
       {
-         GstStructure *structure = gst_caps_get_structure(*caps, 0);
-         const gchar *mime = gst_structure_get_name(structure);
-         if (mime != NULL && !g_ascii_strcasecmp(mime, "application/x-id3"))
+         if (demux->drmType)
          {
-            gst_caps_unref (*caps);               
-            *caps = gst_caps_new_simple ("audio/mpeg", "mpegversion", G_TYPE_INT, 4, NULL);               
-            if (*caps == NULL)
+            GST_DEBUG("%s: demux->drmType: %s", __func__, demux->drmType);
+            if(g_strstr_len (demux->drmType, strlen(DRM_TYPE_VGDRM), DRM_TYPE_VGDRM) != NULL)
             {
-               GST_WARNING("Could not obtain discrete audio caps for elementary audio stream!\n");
+               *caps = gst_caps_new_simple ("drm/x-VGDRM", NULL, NULL);
+            }
+            else if(g_strstr_len (demux->drmType, strlen(DRM_TYPE_VERIMATRIX), DRM_TYPE_VERIMATRIX) != NULL)
+            {
+               *caps = gst_caps_new_simple ("drm/x-VERIMATRIX", NULL, NULL);
+            }
+            else if(g_strstr_len (demux->drmType, strlen(DRM_TYPE_BASIC), DRM_TYPE_BASIC) != NULL)
+            {
+               *caps = gst_caps_new_simple ("drm/x-BASIC_HLS", NULL, NULL);
+            }
+         }
+         else
+         {
+            GST_ERROR("demux->drmType should not be NULL at this point!");
+         }
+      }
+      else if ( metadata->encType == SRC_ENC_NONE)
+      {
+         *caps = gst_type_find_helper_for_buffer(NULL, buf, NULL);
+
+         if (NULL == *caps)
+         {
+            break;
+         }
+
+         GST_INFO("Stream %d capabilities: %" GST_PTR_FORMAT, metadata->streamNum, *caps);
+
+         if (gst_caps_get_size(*caps) > 0)
+         {
+            GstStructure *structure = gst_caps_get_structure(*caps, 0);
+            const gchar *mime = gst_structure_get_name(structure);
+            if (mime != NULL && !g_ascii_strcasecmp(mime, "application/x-id3"))
+            {
+               gst_caps_unref (*caps);
+               *caps = gst_caps_new_simple ("audio/mpeg", "mpegversion", G_TYPE_INT, 4, NULL);
+               if (*caps == NULL)
+               {
+                  GST_WARNING("Could not obtain discrete audio caps for elementary audio stream!\n");
+               }
             }
          }
       }
-   }
-   else
-   {
-      *caps = NULL;
-      GST_WARNING("I don't know this encryption type\n");
-      break;
-   }
+      else
+      {
+         *caps = NULL;
+         GST_WARNING("I don't know this encryption type\n");
+         break;
+      }
 
-   ret = TRUE;
+      ret = TRUE;
    }while(0);
 
    return ret;
@@ -1936,8 +1950,8 @@ static gboolean gst_ciscdemux_flush(Gstciscdemux *demux, GstPad *srcpad)
    GstEvent *segmentEvent = NULL;
    gboolean ret = FALSE;
 
-   do {
-
+   do
+   {
       if (srcpad == NULL)
       {
          GST_ERROR("source pad not linked!\n");
