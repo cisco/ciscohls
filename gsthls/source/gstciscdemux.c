@@ -1404,7 +1404,7 @@ static gboolean cisco_hls_open (Gstciscdemux *demux, char *pPlaylistUri)
       }
          
       setData.setCode = SRC_PLUGIN_SET_MIN_BITRATE;
-      minBitrate = 100000;
+      minBitrate = 320000;
       setData.pData = &minBitrate;
       stat = demux->HLS_pluginTable.set( pSession->pSessionID, &setData, &errTable );
       if(stat)
