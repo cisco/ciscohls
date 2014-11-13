@@ -2181,21 +2181,22 @@ static gboolean gst_ciscdemux_send_event_to_all_srcpads(Gstciscdemux *demux, Gst
    int      ii = 0;
 
    do {
-   ret = gst_pad_push_event(demux->srcpad, event);
-   if(TRUE != ret)
-   {
-      GST_ERROR("Error sending low-delay event\n");
-      break;
-   }
-
    for(ii = 0; ii < demux->numSrcPadsActive - 1; ii++)
    {
+      gst_event_ref(event);
       ret = gst_pad_push_event(demux->srcpad_discrete[ii], event);
       if(TRUE != ret)
       {
-         GST_ERROR("Error sending low-delay event\n");
+         GST_ERROR("Error sending event : %s\n", GST_EVENT_TYPE_NAME(event));
          break;
       }
+   }
+   
+   ret = gst_pad_push_event(demux->srcpad, event);
+   if(TRUE != ret)
+   {
+      GST_ERROR("Error sending event : %s\n", GST_EVENT_TYPE_NAME(event));
+      break;
    }
 
    }while(0);
