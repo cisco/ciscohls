@@ -2143,15 +2143,8 @@ hlsStatus_t hlsSession_getContentType(hlsSession_t* pSession, hlsContentType_t *
       /* Get playlist READ lock */
       pthread_rwlock_rdlock(&(pSession->playlistRWLock));
                
-      /* TODO - check mutability? */
-      if(0 == pSession->pCurrentPlaylist->pMediaData->bHaveCompletePlaylist)
-      {
-         *contentType = HLS_EVENT;
-      }
-      else
-      {
-         *contentType = HLS_VOD;
-      }
+      /* Use mutability */
+      *contentType = pSession->pCurrentPlaylist->pMediaData->mutability;
 
       /* Release playlist lock */
       pthread_rwlock_unlock(&(pSession->playlistRWLock));
