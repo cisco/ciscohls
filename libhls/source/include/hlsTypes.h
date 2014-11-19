@@ -122,6 +122,7 @@ typedef enum {
     HLS_STATE_ERROR,        /*!< Function called while in incorrect state */
     HLS_UNSUPPORTED,        /*!< Requested operation not supported at this time */
     HLS_DL_ERROR,           /*!< Download error */
+    HLS_NOT_FOUND,          /*!< Not found error */
     HLS_ERROR               /*!< Generic error */
 } hlsStatus_t;
 

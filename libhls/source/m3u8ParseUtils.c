@@ -36,6 +36,7 @@ extern "C" {
 #include <unistd.h>
 #include <errno.h>
 #include <ctype.h>
+#include <string.h>
 
 #include "config.h"
 #ifndef __USE_XOPEN
@@ -108,6 +109,168 @@ typedef struct
 {
    char key[16];
 }tmemkey;
+
+
+/* 
+** The string returned is a copy of the quoted string value linked to the requested field (quotes are removed).
+** It is up to the calling function to free it
+*/
+hlsStatus_t parse4QuotedString( char *tagLine, const char *field, char **retString )
+{ 
+   hlsStatus_t rval = HLS_OK;
+   char *pTemp = NULL;
+   char *pIndex = NULL;
+   int len = 0;
+
+   do
+   {
+      if((NULL == tagLine) || (NULL == field) || (NULL == retString))
+      {
+         rval = HLS_INVALID_PARAMETER;
+         break;
+      }
+
+      *retString = NULL;
+      
+      pTemp = strstr(tagLine, field);
+      if(NULL == pTemp) 
+      {
+         DEBUG(DBG_NOISE, "unable to find \"%s\" in \"%s\"", field, tagLine);
+         rval = HLS_NOT_FOUND;
+         break;
+      }
+      
+      len = strlen(field);
+
+      pIndex = strchr(pTemp + len, '\"');
+      if(NULL == pIndex)
+      {
+         ERROR("unable to find the closing \" in \"%s\" value", field);
+         rval = HLS_ERROR;
+         break;
+      }
+
+      /* the attribute will be a quoted-string -- we want
+         to strip off the " characters */
+      *retString = strndup(pTemp + len, (int)pIndex - (int)pTemp-len);
+      if(NULL == *retString)
+      {
+         ERROR("strndup() failed");
+         rval = HLS_MEMORY_ERROR;
+         break;
+      }
+      
+      DEBUG(DBG_NOISE,"Looking for \"%s\" ... Found %s", field, *retString);
+
+   }while(0);
+
+   return rval; 
+}
+
+/* 
+** The string returned is a copy of the string value linked to the requested field.
+** It is up to the calling function to free it
+*/
+hlsStatus_t parse4String( char *tagLine, const char *field, char **retString )
+{ 
+   hlsStatus_t rval = HLS_OK;
+   char *pTemp;
+   int len = 0; 
+      
+   do
+   {
+      if((NULL == tagLine) || (NULL == field) || (NULL == retString))
+      {
+         rval = HLS_INVALID_PARAMETER;
+         break;
+      }
+      
+      *retString = NULL;
+      
+      pTemp = strstr(tagLine, field);
+      if(NULL == pTemp) 
+      {
+         DEBUG(DBG_NOISE, "unable to find \"%s\" in \"%s\"", field, tagLine);
+         rval = HLS_NOT_FOUND;
+         break;
+      }
+
+      len = strlen(field);
+
+      *retString = strdup(pTemp + len);
+      if(NULL == *retString)
+      {
+         ERROR("strdup() failed");
+         rval = HLS_MEMORY_ERROR;
+         break;
+      }
+
+      pTemp = strchr(*retString, ',');
+      if(pTemp != NULL) 
+      {
+         *pTemp = '\0'; // Cut the string to the end of requested field value
+      }
+      DEBUG(DBG_NOISE,"Looking for \"%s\" ... Found %s", field, *retString);
+
+   }while(0); 
+
+   return rval;
+}
+
+hlsStatus_t parse4Int( char *tagLine, const char *field, int *retInt )
+{ 
+   hlsStatus_t rval = HLS_OK;
+   char *pTemp = NULL;
+   char *pFound = NULL;
+   int len = 0; 
+   
+   do
+   {
+      if((NULL == tagLine) || (NULL == field) || (NULL == retInt))
+      {
+         rval = HLS_INVALID_PARAMETER;
+         break;
+      }
+
+      pTemp = strstr(tagLine, field);
+      if(NULL == pTemp) 
+      {
+         DEBUG(DBG_NOISE, "unable to find \"%s\" in \"%s\"", field, tagLine);
+         rval = HLS_NOT_FOUND;
+         break;
+      }
+      
+      len = strlen(field);
+
+      pFound = strdup(pTemp + len);
+      if(NULL == pFound)
+      {
+         ERROR("strdup() failed");
+         rval = HLS_MEMORY_ERROR;
+         break;
+      }
+      
+      pTemp = strchr(pFound, ',');
+      if (pTemp != NULL)
+      {
+         *pTemp = '\0'; // Cut the string to the end of requested field value
+      }
+      
+      *retInt = atoi(pFound);
+      DEBUG(DBG_NOISE,"Looking for \"%s\" ... Found %d", field, *retInt);
+      
+   }while(0);
+   
+   if(NULL != pFound)
+   {
+      free(pFound);
+      pFound = NULL;
+   }
+
+   return rval;
+}
+
+
 
 static void strToHex( const char *pString,  char *pHex, int arraySize )
 {
@@ -2237,6 +2400,7 @@ static hlsStatus_t m3u8findURL(char* buffer, int bufferLength, FILE* fpPlaylist)
 static hlsStatus_t m3u8ParseStreamInf(char *tagLine, char* urlLine, llist_t* pProgramList)
 {
     hlsStatus_t rval = HLS_OK;
+    hlsStatus_t ret = HLS_OK;
     llStatus_t llerror = LL_OK;
     int programID = 0;
     int bitrate = 0;
@@ -2251,9 +2415,9 @@ static hlsStatus_t m3u8ParseStreamInf(char *tagLine, char* urlLine, llist_t* pPr
     llNode_t* pProgramNode = NULL;
     hlsProgram_t* pProgram = NULL;
     hlsPlaylist_t* pStreamPL = NULL;
-    
+
     char* pTemp = NULL;
-    char* pTok = NULL;
+    char* pFound = NULL;
     char* pIndex = NULL;
 
     if((tagLine == NULL) || (urlLine == NULL) || (pProgramList == NULL))
@@ -2269,116 +2433,64 @@ static hlsStatus_t m3u8ParseStreamInf(char *tagLine, char* urlLine, llist_t* pPr
         /* Get to the start of the attribute list */
         pTemp = tagLine + strlen("#EXT-X-STREAM-INF:");
 
-        /* Tokenize and parse attributes */
-        pTok = strtok(pTemp, ",");
-        while(pTok != NULL) 
+
+        /* Extracting and processing "CODECS=" OPTIONAL field of tagLine */
+        ret = parse4QuotedString(pTemp, "CODECS=\"", &codecs);
+        if((HLS_OK != ret) && (HLS_NOT_FOUND != ret))
         {
-
-            /* Because attributes can include whitespace, we don't want to
-               tokenzie using the ' ' character.  Because of this, we have
-               to remove any leading whitespace following a ',' in the
-               attribute list */
-            while(pTok[0] == ' ') 
-            {
-                pTok++;
-            }
-            DEBUG(DBG_NOISE,"got token \"%s\"", pTok);
-
-            if(strncmp(pTok, "PROGRAM-ID", strlen("PROGRAM-ID")) == 0) 
-            {
-                pTok += strlen("PROGRAM-ID=");
-                programID = atoi(pTok);                
-            }
-            else if(strncmp(pTok, "BANDWIDTH", strlen("BANDWIDTH")) == 0) 
-            {
-                pTok += strlen("BANDWIDTH=");
-                bitrate = atoi(pTok);                
-            }
-            else if(strncmp(pTok, "RESOLUTION", strlen("RESOLUTION")) == 0) 
-            {
-                pTok += strlen("RESOLUTION=");
-                // get values out of "WIDTHxHEIGHT"
-                for(pIndex = pTok; pIndex < (pTok+strlen(pTok)); pIndex++) 
-                {
-                    /* Locate 'x' separator */
-                    if(*pIndex == 'x' || *pIndex == 'X') 
-                    {
-                        *pIndex = '\0';
-                        width = atoi(pTok);
-
-                        pIndex++;
-                        height = atoi(pIndex);
-                    }
-                }
-            }
-            else if(strncmp(pTok, "CODECS", strlen("CODECS")) == 0) 
-            {
-                /* the attribute will be a quoted-string -- we want
-                   to strip off the " characters */
-
-                pTok += strlen("CODECS=");
-                pTok++; // Jump over leading " character
-                
-                codecs = malloc(strlen(pTok)); // Don't need to copy trailing "
-                if(codecs == NULL) 
-                {
-                    ERROR("malloc error");
-                    rval = HLS_MEMORY_ERROR;
-                    break;
-                }
-                memset(codecs, 0, strlen(pTok));
-                strncpy(codecs, pTok, strlen(pTok)-1); // Ignore trailing " character
-            }
-            else if(strncmp(pTok, "AUDIO", strlen("AUDIO")) == 0) 
-            {
-                /* the attribute will be a quoted-string -- we want
-                   to strip off the " characters */
-
-                pTok += strlen("AUDIO=");
-                pTok++; // Jump over leading " character
-                
-                audio = malloc(strlen(pTok)); // Don't need to copy trailing "
-                if(audio == NULL) 
-                {
-                    ERROR("malloc error");
-                    rval = HLS_MEMORY_ERROR;
-                    break;
-                }
-                memset(audio, 0, strlen(pTok));
-                strncpy(audio, pTok, strlen(pTok)-1); // Ignore trailing " character
-                DEBUG(DBG_INFO,"audio = %s", audio);
-            }
-            else if(strncmp(pTok, "VIDEO", strlen("VIDEO")) == 0) 
-            {
-                /* the attribute will be a quoted-string -- we want
-                   to strip off the " characters */
-
-                pTok += strlen("VIDEO=");
-                pTok++; // Jump over leading " character
-                
-                video = malloc(strlen(pTok)); // Don't need to copy trailing "
-                if(video == NULL) 
-                {
-                    ERROR("malloc error");
-                    rval = HLS_MEMORY_ERROR;
-                    break;
-                }
-                memset(video, 0, strlen(pTok));
-                strncpy(video, pTok, strlen(pTok)-1); // Ignore trailing " character
-                DEBUG(DBG_INFO,"video = %s", video);
-            }
-            
-            pTok = strtok(NULL, ",");
+            ERROR("Failed to get CODECS attribute in EXT-X-STREAM-INF tag");
+            rval = ret;
+            break;
         }
-        if(rval) 
+
+        /* Extracting and processing "PROGRAM-ID=" DEPRECATED field of tagLine */
+        parse4Int(pTemp, "PROGRAM-ID=", &programID);
+
+        /* Extracting and processing "BANDWIDTH=" REQUIRED field of tagLine */
+        rval = parse4Int(pTemp, "BANDWIDTH=", &bitrate);
+        if (rval == HLS_OK) 
+        {
+            if ( bitrate == 0 ) 
+            {
+                ERROR("no valid bandwidth parameter in EXT-X-STREAM-INF tag");
+                rval = HLS_ERROR;
+                break;
+            }
+        }
+        else
         {
             break;
         }
 
-        if(bitrate == 0) 
+        /* Extracting and processing "RESOLUTION=" OPTIONAL field of tagLine */
+        if (parse4String(pTemp, "RESOLUTION=", &pFound) == HLS_OK)
         {
-            ERROR("no valid bandwidth parameter in EXT-X-STREAM-INF tag");
-            rval = HLS_ERROR;
+            // get values out of "WIDTHxHEIGHT"
+            if ( (sscanf(pFound, "%d%c%d", &width, &pIndex, &height) != 3) || ( (pIndex != 'x') && (pIndex != 'X') ) )
+            {
+                ERROR("invalid resolution");
+                rval= HLS_INVALID_PARAMETER;
+                free(pFound);
+                break;
+            }
+            free(pFound);
+        }
+
+        /* Extracting and processing "AUDIO=" OPTIONAL field of tagLine */
+        ret = parse4QuotedString(pTemp, "AUDIO=\"", &audio);
+        if((HLS_OK != ret) && (HLS_NOT_FOUND != ret))
+        {
+            ERROR("Failed to get EXT-X-STREAM-INF tag AUDIO attribute");
+            rval = ret;
+            break;
+        }
+
+        /* Extracting and processing "VIDEO=" OPTIONAL field of tagLine */
+        ret = parse4QuotedString(pTemp, "VIDEO=\"", &video);
+        if((HLS_OK != ret) && (HLS_NOT_FOUND != ret))
+        {
+            ERROR("Failed to get EXT-X-STREAM-INF tag VIDEO attribute");
+            rval = ret;
             break;
         }
 
@@ -2388,7 +2500,7 @@ static hlsStatus_t m3u8ParseStreamInf(char *tagLine, char* urlLine, llist_t* pPr
         DEBUG(DBG_NOISE,"codecs = %s", codecs);
         DEBUG(DBG_NOISE,"audio = %s", audio);
         DEBUG(DBG_NOISE,"video = %s", video);
-        
+
         /* Look for a program node with matching program ID */
         pProgramNode = pProgramList->pHead;
         while(pProgramNode != NULL) 
@@ -2485,7 +2597,7 @@ static hlsStatus_t m3u8ParseStreamInf(char *tagLine, char* urlLine, llist_t* pPr
         pStreamPL->pMediaData->audio = audio;
         /* Release the local reference to audio */
         audio = NULL;
-        
+
         /* Copy video into our structure */
         pStreamPL->pMediaData->video = video;
         /* Release the local reference to video */
@@ -2733,7 +2845,7 @@ static hlsStatus_t m3u8ParseDateTime(char* tagLine, hlsSegment_t* pSegment)
             rval = HLS_MEMORY_ERROR;
             break;
         }
-		memset(pSegment->pProgramTime, 0, sizeof(struct tm));
+        memset(pSegment->pProgramTime, 0, sizeof(struct tm));
 
         /* Initialize to invalid values */
         pSegment->pProgramTime->tm_hour = -1;
@@ -2807,6 +2919,7 @@ static hlsStatus_t m3u8ParseDateTime(char* tagLine, hlsSegment_t* pSegment)
 static hlsStatus_t m3u8ParseKey(char* tagLine, srcEncType_t* pEncType, char** pIV, char** pKeyURI)
 {
     hlsStatus_t rval = HLS_OK;
+    hlsStatus_t ret = HLS_OK;
     char* pTemp = NULL;
     char* pTok = NULL;
 
@@ -2833,6 +2946,15 @@ static hlsStatus_t m3u8ParseKey(char* tagLine, srcEncType_t* pEncType, char** pI
 
         *pEncType = SRC_ENC_NONE;
 
+        /* Extracting and processing "URI=" OPTIONAL field of tagLine */
+        ret = parse4QuotedString(pTemp, "URI=\"", pKeyURI);
+        if((HLS_OK != ret) && (HLS_NOT_FOUND != ret))
+        {
+            ERROR("Failed to get EXT-X-KEY tag URI attribute");
+            rval = ret;
+            break;
+        }
+
         /* Tokenize and parse attributes */
         pTok = strtok(pTemp, ",");
         while(pTok != NULL) 
@@ -2858,25 +2980,6 @@ static hlsStatus_t m3u8ParseKey(char* tagLine, srcEncType_t* pEncType, char** pI
                 {
                     *pEncType = SRC_ENC_AES128_CBC;
                 }
-            }
-            else if(strncmp(pTok, "URI", strlen("URI")) == 0) 
-            {
-                /* the attribute will be a quoted-string -- we want
-                   to strip off the " characters */
-
-                pTok += strlen("URI=");
-                pTok++; // Jump over leading " character
-
-                *pKeyURI = (char*)malloc(strlen(pTok));
-                if(*pKeyURI == NULL) 
-                {
-                    ERROR("malloc error");
-                    rval = HLS_MEMORY_ERROR;
-                    break;
-                }
-                memset(*pKeyURI, 0, strlen(pTok));
-                /* Don't want to copy the trailing " character */
-                strncpy(*pKeyURI, pTok, strlen(pTok)-1);
             }
             else if(strncmp(pTok, "IV", strlen("IV")) == 0) 
             {
@@ -2919,6 +3022,7 @@ static hlsStatus_t m3u8ParseKey(char* tagLine, srcEncType_t* pEncType, char** pI
 static hlsStatus_t m3u8ParseMedia(char *tagLine, char* baseURL, llist_t* pGroupList)
 {
    hlsStatus_t rval = HLS_OK;
+   hlsStatus_t ret = HLS_OK;
    llStatus_t llerror = LL_OK;
 
    int i = 0;
@@ -2953,161 +3057,117 @@ static hlsStatus_t m3u8ParseMedia(char *tagLine, char* baseURL, llist_t* pGroupL
       /* Get to the start of the attribute list */
       pTemp = tagLine + strlen("#EXT-X-MEDIA:");
 
-      /* Tokenize and parse attributes */
-      pTok = strtok(pTemp, ",");
-      while(pTok != NULL) 
+      /* Extracting and processing "URI=" OPTIONAL field of tagLine */
+      ret = parse4QuotedString(pTemp, "URI=\"", &uri);
+      if((HLS_OK != ret) && (HLS_NOT_FOUND != ret))
       {
-
-         /* Because attributes can include whitespace, we don't want to
-            tokenzie using the ' ' character.  Because of this, we have
-            to remove any leading whitespace following a ',' in the
-            attribute list */
-         while(pTok[0] == ' ') 
-         {
-            pTok++;
-         }
-         DEBUG(DBG_NOISE,"got token \"%s\"", pTok);
-
-         if(strncmp(pTok, "URI", strlen("URI")) == 0) 
-         {
-            /* the attribute will be a quoted-string -- we want
-               to strip off the " characters */
-
-            pTok += strlen("URI=");
-            pTok++; // Jump over leading " character
-
-            uri = malloc(strlen(pTok)); // Don't need to copy trailing "
-            if(uri == NULL) 
-            {
-               ERROR("malloc error");
-               rval = HLS_MEMORY_ERROR;
-               break;
-            }
-            memset(uri, 0, strlen(pTok));
-            strncpy(uri, pTok, strlen(pTok)-1); // Ignore trailing " character
-            
-            /* Prepend the baseURL, if necessary */
-            rval = createFullURL(&uri, baseURL);
-            if(rval != HLS_OK) 
-            {
-               ERROR("error creating full URL");
-               break;
-            }
-         }
-         else if(strncmp(pTok, "TYPE", strlen("TYPE")) == 0) 
-         {
-            pTok += strlen("TYPE=");
-            if(!strncmp(pTok, "AUDIO", strlen(pTok)))
-            {
-               type = HLS_MEDIA_TYPE_AUDIO;
-            }
-            else if(!strncmp(pTok, "VIDEO", strlen(pTok)))
-            {
-               type = HLS_MEDIA_TYPE_VIDEO;
-            }
-            else
-            {
-               ERROR("Type attribute of EXT-X-MEDIA has invalid value: %s", pTok);
-               rval = HLS_ERROR;
-               break;
-            }
-         }
-         else if(strncmp(pTok, "GROUP-ID", strlen("GROUP-ID")) == 0) 
-         {
-            /* the attribute will be a quoted-string -- we want
-               to strip off the " characters */
-
-            pTok += strlen("GROUP-ID=");
-            pTok++; // Jump over leading " character
-
-            groupID = malloc(strlen(pTok)); // Don't need to copy trailing "
-            if(groupID == NULL) 
-            {
-               ERROR("malloc error");
-               rval = HLS_MEMORY_ERROR;
-               break;
-            }
-            memset(groupID, 0, strlen(pTok));
-            strncpy(groupID, pTok, strlen(pTok)-1); // Ignore trailing " character
-         }
-         else if(strncmp(pTok, "LANGUAGE", strlen("LANGUAGE")) == 0) 
-         {
-            /* the attribute will be a quoted-string -- we want
-               to strip off the " characters */
-
-            pTok += strlen("LANGUAGE=");
-            pTok++; // Jump over leading " character
-
-            language = malloc(strlen(pTok)); // Don't need to copy trailing "
-            if(language == NULL) 
-            {
-               ERROR("malloc error");
-               rval = HLS_MEMORY_ERROR;
-               break;
-            }
-            memset(language, 0, strlen(pTok));
-            strncpy(language, pTok, strlen(pTok)-1); // Ignore trailing " character
-         }
-         else if(strncmp(pTok, "NAME", strlen("NAME")) == 0) 
-         {
-            /* the attribute will be a quoted-string -- we want
-               to strip off the " characters */
-
-            pTok += strlen("NAME=");
-            pTok++; // Jump over leading " character
-
-            name = malloc(strlen(pTok)); // Don't need to copy trailing "
-            if(name == NULL) 
-            {
-               ERROR("malloc error");
-               rval = HLS_MEMORY_ERROR;
-               break;
-            }
-            memset(name, 0, strlen(pTok));
-            strncpy(name, pTok, strlen(pTok)-1); // Ignore trailing " character
-         }
-         else if(strncmp(pTok, "DEFAULT", strlen("DEFAULT")) == 0) 
-         {
-            pTok += strlen("DEFAULT=");
-            if(!strncmp(pTok, "YES", strlen(pTok)))
-            {
-               def = HLS_YES;
-            }
-            else if(!strncmp(pTok, "NO", strlen(pTok)))
-            {
-               def = HLS_NO;
-            }
-            else
-            {
-               ERROR("Default attribute of EXT-X-MEDIA has invalid value: %s", pTok);
-               rval = HLS_ERROR;
-               break;
-            }
-         }
-         else if(strncmp(pTok, "AUTOSELECT", strlen("AUTOSELECT")) == 0) 
-         {
-            pTok += strlen("AUTOSELECT=");
-            if(!strncmp(pTok, "YES", strlen(pTok)))
-            {
-               autoSelect = HLS_YES;
-            }
-            else if(!strncmp(pTok, "NO", strlen(pTok)))
-            {
-               autoSelect = HLS_NO;
-            }
-            else
-            {
-               ERROR("Autoselect attribute of EXT-X-MEDIA has invalid value: %s", pTok);
-               rval = HLS_ERROR;
-               break;
-            }
-         }
-
-         pTok = strtok(NULL, ",");
+         ERROR("Failed to get EXT-X-MEDIA tag URI attribute");
+         rval = ret;
+         break;
       }
-      if(rval) 
+      
+      if(NULL != uri) 
+      {
+         /* Prepend the baseURL, if necessary */
+         rval = createFullURL(&uri, baseURL);
+         if(rval != HLS_OK) 
+         {
+            ERROR("error creating full URL");
+            break;
+         }
+      }
+
+      /* Extracting and processing "TYPE=" REQUIRED field of tagLine */
+      rval = parse4String(pTemp, "TYPE=", &pIndex);
+      if (rval == HLS_OK)
+      {
+         if(!strncmp(pIndex, "AUDIO", 5))
+         {
+            type = HLS_MEDIA_TYPE_AUDIO;
+         }
+         else if(!strncmp(pIndex, "VIDEO", 5))
+         {
+            type = HLS_MEDIA_TYPE_VIDEO;
+         }
+         else
+         {
+            ERROR("TYPE attribute of EXT-X-MEDIA has invalid value: %s", pIndex);
+            rval = HLS_ERROR;
+            free(pIndex);
+            break;
+         }
+         free(pIndex);
+      }
+      else
       {
          break;
+      }
+
+      /* Extracting and processing "GROUP-ID=" REQUIRED field of tagLine */
+      rval = parse4QuotedString(pTemp, "GROUP-ID=\"", &groupID);
+      if(HLS_OK != rval)
+      {
+         ERROR("Failed to get GROUP-ID attribute in EXT-X-MEDIA tag");
+         break;
+      }
+
+      /* Extracting and processing "LANGUAGE=" OPTIONAL field of tagLine */
+      ret = parse4QuotedString(pTemp, "LANGUAGE=\"", &language);
+      if((HLS_OK != ret) && (HLS_NOT_FOUND != ret))
+      {
+         ERROR("Failed to get LANGUAGE attribute in EXT-X-MEDIA tag");
+         rval = ret;
+         break;
+      }
+
+      /* Extracting and processing "NAME=" REQUIRED field of tagLine */
+      rval = parse4QuotedString(pTemp, "NAME=\"", &name);
+      if(HLS_OK != rval)
+      {
+         ERROR("Failed to get NAME attribute in EXT-X-MEDIA tag");
+         break;
+      }
+
+      /* Extracting and processing "DEFAULT=" OPTIONAL field of tagLine */
+      if ( parse4String(pTemp, "DEFAULT=", &pIndex) == HLS_OK )
+      {
+         if(!strncmp(pIndex, "YES", 3))
+         {
+            def = HLS_YES;
+         }
+         else if(!strncmp(pIndex, "NO", 2))
+         {
+            def = HLS_NO;
+         }
+         else
+         {
+            ERROR("DEFAULT attribute of EXT-X-MEDIA has invalid value: %s", pIndex);
+            rval = HLS_ERROR;
+            free(pIndex);
+            break;
+         }
+         free(pIndex);
+      }
+
+      /* Extracting and processing "AUTOSELECT=" OPTIONAL field of tagLine */
+      if ( parse4String(pTemp, "AUTOSELECT=", &pIndex) == HLS_OK )
+      {
+         if(!strncmp(pIndex, "YES", 3))
+         {
+            autoSelect = HLS_YES;
+         }
+         else if(!strncmp(pIndex, "NO", 2))
+         {
+            autoSelect = HLS_NO;
+         }
+         else
+         {
+            ERROR("AUTOSELECT attribute of EXT-X-MEDIA has invalid value: %s", pIndex);
+            rval = HLS_ERROR;
+            free(pIndex);
+            break;
+         }
+         free(pIndex);
       }
 
       DEBUG(DBG_INFO,"uri = %s", uri);
@@ -3138,10 +3198,10 @@ static hlsStatus_t m3u8ParseMedia(char *tagLine, char* baseURL, llist_t* pGroupL
          rval = HLS_ERROR;
          break;
       }
-      
+
       /* Save reference to parent node */
       pGroup->pParentNode = pGroupList->pTail;
-      
+
       /* Set Group ID of new node */
       pGroup->groupID = groupID;
       groupID = NULL;
@@ -3164,7 +3224,7 @@ static hlsStatus_t m3u8ParseMedia(char *tagLine, char* baseURL, llist_t* pGroupL
 
          pGroup->pPlaylist = pStreamPL;
       }
-      
+
       pGroup->type = type;
 
       /* Copy language into our structure */
@@ -3533,15 +3593,6 @@ static hlsStatus_t m3u8ParseProtHeader(char* tagLine, hlsSession_t *pSession)
                 pTok += strlen("PROGRAM-ID=");
                 licenseInfo.programID = atoi(pTok);                
             }
-            else if(strncmp(pTok, "DRM-TYPE", strlen("DRM-TYPE")) == 0) 
-            {
-                pTok += strlen("DRM-TYPE=");
-
-                if(strncmp(pTok, "PLAYREADY", strlen("PLAYREADY")) == 0) 
-                {
-                    licenseInfo.drmType = SRC_DRM_PLAYREADY;
-                }
-            }
             else if(strncmp(pTok, "DRM_TYPE", strlen("DRM_TYPE")) == 0) 
             {
                 pTok += strlen("DRM_TYPE=");
@@ -3646,6 +3697,7 @@ static hlsStatus_t m3u8ParseProtHeader(char* tagLine, hlsSession_t *pSession)
 static hlsStatus_t m3u8ParseIFrameStreamInf(char *tagLine, char* baseURL, llist_t* pProgramList)
 {
     hlsStatus_t rval = HLS_OK;
+    hlsStatus_t ret = HLS_OK;
     llStatus_t llerror = LL_OK;
     int programID = 0;
     int bitrate = 0;
@@ -3659,9 +3711,9 @@ static hlsStatus_t m3u8ParseIFrameStreamInf(char *tagLine, char* baseURL, llist_
     llNode_t* pProgramNode = NULL;
     hlsProgram_t* pProgram = NULL;
     hlsPlaylist_t* pStreamPL = NULL;
-    
+
     char* pTemp = NULL;
-    char* pTok = NULL;
+    char* pFound = NULL;
     char* pIndex = NULL;
 
     if((tagLine == NULL) || (baseURL == NULL) || (pProgramList == NULL))
@@ -3672,109 +3724,60 @@ static hlsStatus_t m3u8ParseIFrameStreamInf(char *tagLine, char* baseURL, llist_
 
     DEBUG(DBG_NOISE,"parsing: %s", tagLine);
 
+    /* Get to the start of the attribute list */
+    pTemp = tagLine + strlen("#EXT-X-I-FRAME-STREAM-INF:");
+
     do
     {
-        /* Get to the start of the attribute list */
-        pTemp = tagLine + strlen("#EXT-X-I-FRAME-STREAM-INF:");
-
-        /* Tokenize and parse attributes */
-        pTok = strtok(pTemp, ",");
-        while(pTok != NULL) 
+        /* Extracting and processing "URI=" OPTIONAL field of tagLine */
+        ret = parse4QuotedString(pTemp, "URI=\"", &uri);
+        if((HLS_OK != ret) && (HLS_NOT_FOUND != ret))
         {
-
-            /* Because attributes can include whitespace, we don't want to
-               tokenzie using the ' ' character.  Because of this, we have
-               to remove any leading whitespace following a ',' in the
-               attribute list */
-            while(pTok[0] == ' ') 
-            {
-                pTok++;
-            }
-            DEBUG(DBG_NOISE,"got token \"%s\"", pTok);
-
-            if(strncmp(pTok, "PROGRAM-ID", strlen("PROGRAM-ID")) == 0) 
-            {
-                pTok += strlen("PROGRAM-ID=");
-                programID = atoi(pTok);                
-            }
-            else if(strncmp(pTok, "BANDWIDTH", strlen("BANDWIDTH")) == 0) 
-            {
-                pTok += strlen("BANDWIDTH=");
-                bitrate = atoi(pTok);                
-            }
-            else if(strncmp(pTok, "RESOLUTION", strlen("RESOLUTION")) == 0) 
-            {
-                pTok += strlen("RESOLUTION=");
-                // get values out of "WIDTHxHEIGHT"
-                for(pIndex = pTok; pIndex < (pTok+strlen(pTok)); pIndex++) 
-                {
-                    /* Locate 'x' separator */
-                    if(*pIndex == 'x' || *pIndex == 'X') 
-                    {
-                        *pIndex = '\0';
-                        width = atoi(pTok);
-
-                        pIndex++;
-                        height = atoi(pIndex);
-                    }
-                }
-            }
-            else if(strncmp(pTok, "CODECS", strlen("CODECS")) == 0) 
-            {
-                /* the attribute will be a quoted-string -- we want
-                   to strip off the " characters */
-
-                pTok += strlen("CODECS=");
-                pTok++; // Jump over leading " character
-                
-                codecs = malloc(strlen(pTok)); // Don't need to copy trailing "
-                if(codecs == NULL) 
-                {
-                    ERROR("malloc error");
-                    rval = HLS_MEMORY_ERROR;
-                    break;
-                }
-                memset(codecs, 0, strlen(pTok));
-                strncpy(codecs, pTok, strlen(pTok)-1); // Ignore trailing " character
-            }
-            else if(strncmp(pTok, "URI", strlen("URI")) == 0) 
-            {
-                /* the attribute will be a quoted-string -- we want
-                   to strip off the " characters */
-
-                pTok += strlen("URI=");
-                pTok++; // Jump over leading " character
-
-                uri = malloc(strlen(pTok)); // Don't need to copy trailing "
-                if(uri == NULL) 
-                {
-                    ERROR("malloc error");
-                    rval = HLS_MEMORY_ERROR;
-                    break;
-                }
-                memset(uri, 0, strlen(pTok));
-                strncpy(uri, pTok, strlen(pTok)-1); // Ignore trailing " character
-            }
-            
-            pTok = strtok(NULL, ",");
+            ERROR("Failed to get URI attribute in EXT-X-I-FRAME-STREAM-INF tag");
+            rval = ret;
+            break;
         }
-        if(rval) 
+
+        /* Extracting and processing "CODECS=" OPTIONAL field of tagLine */
+        ret = parse4QuotedString(pTemp, "CODECS=\"", &codecs);
+        if((HLS_OK != ret) && (HLS_NOT_FOUND != ret))
+        {
+            ERROR("Failed to get CODECS attribute in EXT-X-I-FRAME-STREAM_INF tag");
+            rval = ret;
+            break;
+        }
+
+        /* Extracting and processing "PROGRAM-ID=" DEPRECATED field of tagLine */
+        parse4Int(pTemp, "PROGRAM-ID=", &programID);
+
+        /* Extracting and processing "BANDWIDTH=" REQUIRED field of tagLine */
+        rval = parse4Int(pTemp, "BANDWIDTH=", &bitrate);
+        if (rval == HLS_OK)
+        {
+            if(bitrate == 0) 
+            {
+                ERROR("no valid bandwidth parameter in EXT-X-I-FRAME-STREAM-INF tag");
+                rval = HLS_ERROR;
+                break;
+            }
+        }
+        else
         {
             break;
         }
 
-        if(bitrate == 0) 
+        /* Extracting and processing "RESOLUTION=" OPTIONAL field of tagLine */
+        if ( parse4String(pTemp, "RESOLUTION=", &pFound) == HLS_OK )
         {
-            ERROR("no valid bandwidth parameter in EXT-X-I-FRAME-STREAM-INF tag");
-            rval = HLS_ERROR;
-            break;
-        }
-
-        if(uri == NULL) 
-        {
-            ERROR("no valid URI parameter in EXT-X-I-FRAME-STREAM tag");
-            rval = HLS_ERROR;
-            break;
+            // get values out of "WIDTHxHEIGHT"
+            if ( (sscanf(pFound, "%d%c%d", &width, &pIndex, &height) != 3) || ( (pIndex != 'x') && (pIndex != 'X') ) )
+            {
+                ERROR("invalid resolution");
+                rval= HLS_INVALID_PARAMETER;
+                free(pFound);
+                break;
+            }
+            free(pFound);
         }
 
         DEBUG(DBG_NOISE,"program ID = %d", programID);

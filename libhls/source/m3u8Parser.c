@@ -539,7 +539,7 @@ static hlsStatus_t findAudioGroupByAttrib(hlsSession_t *pSession,
       if(0 == strcmp(pSession->pCurrentPlaylist->pMediaData->audio,
                      pGroup->groupID))
       {
-         if((ATTRIB_LANGUAGE == attrib) && (0 == strcmp(pGroup->language, "eng")) ||
+         if((ATTRIB_LANGUAGE == attrib) && ((pGroup->language != NULL) && (0 == strcmp(pGroup->language, "eng"))) ||
             (ATTRIB_DEFAULT == attrib) && (HLS_YES == pGroup->def) ||
             (ATTRIB_AUTOSELECT == attrib) && (HLS_YES == pGroup->autoSelect))
          {
