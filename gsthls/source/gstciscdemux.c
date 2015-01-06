@@ -100,6 +100,7 @@ static gboolean gst_ciscdemux_get_caps( Gstciscdemux *demux,
 static gboolean gst_ciscdemux_flush(Gstciscdemux *demux, GstPad *srcpad);
 static gboolean gst_ciscdemux_disable_main_stream_audio(Gstciscdemux *demux);
 static gboolean gst_ciscdemux_set_video_master(Gstciscdemux *demux);
+static gboolean gst_ciscdemux_set_audio_thresholds(Gstciscdemux *demux);
 static gboolean gst_ciscdemux_send_eos(GstPad *srcpad);
 static gboolean gst_ciscdemux_send_low_delay_videomask_event(Gstciscdemux *demux, gboolean enable);
 static gboolean gst_ciscdemux_send_event_to_all_srcpads(Gstciscdemux *demux, GstEvent *event);
@@ -863,9 +864,14 @@ static GstStateChangeReturn gst_cscohlsdemuxer_change_state (GstElement * elemen
          }
          break;
       }
+
       case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+      {
+         gst_ciscdemux_set_audio_thresholds(demux);
          cisco_hls_start(demux);
-         break;
+      }
+      break;
+
       default:
          break;
    }
@@ -2077,6 +2083,47 @@ static gboolean gst_ciscdemux_set_video_master(Gstciscdemux *demux)
       if (gst_pad_push_event(demux->srcpad, event)== FALSE)
       {
          GST_ERROR(" Error sending set-video-master event downstream\n");
+         break;
+      }
+
+      ret = TRUE;
+   }while(0);
+
+   return ret;
+}
+
+static gboolean gst_ciscdemux_set_audio_thresholds( Gstciscdemux *demux )
+{
+   GstEvent     *event = NULL;
+   GstStructure *structure = NULL;       
+   gboolean     ret = FALSE;
+
+   do
+   {
+      structure = gst_structure_new("set-audio-thresholds", 
+                                    "gaThreshold", G_TYPE_UINT, 50,           // Set GA threshold to 50ms to prevent audio PTS errors during bitrate changes
+                                    "discardThreshold", G_TYPE_UINT, 0,       // Default value
+                                    "wideGaThreshold", G_TYPE_BOOLEAN, FALSE, // Default value
+                                    NULL);
+      if(NULL == structure)
+      {
+         GST_ERROR("Error creating set-audio-thresholds\n");
+         break;
+      }
+
+      event = gst_event_new_custom(GST_EVENT_CUSTOM_DOWNSTREAM, structure);
+      if(NULL == event)
+      {
+         gst_structure_free(structure);
+         GST_ERROR("Error creating set-audio-thresholds\n");
+         break;
+      }
+
+      GST_INFO("Sending set-audio-thresholds event downstream\n");
+
+      if (gst_pad_push_event(demux->srcpad, event)== FALSE)
+      {
+         GST_ERROR("Error sending set-audio-thresholds event downstream\n");
          break;
       }
 
