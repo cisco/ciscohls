@@ -223,14 +223,14 @@ void hlsPlaybackControllerThread(hlsSession_t* pSession)
                            wait for PBC_PLAYER_AUDIO_UNDERRUN event. */
 
                         bWaitForPlaybackCompletion = 1;
-#endif
+#else
                         /* Hack: Using gstreamer player, we can send EOF right away
                         (i.e., we do no need to wait for the player to consume buffers) because
                         The EOF we send will be processed by the gstreamer pipeline only after
                         decoder buffers are consumed */
-                        
                         pSession->eofCount++;
-                        DEBUG(DBG_INFO, "eofCount = %d", pSession->eofCount);
+                        DEBUG(DBG_INFO, "eofCount = %d, currentGroupCount: %d", pSession->eofCount, pSession->currentGroupCount);
+
                         if(pSession->eofCount >= pSession->currentGroupCount + 1)
                         {
                            DEBUG(DBG_INFO, "sending SRC_PLUGIN_EOF to player");
@@ -239,6 +239,7 @@ void hlsPlaybackControllerThread(hlsSession_t* pSession)
                            hlsPlayer_pluginEvtCallback(pSession->pHandle, &event);
                            pSession->eofCount = 0;
                         }
+#endif
                     }
                     else /* Trickplay */
                     {

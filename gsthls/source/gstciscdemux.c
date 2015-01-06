@@ -28,6 +28,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_ciscdemux_debug);
 #define DRM_TYPE_VGDRM "ENCRYPTED_VGDRM_HLS"
 #define DRM_TYPE_BASIC "ENCRYPTED_BASIC_HLS"
 #define MAX_URI_LEN	100
+#define INVALID_PTS  -1
 
 /* demux signals and args */
 enum
@@ -1847,6 +1848,13 @@ static void * getCurrentPTSNotify(void *data)
          }
 
          memcpy((gchar *)&pts_45khz, (gchar *)&ptr, sizeof(pts_45khz)); 
+
+         if ((int)pts_45khz == INVALID_PTS)
+         {
+            GST_WARNING("pts value is invalid\n");
+            gst_query_unref(query);
+            continue;
+         }
 
          GST_LOG("Current 45khz based PTS %u\n", pts_45khz);
          pts_90khz = ((long long)pts_45khz) << 1;

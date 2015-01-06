@@ -822,33 +822,38 @@ srcStatus_t hlsPlugin_set(srcSessionId_t sessionId, srcPluginSetData_t* pSetData
         		}
                 break;
             case SRC_PLUGIN_SET_POSITION:
-                DEBUG(DBG_INFO,"seeking to position = %f on session %p", *(float*)(pSetData->pData), (void*)sessionId);
+               DEBUG(DBG_INFO,"seeking to position = %f on session %p", *(float*)(pSetData->pData), (void*)sessionId);
 
-                /* Call the session seek function */
-        		status = hlsSession_seek(thePlugin.hlsSessions[sessionIndex], *(float*)(pSetData->pData));
-        		if(status == HLS_UNSUPPORTED)
-                {
-                    ERROR("setting position %f on session %p not supported by this stream at this time", *(float*)(pSetData->pData), (void*)sessionId);
-                    if(pErr != NULL) 
-            		{
-                		pErr->errCode = SRC_PLUGIN_ERR_UNSUPPORTED;
-                		snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("setting position %f on session %p not supported by this stream at this time", *(float*)(pSetData->pData), (void*)sessionId));
-            		}
-            		rval = SRC_ERROR;
-            		break;
-                }
-                else if(status != HLS_OK) 
-        		{
-            		ERROR("hlsSession_seek failed on session %p with status: %d", (void*)sessionId, status);
-            		if(pErr != NULL) 
-            		{
-                		pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
-                		snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("hlsSession_seek failed on session %p with status: %d", (void*)sessionId, status));
-            		}
-            		rval = SRC_ERROR;
-            		break;
-        		}
-                break;
+               /* Call the session seek function */
+               status = hlsSession_seek(thePlugin.hlsSessions[sessionIndex], *(float*)(pSetData->pData));
+               if(status == HLS_UNSUPPORTED)
+               {
+                  ERROR("setting position %f on session %p not supported by this stream at this time", *(float*)(pSetData->pData), (void*)sessionId);
+                  if(pErr != NULL)
+                  {
+                     pErr->errCode = SRC_PLUGIN_ERR_UNSUPPORTED;
+                     snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("setting position %f on session %p not supported by this stream at this time", *(float*)(pSetData->pData), (void*)sessionId));
+                  }
+                  rval = SRC_ERROR;
+                  break;
+               }
+               else if(status != HLS_OK)
+               {
+                  ERROR("hlsSession_seek failed on session %p with status: %d", (void*)sessionId, status);
+                  if(pErr != NULL)
+                  {
+                     pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
+                     snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("hlsSession_seek failed on session %p with status: %d", (void*)sessionId, status));
+                  }
+                  rval = SRC_ERROR;
+                  break;
+               }
+               else
+               {
+                  DEBUG(DBG_INFO, "resetting EOF count");
+                  thePlugin.hlsSessions[sessionIndex]->eofCount = 0;
+               }
+               break;
             case SRC_PLUGIN_SET_MAX_BITRATE:
                 DEBUG(DBG_INFO,"setting max bitrate = %d on session %p", *(int*)(pSetData->pData), (void*)sessionId);
         
