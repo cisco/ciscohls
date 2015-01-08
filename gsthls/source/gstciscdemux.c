@@ -27,7 +27,6 @@ GST_DEBUG_CATEGORY_STATIC (gst_ciscdemux_debug);
 #define DRM_TYPE_VERIMATRIX "ENCRYPTED_VERIMATRIX_HLS"
 #define DRM_TYPE_VGDRM "ENCRYPTED_VGDRM_HLS"
 #define DRM_TYPE_BASIC "ENCRYPTED_BASIC_HLS"
-#define MAX_URI_LEN	100
 #define INVALID_PTS  -1
 
 /* demux signals and args */
@@ -829,19 +828,19 @@ static GstStateChangeReturn gst_cscohlsdemuxer_change_state (GstElement * elemen
                   g_strfreev(array);
                }
 
-               if (!g_strstr_len (uri, MAX_URI_LEN, "?drmType="))
+               if (!g_strstr_len (uri,-1, "?drmType="))
                {
                   demux->drmType = strdup(DRM_TYPE_BASIC);
                   GST_INFO_OBJECT(demux, "Set drmType to: %s\n", demux->drmType);
                }
                else
                {
-                  if (g_strstr_len (uri, MAX_URI_LEN, "verimatrix"))
+                  if (g_strstr_len (uri,-1, "verimatrix"))
                   {
                      demux->drmType = strdup(DRM_TYPE_VERIMATRIX);
                      GST_INFO_OBJECT(demux, "Set drmType to: %s\n", demux->drmType);
                   }
-                  else if (g_strstr_len (uri, MAX_URI_LEN, "vgdrm"))
+                  else if (g_strstr_len (uri,-1, "vgdrm"))
                   {
                      demux->drmType = strdup(DRM_TYPE_VGDRM);
                      GST_INFO_OBJECT(demux, "Set drmType to: %s\n", demux->drmType);
