@@ -954,9 +954,36 @@ void hlsPlayer_pluginEvtCallback(void* pHandle, srcPluginEvt_t* pEvt)
 
 void hlsPlayer_pluginErrCallback(void* pHandle, srcPluginErr_t* pErr)
 {
-   GST_ERROR(" Entered: %s : got event ERROR callback for pHandle: %p : %d\n",
-      __FUNCTION__,pHandle, pErr->errCode);
-   return ;
+   Gstciscdemux *demux = (Gstciscdemux *)pHandle;
+   
+   do
+   {
+      if(NULL == demux)
+      {
+         GST_ERROR("pHandle param is NULL\n");
+         break;
+      }
+
+      if(NULL == pErr)
+      {
+         GST_ERROR("pErr param is NULL\n");
+         break;
+      }
+
+      GST_ERROR(" Entered: %s : got event ERROR callback for pHandle: %p : %d\n",
+            __FUNCTION__, pHandle, pErr->errCode);
+
+      if(SRC_PLUGIN_ERR_NETWORK == pErr->errCode)
+      {
+         gst_element_post_message(GST_ELEMENT_CAST(demux),
+               gst_message_new_element(GST_OBJECT_CAST(demux),
+                  gst_structure_new("extended_notification",
+                     "notification", G_TYPE_STRING, "network_error",
+                     NULL)));
+      }
+   }while(0);
+
+   return;
 }
 
 srcStatus_t hlsPlayer_registerCB(void* pHandle, playerEvtCallback_t evtCb)
