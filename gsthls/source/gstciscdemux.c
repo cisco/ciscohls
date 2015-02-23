@@ -620,7 +620,7 @@ static gboolean gst_cscohlsdemuxer_src_query (GstPad * pad, GstQuery * query)
               /* Hardcoding the speeds because libhls sends the I-Frames to the decoder
                * based on speed (duration/speed - i-frame display time)
                */
-               strncpy(speeds, "-8,-4,-2,", sizeof(speeds));
+               strncpy(speeds, "-4,-2,", sizeof(speeds));
             }
 
             if(SRC_PLUGIN_CONTENT_TYPE_VOD == contentType)
@@ -632,7 +632,7 @@ static gboolean gst_cscohlsdemuxer_src_query (GstPad * pad, GstQuery * query)
 
             if(1 == bTrickSupported)
             {
-               strncat(speeds, ",2,4,8", sizeof(speeds));
+               strncat(speeds, ",2,4", sizeof(speeds));
 
             }
             speeds[sizeof(speeds) - 1] = '\0';

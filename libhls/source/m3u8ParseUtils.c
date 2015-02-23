@@ -1162,6 +1162,10 @@ static hlsStatus_t m3u8ProcessVariantPlaylist(FILE* fpPlaylist, hlsPlaylist_t* p
                         }
                         
                         rval = m3u8ParseMedia(parseLine, pPlaylist->baseURL, pPlaylist->pGroupList);
+                        if(HLS_UNSUPPORTED == rval)
+                        {
+                           rval = HLS_OK;
+                        }
                         break;
                     default:
                         DEBUG(DBG_WARN,"got unexpected tag, ignoring");
@@ -3091,8 +3095,8 @@ static hlsStatus_t m3u8ParseMedia(char *tagLine, char* baseURL, llist_t* pGroupL
          }
          else
          {
-            ERROR("TYPE attribute of EXT-X-MEDIA has invalid value: %s", pIndex);
-            rval = HLS_ERROR;
+            ERROR("TYPE attribute of EXT-X-MEDIA has invalid/unsupported value: %s", pIndex);
+            rval = HLS_UNSUPPORTED;
             free(pIndex);
             break;
          }
