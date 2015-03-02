@@ -46,6 +46,8 @@ extern "C" {
 
 #define INVALID_PTS (-1)
 
+#define ISO_LANG_CODE_LEN (3)
+
 /*!
 * Unique souce plugin session identifier
 */ 
@@ -104,10 +106,22 @@ typedef struct
  */
 typedef enum
 {
-  SRC_PLUGIN_CONTENT_TYPE_LIVE,
-  SRC_PLUGIN_CONTENT_TYPE_VOD
+  SRC_PLUGIN_CONTENT_TYPE_LIVE,  /*!< Sliding window playlist content. */
+  SRC_PLUGIN_CONTENT_TYPE_VOD    /*!< Fixed asset. */
 
 } srcPluginContentType_t;
+
+typedef struct
+{
+   char isoCode[ISO_LANG_CODE_LEN + 1]; /*!< Lang ISO code. */
+   int  bDiscrete;                      /*!< Boolean - discrete or muxed audio. */
+}srcPluginAudioLangInfo_t;
+
+typedef struct
+{
+   int  numAudioLanguages;                     /*!< Input - audioLangInfoArr array len. Output - No of available audio languages */ 
+   srcPluginAudioLangInfo_t *audioLangInfoArr; /*!< Input - empty array. Output - Info about available audio languages */
+}srcPluginAudioLanguages_t;
 
 /*
  * 
@@ -155,6 +169,9 @@ typedef enum
     SRC_PLUGIN_GET_SPEED,           /*!< pData -> float* ; containing the current playback speed */ 
     SRC_PLUGIN_GET_TRICK_SUPPORTED, /*!< pData -> int* ; 1 - trick modes supported, 0 otherwise */ 
     SRC_PLUGIN_GET_CONTENT_TYPE,    /*!< pData -> srcPluginContentType_t */ 
+    SRC_PLUGIN_GET_NUM_AUDIO_LANGUAGES, /*!< pData -> int* ; will contain number of available audio languages */ 
+    SRC_PLUGIN_GET_AUDIO_LANGUAGES_INFO, /*!< pData -> srcPluginAudioLangInfo_t*; will contain info about audio languages */ 
+                                                                                   
     SRC_PLUGIN_GET_END
 
 } srcPluginGetCode_t;

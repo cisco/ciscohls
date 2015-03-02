@@ -2167,6 +2167,163 @@ hlsStatus_t hlsSession_getContentType(hlsSession_t* pSession, hlsContentType_t *
  * 
  * 
  * @param pSession
+ * @param pNumAudioLanguages
+ * 
+ * @return #hlsStatus_t
+ */
+hlsStatus_t hlsSession_getNumAudioLanguages(hlsSession_t* pSession, int *pNumAudioLanguages)
+{
+   hlsStatus_t rval = HLS_OK;
+   llNode_t    *pGroupNode = NULL;
+   hlsGroup_t  *pGroup = NULL;
+
+   do
+   {
+      if((pSession == NULL) || (pNumAudioLanguages == NULL))
+      {
+         ERROR("invalid parameter");
+         rval = HLS_INVALID_PARAMETER;
+         break;
+      }
+
+      *pNumAudioLanguages = 0;
+
+      /* Check for valid state */
+      if(pSession->state < HLS_PREPARED) 
+      {
+         ERROR("%s invalid in state %d", __FUNCTION__, pSession->state);
+         rval = HLS_STATE_ERROR;
+         break;
+      }
+
+      /* Get playlist READ lock */
+      pthread_rwlock_rdlock(&(pSession->playlistRWLock));
+      if(NULL == pSession->pPlaylist)
+      {
+         ERROR("%s Main playlist pointer is NULL", __FUNCTION__);
+         pthread_rwlock_unlock(&(pSession->playlistRWLock));
+         rval = HLS_ERROR;
+         break;
+      }
+
+      if(NULL == pSession->pPlaylist->pGroupList)
+      {
+         DEBUG(DBG_WARN, "%s No EXT-X-MEDIA tags in playlist", __FUNCTION__);
+         pthread_rwlock_unlock(&(pSession->playlistRWLock));
+         break;
+      }
+
+      pGroupNode = pSession->pPlaylist->pGroupList->pHead;
+      while(NULL != pGroupNode)
+      {
+         pGroup = (hlsGroup_t *)pGroupNode->pData;
+         if((NULL != pGroup) && (HLS_MEDIA_TYPE_AUDIO == pGroup->type))
+         {
+            (*pNumAudioLanguages)++;
+         }
+         pGroupNode = pGroupNode->pNext;
+      }
+
+      /* Release playlist lock */
+      pthread_rwlock_unlock(&(pSession->playlistRWLock));
+   
+      DEBUG(DBG_INFO,"numAudioLanguages = %d\n", *pNumAudioLanguages);
+   }while(0);
+
+   return rval;
+}
+
+/** 
+ * 
+ * 
+ * @param pSession
+ * @param audioLangInfoArr
+ * @param pAudioLangInfoArrSize
+ * 
+ * @return #hlsStatus_t
+ */
+hlsStatus_t hlsSession_getAudioLanguagesInfo(hlsSession_t* pSession,
+                                             srcPluginAudioLangInfo_t audioLangInfoArr[],
+                                             int *pAudioLangInfoArrSize)
+{
+   hlsStatus_t rval = HLS_OK;
+   llNode_t    *pGroupNode = NULL;
+   hlsGroup_t  *pGroup = NULL;
+   int         numAudioLanguages = 0;
+
+   do
+   {
+      if((pSession == NULL) || (audioLangInfoArr == NULL) 
+            || (pAudioLangInfoArrSize == NULL))
+      {
+         ERROR("invalid parameter");
+         rval = HLS_INVALID_PARAMETER;
+         break;
+      }
+
+      /* Check for valid state */
+      if(pSession->state < HLS_PREPARED) 
+      {
+         ERROR("%s invalid in state %d", __FUNCTION__, pSession->state);
+         rval = HLS_STATE_ERROR;
+         break;
+      }
+
+      /* Get playlist READ lock */
+      pthread_rwlock_rdlock(&(pSession->playlistRWLock));
+      if(NULL == pSession->pPlaylist)
+      {
+         ERROR("%s Main playlist pointer is NULL", __FUNCTION__);
+         pthread_rwlock_unlock(&(pSession->playlistRWLock));
+         rval = HLS_ERROR;
+         break;
+      }
+
+      if(NULL == pSession->pPlaylist->pGroupList)
+      {
+         DEBUG(DBG_WARN, "%s No EXT-X-MEDIA tags in playlist", __FUNCTION__);
+         pthread_rwlock_unlock(&(pSession->playlistRWLock));
+         break;
+      }
+
+      pGroupNode = pSession->pPlaylist->pGroupList->pHead;
+      while((NULL != pGroupNode) & (numAudioLanguages < *pAudioLangInfoArrSize))
+      {
+         pGroup = (hlsGroup_t *)pGroupNode->pData;
+         if((NULL != pGroup) && (HLS_MEDIA_TYPE_AUDIO == pGroup->type))
+         {
+            DEBUG(DBG_NOISE, "%s Audio language[%d]: %s", 
+                  __FUNCTION__, numAudioLanguages, pGroup->language);
+            
+            strlcpy(audioLangInfoArr[numAudioLanguages].isoCode, pGroup->language, 
+                  sizeof(audioLangInfoArr[numAudioLanguages].isoCode));
+            if(NULL != pGroup->pPlaylist)
+            {
+               audioLangInfoArr[numAudioLanguages].bDiscrete = 1;
+            }
+            else
+            {
+               audioLangInfoArr[numAudioLanguages].bDiscrete = 0;
+            }
+            numAudioLanguages++;
+         }
+         pGroupNode = pGroupNode->pNext;
+      }
+
+      /* Release playlist lock */
+      pthread_rwlock_unlock(&(pSession->playlistRWLock));
+   }while(0);
+      
+   *pAudioLangInfoArrSize = numAudioLanguages;
+   DEBUG(DBG_NOISE, "%s numAudiolang = %d", __FUNCTION__, *pAudioLangInfoArrSize);
+
+   return rval;
+}
+
+/** 
+ * 
+ * 
+ * @param pSession
  * @param pEvt
  */
 void hlsSession_playerEvtCallback(hlsSession_t* pSession, srcPlayerEvt_t* pEvt)

@@ -56,7 +56,10 @@ hlsStatus_t hlsSession_getCurrentPosition(hlsSession_t* pSession, float* pPositi
 hlsStatus_t hlsSession_getSpeed(hlsSession_t* pSession, float* pSpeed);
 hlsStatus_t hlsSession_getTrickSupported(hlsSession_t* pSession, int *bTrickSupported);
 hlsStatus_t hlsSession_getContentType(hlsSession_t* pSession, hlsContentType_t *contentType);
-
+hlsStatus_t hlsSession_getNumAudioLanguages(hlsSession_t* pSession, int *pNumAudioLanguages);
+hlsStatus_t hlsSession_getAudioLanguagesInfo(hlsSession_t* pSession,
+                                             srcPluginAudioLangInfo_t audioLangInfoArr[],
+                                             int *pAudioLangInfoArrSize);
 void hlsSession_playerEvtCallback(hlsSession_t* pSession, srcPlayerEvt_t* pEvt);
 
 void hlsSession_printInfo(hlsSession_t* pSession);

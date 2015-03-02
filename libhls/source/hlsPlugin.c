@@ -1150,6 +1150,48 @@ srcStatus_t hlsPlugin_get(srcSessionId_t sessionId, srcPluginGetData_t* pGetData
                    }
                 }
                 break;
+            case SRC_PLUGIN_GET_NUM_AUDIO_LANGUAGES:
+                {
+                   DEBUG(DBG_INFO,"getting numAudioLanguages for session %p", (void*)sessionId);
+
+                   status = hlsSession_getNumAudioLanguages(thePlugin.hlsSessions[sessionIndex], (int *)pGetData->pData);
+                   if(status != HLS_OK) 
+                   {
+                      ERROR("hlsSession_getNumAudioLanguages failed on session %p with status: %d", (void*)sessionId, status);
+                      if(pErr != NULL) 
+                      {
+                         pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
+                         snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, 
+                                  DEBUG_MSG("hlsSession_getNumAudioLanguages failed on session %p with status: %d", 
+                                  (void*)sessionId, status));
+                      }
+                      rval = SRC_ERROR;
+                      break;
+                   }
+                }
+                break;
+            case SRC_PLUGIN_GET_AUDIO_LANGUAGES_INFO:
+                {
+                   DEBUG(DBG_INFO,"getting audio languages info for session %p", (void*)sessionId);
+                   status = hlsSession_getAudioLanguagesInfo(thePlugin.hlsSessions[sessionIndex], 
+                                                             ((srcPluginAudioLanguages_t *)pGetData->pData)->audioLangInfoArr,
+                                                             &((srcPluginAudioLanguages_t *)pGetData->pData)->numAudioLanguages);
+
+                   if(status != HLS_OK) 
+                   {
+                      ERROR("hlsSession_getAudioLanguagesInfo failed on session %p with status: %d", (void*)sessionId, status);
+                      if(pErr != NULL) 
+                      {
+                         pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
+                         snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, 
+                                  DEBUG_MSG("hlsSession_getAudioLanguagesInfo failed on session %p with status: %d", 
+                                  (void*)sessionId, status));
+                      }
+                      rval = SRC_ERROR;
+                      break;
+                   }
+                }
+                break;
             default:
                 ERROR("unknown srcPlayerGetCode_t value: %d", pGetData->getCode);
                 if(pErr != NULL) 

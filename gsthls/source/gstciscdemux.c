@@ -518,8 +518,21 @@ static gboolean gst_cscohlsdemuxer_src_query (GstPad * pad, GstObject * parent, 
 static gboolean gst_cscohlsdemuxer_src_query (GstPad * pad, GstQuery * query)
 #endif
 {
-   Gstciscdemux *demux;
-   gboolean ret = FALSE;
+   Gstciscdemux              *demux;
+   gboolean                  ret = FALSE;
+   srcPluginGetData_t        getData = {};
+   int                       bTrickSupported = 0;
+   srcPluginContentType_t    contentType;
+   gchar                     speeds[64] = "";
+   tSession                  *pSession = NULL;
+   srcPluginErr_t            errTable = {};
+   srcStatus_t               stat = SRC_SUCCESS;
+   int                       numAudioLanguages = 0;
+   srcPluginAudioLanguages_t audioLanguages = {};
+   gint                       ii = 0;
+   gchar                     commaSepDiscreteLangISO[64] = "";
+   gchar                     commaSepMuxedLangISO[64] = "";
+   gint                      isoStrLen = 0;
 
    if (query == NULL)
       return FALSE;
@@ -534,6 +547,14 @@ static gboolean gst_cscohlsdemuxer_src_query (GstPad * pad, GstQuery * query)
       GST_ERROR("Gstciscdemux ptr is NULL\n");
       return FALSE;
    }
+
+   pSession = demux->pCscoHlsSession;
+   if ( pSession == NULL )
+   {
+      GST_ERROR("libhls session is NULL!\n");
+      return FALSE; 
+   }
+
    switch (GST_QUERY_TYPE(query))
    {
       case GST_QUERY_DURATION:
@@ -575,21 +596,6 @@ static gboolean gst_cscohlsdemuxer_src_query (GstPad * pad, GstQuery * query)
          {
             GST_DEBUG("getTrickSpeeds query\n");
 
-            srcPluginGetData_t     getData = {};
-            int                    bTrickSupported = 0;
-            srcPluginContentType_t contentType;
-            char                   speeds[128] = "";
-            tSession               *pSession = NULL;
-            srcPluginErr_t         errTable = {};
-            srcStatus_t            stat = SRC_SUCCESS;
-
-            pSession = demux->pCscoHlsSession;
-            if ( pSession == NULL )
-            {
-               GST_ERROR("libhls session is NULL!\n");
-               ret = FALSE;
-               break;
-            }
 
             getData.getCode = SRC_PLUGIN_GET_TRICK_SUPPORTED;
             getData.pData = &bTrickSupported;
@@ -642,7 +648,90 @@ static gboolean gst_cscohlsdemuxer_src_query (GstPad * pad, GstQuery * query)
             gst_structure_set(pStruct,
                              "trickSpeedsStr", G_TYPE_STRING, speeds,
                              NULL);
-              ret = TRUE;
+            ret = TRUE;
+         }
+         else if(gst_structure_has_name(pStruct, "getAudioLangInfo"))
+         {
+            GST_WARNING("getAudioLangInfo query\n");
+            
+            getData.getCode = SRC_PLUGIN_GET_NUM_AUDIO_LANGUAGES;
+            getData.pData = &numAudioLanguages;
+            stat = demux->HLS_pluginTable.get(pSession->pSessionID, &getData, &errTable);
+            if (stat != SRC_SUCCESS)
+            {
+               GST_ERROR("There was an error obtaining number of available audio languages: %s\n",
+                     errTable.errMsg);
+               break;
+            }
+            GST_INFO("numAudioLanguages = %d\n", numAudioLanguages);
+
+            audioLanguages.numAudioLanguages = numAudioLanguages;
+            audioLanguages.audioLangInfoArr = 
+               (srcPluginAudioLangInfo_t *)g_malloc(sizeof(srcPluginAudioLangInfo_t) * numAudioLanguages);
+            if(NULL == audioLanguages.audioLangInfoArr)
+            {
+               GST_ERROR("Failed to alloc memory for audioLangInfo array\n");
+               ret = FALSE;
+               break;
+            }
+
+            getData.getCode = SRC_PLUGIN_GET_AUDIO_LANGUAGES_INFO;
+            getData.pData = &audioLanguages;
+            stat = demux->HLS_pluginTable.get(pSession->pSessionID, &getData, &errTable);
+            if (stat != SRC_SUCCESS)
+            {
+               GST_ERROR("There was an error obtaining number of available audio languages: %s\n",
+                     errTable.errMsg);
+               g_free(audioLanguages.audioLangInfoArr);
+               audioLanguages.audioLangInfoArr = NULL;
+               ret = FALSE;
+               break;
+            }
+            GST_DEBUG("numAudioLanguages = %d\n", audioLanguages.numAudioLanguages);
+          
+            for(ii = 0; ii < audioLanguages.numAudioLanguages; ii++)
+            {
+               GST_DEBUG("isoCode[%d]: %s\n", ii, audioLanguages.audioLangInfoArr[ii].isoCode);
+               GST_DEBUG("discrete[%d]: %d\n", ii, audioLanguages.audioLangInfoArr[ii].bDiscrete);
+               
+               if(1 == audioLanguages.audioLangInfoArr[ii].bDiscrete)
+               {
+                  g_strlcat(commaSepDiscreteLangISO, audioLanguages.audioLangInfoArr[ii].isoCode, 
+                        sizeof(commaSepDiscreteLangISO));
+                  g_strlcat(commaSepDiscreteLangISO, ",", sizeof(commaSepDiscreteLangISO));
+               }
+               else
+               {
+                  g_strlcat(commaSepMuxedLangISO, audioLanguages.audioLangInfoArr[ii].isoCode, 
+                        sizeof(commaSepMuxedLangISO));
+                  g_strlcat(commaSepMuxedLangISO, ",", sizeof(commaSepMuxedLangISO));
+               }
+            }
+           
+            isoStrLen = strlen(commaSepMuxedLangISO);
+            if((isoStrLen > 0) && (commaSepMuxedLangISO[isoStrLen - 1] == ','))
+            {
+               commaSepMuxedLangISO[isoStrLen - 1] = '\0';
+            }
+            
+            isoStrLen = strlen(commaSepDiscreteLangISO);
+            if((isoStrLen > 0) && (commaSepDiscreteLangISO[isoStrLen - 1] == ','))
+            {
+               commaSepDiscreteLangISO[isoStrLen - 1] = '\0';
+            }
+            
+            GST_WARNING("commaSepMuxedLangISO: %s\n", commaSepMuxedLangISO);
+            GST_WARNING("commaSepDiscreteLangISO: %s\n", commaSepDiscreteLangISO);
+
+            gst_structure_set(pStruct,
+                              "commaSepMuxedLangISO", G_TYPE_STRING, commaSepMuxedLangISO,
+                              "commaSepDiscreteLangISO", G_TYPE_STRING, commaSepDiscreteLangISO,
+                              NULL);
+
+            g_free(audioLanguages.audioLangInfoArr);
+            audioLanguages.audioLangInfoArr = NULL;
+
+            ret = TRUE;
          }
          break;
       }
