@@ -333,14 +333,18 @@ hlsStatus_t getExternalPosition(hlsPlaylist_t* pMediaPlaylist, double* pPosition
  * @param pMediaPlaylist
  * @param x
  * @param ppSegment
+ * @param pOldMediaPlaylist
  * 
  * @return #hlsStatus_t
  */
-hlsStatus_t getSegmentXSecFromEnd(hlsPlaylist_t* pMediaPlaylist, double x, hlsSegment_t** ppSegment)
+hlsStatus_t getSegmentXSecFromEnd(hlsPlaylist_t* pMediaPlaylist, double x, hlsSegment_t** ppSegment, hlsPlaylist_t* pOldMediaPlayList)
 {
     hlsStatus_t rval = HLS_OK;
     double targetTime;
     llNode_t* pNode = NULL;
+    llNode_t* pOldPlayListNode = NULL;
+    hlsSegment_t* pOldSegment = NULL;
+    double durDiff = 0.0;
 
     if (x < 0)
        x = 0;
@@ -406,6 +410,11 @@ hlsStatus_t getSegmentXSecFromEnd(hlsPlaylist_t* pMediaPlaylist, double x, hlsSe
         }
         else
         {
+            if(NULL != pOldMediaPlayList && NULL != pOldMediaPlayList->pList)
+            {
+                pOldPlayListNode = pOldMediaPlayList->pList->pTail;
+            }
+            
             /* Start at the end of the list */
             pNode = pMediaPlaylist->pList->pTail;
     
@@ -431,6 +440,34 @@ hlsStatus_t getSegmentXSecFromEnd(hlsPlaylist_t* pMediaPlaylist, double x, hlsSe
 
 
                 targetTime -= (*ppSegment)->duration;
+
+              /* The following if block handles the following scenario. 
+               * we fetch the same segment in the new playlist when the duration of a 
+               * corresponding segment in the old playlist is different.
+               * For example.
+               * 
+               * #EXTINF:0.720,
+               * EuroNew_IPInput1_200/Seg_0/segment_360.ts
+               *
+               * #EXTINF:0.680,
+               * EuroNew_IPInput1_400/Seg_0/segment_360.ts
+              */
+                if(pOldPlayListNode != NULL)
+                {
+                    pOldSegment = (hlsSegment_t*)(pOldPlayListNode->pData);
+                    if(NULL != pOldSegment) 
+                    {
+                        durDiff = pOldSegment->duration - (*ppSegment)->duration;
+                        if(fabs(durDiff) > 0.0001)
+                        {
+                           DEBUG(DBG_WARN, "Corresponding segments in old and new playlist have "
+                                 "different duration. diff = %llf", fabs(durDiff));
+                        }
+                        targetTime -= durDiff;
+                    }
+                    pOldPlayListNode = pOldPlayListNode->pPrev;
+                }
+                
                 pNode = pNode->pPrev;
 
                 /* If our segment durations are floating point numbers, the
@@ -441,6 +478,9 @@ hlsStatus_t getSegmentXSecFromEnd(hlsPlaylist_t* pMediaPlaylist, double x, hlsSe
                  
                    Once targetTime hits 0, this is the segment we want */
             } while((pNode != NULL) && (targetTime > 0.0001));
+            
+            DEBUG(DBG_NOISE, "targetTime = %llf\n", targetTime);
+            
             if(rval) 
             {
                 break;
@@ -770,7 +810,7 @@ hlsStatus_t flushPlaylist(hlsPlaylist_t* pMediaPlaylist)
         }
 
         /* Find the segment which contains the positionFromEnd */
-        rval = getSegmentXSecFromEnd(pMediaPlaylist, pMediaPlaylist->pMediaData->positionFromEnd, &pSegment);
+        rval = getSegmentXSecFromEnd(pMediaPlaylist, pMediaPlaylist->pMediaData->positionFromEnd, &pSegment, NULL);
         if(rval != HLS_OK) 
         {
             ERROR("problem finding segment in playlist");

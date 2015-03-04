@@ -43,7 +43,7 @@ hlsStatus_t getPlaylistByBitrate(llist_t* pPlaylistList, int bitrate, hlsPlaylis
 hlsStatus_t getExternalDuration(hlsPlaylist_t* pMediaPlaylist, double* pDuration);
 hlsStatus_t getExternalPosition(hlsPlaylist_t* pMediaPlaylist, double* pPosition);
 
-hlsStatus_t getSegmentXSecFromEnd(hlsPlaylist_t* pMediaPlaylist, double x, hlsSegment_t** ppSegment);
+hlsStatus_t getSegmentXSecFromEnd(hlsPlaylist_t* pMediaPlaylist, double x, hlsSegment_t** ppSegment, hlsPlaylist_t* pOldMediaPlaylist);
 hlsStatus_t getSegmentXSecFromStart(hlsPlaylist_t* pMediaPlaylist, double x, hlsSegment_t** ppSegment);
 
 hlsStatus_t getPositionFromEnd(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t* pSegment, double* pSeconds);

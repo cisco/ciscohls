@@ -181,7 +181,7 @@ hlsStatus_t getNextSegment(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegme
             {
                 targetTime = pMediaPlaylist->pMediaData->endOffset;
 
-                rval = getSegmentXSecFromEnd(pMediaPlaylist, targetTime, ppSegment);
+                rval = getSegmentXSecFromEnd(pMediaPlaylist, targetTime, ppSegment, NULL);
                 if(rval) 
                 {
                     ERROR("problem getting initial segment");
@@ -411,7 +411,7 @@ hlsStatus_t getNextIFrame(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegmen
             {
                 targetPositionFromEnd = pMediaPlaylist->pMediaData->endOffset;
 
-                rval = getSegmentXSecFromEnd(pMediaPlaylist, targetPositionFromEnd, ppSegment);
+                rval = getSegmentXSecFromEnd(pMediaPlaylist, targetPositionFromEnd, ppSegment, NULL);
                 if(rval) 
                 {
                     ERROR("problem getting initial I-frame");
@@ -494,7 +494,7 @@ hlsStatus_t getNextIFrame(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegmen
                 }
 
                 /* Find the I-frame at our desired position */
-                rval = getSegmentXSecFromEnd(pMediaPlaylist, targetPositionFromEnd, ppSegment);
+                rval = getSegmentXSecFromEnd(pMediaPlaylist, targetPositionFromEnd, ppSegment, NULL);
                 if(rval) 
                 {
                     ERROR("problem getting I-frame");
@@ -585,7 +585,7 @@ hlsStatus_t getNextIFrame(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegmen
                 }
 
                 /* Find the I-frame at our desired position */
-                rval = getSegmentXSecFromEnd(pMediaPlaylist, targetPositionFromEnd, ppSegment);
+                rval = getSegmentXSecFromEnd(pMediaPlaylist, targetPositionFromEnd, ppSegment, NULL);
                 if(rval) 
                 {
                     ERROR("problem getting I-frame");
@@ -764,7 +764,7 @@ hlsStatus_t matchPlaylistPosition(hlsSession_t *pSession,
 
          /* Find the next segment we would download from playlist2 (if targetPosition == 0
             this will return the last node in playlist2). */
-         rval = getSegmentXSecFromEnd(pPlaylist2, targetPosition, &pSegment);
+         rval = getSegmentXSecFromEnd(pPlaylist2, targetPosition, &pSegment, pPlaylist1);
          if(rval != HLS_OK) 
          {
             ERROR("problem finding segment in new playlist");
