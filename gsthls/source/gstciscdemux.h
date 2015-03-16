@@ -124,6 +124,7 @@ struct _Gstciscdemux
   gint64          bufferPts;
   gint64          seekpos;
   gboolean        isFlushOnSeek;
+  gchar           defaultAudioLangISOCode[ISO_LANG_CODE_LEN + 1];
 };
 
 struct _GstciscdemuxClass 

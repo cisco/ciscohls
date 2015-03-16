@@ -35,8 +35,25 @@ extern "C" {
 #endif
 
 #include "hlsTypes.h"
+/*! \enum mediaAttrib_t 
+ * Media group attributes 
+ * 
+ */
+typedef enum
+{
+   ATTRIB_LANGUAGE,
+   ATTRIB_DEFAULT,
+   ATTRIB_AUTOSELECT
+}mediaAttrib_t;
 
 void m3u8ParserThread(hlsSession_t* pSession);
+
+hlsStatus_t findAudioGroup(hlsSession_t *pSession, hlsGroup_t **ppGroupOut);
+
+hlsStatus_t findAudioGroupByAttrib(hlsSession_t *pSession,
+                                   mediaAttrib_t attrib,
+                                   void *pData,
+                                   hlsGroup_t **ppGroupOut);
 
 #ifdef __cplusplus
 }

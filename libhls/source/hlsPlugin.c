@@ -905,6 +905,23 @@ srcStatus_t hlsPlugin_set(srcSessionId_t sessionId, srcPluginSetData_t* pSetData
                     break;
                 }
                 break;
+            case SRC_PLUGIN_SET_AUDIO_LANGUAGE:
+                DEBUG(DBG_INFO,"setting audio language: %s on session %p", (char*)(pSetData->pData), (void*)sessionId);
+        
+                /* setAudioLanguage on the session */
+                status = hlsSession_setAudioLanguage(thePlugin.hlsSessions[sessionIndex], (char*)(pSetData->pData));
+                if(status != HLS_OK) 
+                {
+                    ERROR("hlsSession_setAudioLanguage failed on session %p with status: %d", (void*)sessionId, status);
+                    if(pErr != NULL) 
+                    {
+                        pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
+                        snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("hlsSession_setAudioLanguage failed on session %p with status: %d", (void*)sessionId, status));
+                    }
+                    rval = SRC_ERROR;
+                    break;
+                }
+                break;
             default:
                 ERROR("unknown srcPlayerSetCode_t value: %d", pSetData->setCode);
                 if(pErr != NULL) 

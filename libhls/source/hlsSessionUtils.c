@@ -44,6 +44,8 @@ extern "C" {
 
 #include "debug.h"
 
+#include "m3u8Parser.h"
+
 /**
  * Gets the best bitrate for the session based on the min/max
  * and target bitrate.
@@ -1599,6 +1601,102 @@ hlsStatus_t playlistSeek(hlsPlaylist_t *pMediaPlaylist, float position, int *pSe
    pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode = pSegmentNode;
   
    rval = HLS_OK;
+   
+   }while(0);
+
+   return rval;
+}
+
+/** 
+ * Add/update the currentGroup list with the new group 
+ *  
+ * @param pSession  - session handle
+ * @param groupID   - media group ID
+ * @param pNewGroup - new media group 
+ * 
+ * @return #hlsStatus_t
+ */
+hlsStatus_t updateCurrentGroup(hlsSession_t *pSession, char groupID[], hlsGroup_t *pNewGroup)
+{
+   hlsStatus_t rval = HLS_OK;
+   int         ii = 0;
+   int         oldGroupIndex = -1;
+  
+   do 
+   {
+      if((NULL == pSession) || (NULL == groupID) || (NULL == pNewGroup))
+      {
+         ERROR("Invalid parameter(s)\n");
+         rval = HLS_INVALID_PARAMETER;
+         break;
+      }
+
+      for(ii = 0; ii < pSession->currentGroupCount; ii++)
+      {
+         if(0 == strcmp(groupID, pSession->pCurrentGroup[ii]->groupID))
+         {
+            oldGroupIndex = ii;
+            break;
+         }
+      }
+
+      if((NULL != pNewGroup) && (NULL != pNewGroup->pPlaylist) && 
+         (NULL == pNewGroup->pPlaylist->pList))
+      {
+         pthread_rwlock_wrlock(&(pSession->playlistRWLock));
+         
+         rval = m3u8ParsePlaylist(pNewGroup->pPlaylist, pSession);
+         if(rval != HLS_OK)
+         {
+            if(rval == HLS_CANCELLED) 
+            {
+               DEBUG(DBG_WARN, "parser signalled to stop");
+               pthread_rwlock_unlock(&(pSession->playlistRWLock));
+               break;
+            }
+            else
+            {
+               ERROR("problem parsing alternative playlist");
+               pthread_rwlock_unlock(&(pSession->playlistRWLock));
+               break;
+            }
+         }
+               
+         pthread_rwlock_unlock(&(pSession->playlistRWLock));
+      }
+         
+      /* TODO - Send event to player for Muxed <-> Discrete */ 
+      
+      /* muxed -> discrete */
+      if((-1 == oldGroupIndex) && (NULL != pNewGroup->pPlaylist))
+      {
+         if(pSession->currentGroupCount < MAX_NUM_MEDIA_GROUPS)
+         {
+            pSession->pCurrentGroup[pSession->currentGroupCount++] = pNewGroup;
+         }
+         else
+         {
+            ERROR("Could not add new group to current group list "
+                  "(currentGroupCount >= MAX_NUM_MEDIA_GROUPS)\n")
+            rval = HLS_ERROR;
+            break;
+         }
+      }
+      /* discrete -> muxed */
+      else if((-1 != oldGroupIndex) && (NULL == pNewGroup->pPlaylist))
+      {
+         for(ii = oldGroupIndex; ii < pSession->currentGroupCount - 1; ii++)
+         {
+            pSession->pCurrentGroup[ii] = pSession->pCurrentGroup[ii + 1];
+         }
+         pSession->pCurrentGroup[pSession->currentGroupCount - 1] = NULL;
+         pSession->currentGroupCount--;
+      }
+      /* discrete -> discrete */
+      else if((-1 != oldGroupIndex) && (NULL != pNewGroup->pPlaylist))
+      {
+         pSession->pCurrentGroup[oldGroupIndex] = pNewGroup;
+      }
    
    }while(0);
 

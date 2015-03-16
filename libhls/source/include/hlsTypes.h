@@ -522,6 +522,7 @@ typedef struct {
     msgQueue_t* playbackControllerMsgQueue; /*!< Playback controller thread message queue */
 
     int eofCount; /*!< count of eof recieved from the downloader thread(s) */
+    char audioLanguageISOCode[ISO_LANG_CODE_LEN + 1];
 
 } hlsSession_t;
 

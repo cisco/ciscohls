@@ -1890,6 +1890,135 @@ hlsStatus_t hlsSession_seek(hlsSession_t* pSession, float position)
  * 
  * 
  * @param pSession
+ * @param audioLangISOCode 
+ * 
+ * @return #hlsStatus_t
+ */
+hlsStatus_t hlsSession_setAudioLanguage(hlsSession_t* pSession, char audioLangISOCode[])
+{
+   hlsStatus_t        rval = HLS_OK;
+   int                position = 0;
+   srcPlayerGetData_t getData = {};
+   hlsGroup_t         *pOldGroup = NULL;
+   hlsGroup_t         *pNewGroup = NULL;
+
+   if((NULL == pSession) || (NULL == audioLangISOCode))
+   {
+      ERROR("invalid parameter");
+      return HLS_INVALID_PARAMETER;
+   }
+
+   /* Block setting changes */
+   pthread_mutex_lock(&(pSession->setMutex));
+   /* Block state changes */
+   pthread_mutex_lock(&(pSession->stateMutex));
+   
+   do
+   {
+      /* Check for valid state */
+      if(pSession->state < HLS_INITIALIZED) 
+      {
+         ERROR("%s invalid in state %d", __FUNCTION__, pSession->state);
+         rval = HLS_STATE_ERROR;
+         break;
+      }
+      
+      if(!strncmp(pSession->audioLanguageISOCode, audioLangISOCode, sizeof(pSession->audioLanguageISOCode)))
+      {
+         DEBUG(DBG_WARN, "Old and new audio language are same. Not taking any action\n");
+         rval = HLS_OK;
+         break;
+      }
+      
+      if(pSession->state >= HLS_PREPARED)
+      {
+         rval = findAudioGroupByAttrib(pSession, ATTRIB_LANGUAGE, pSession->audioLanguageISOCode, &pOldGroup);
+         if(HLS_OK != rval)
+         {
+            ERROR("Could not find media group for old audio language: %s\n", 
+                  audioLangISOCode);
+            break;
+         }
+         
+         rval = findAudioGroupByAttrib(pSession, ATTRIB_LANGUAGE, audioLangISOCode, &pNewGroup);
+         if(HLS_OK != rval)
+         {
+            ERROR("Could not find media group for new audio language: %s\n", 
+                  audioLangISOCode);
+            break;
+         }
+
+         if((NULL == pOldGroup->pPlaylist) && (NULL == pNewGroup->pPlaylist))
+         {
+            DEBUG(DBG_WARN, "Switching between two muxed(in ts segment) audio streams\n");
+            rval = HLS_OK;
+            break;
+         }
+      }
+
+      if(HLS_PREPARED == pSession->state)
+      {
+         rval = updateCurrentGroup(pSession, pSession->pCurrentPlaylist->pMediaData->audio, pNewGroup);
+         if(HLS_OK != rval)
+         {
+            ERROR("updateCurrentGroup() failed\n");
+            break;
+         }
+      }
+      else if(pSession->state > HLS_PREPARED)
+      {
+         getData.getCode = SRC_PLAYER_GET_POSITION;
+         getData.pData = &position;
+
+         if(SRC_SUCCESS != hlsPlayer_getOption(pSession->pHandle, &getData))
+         {
+            ERROR("Failed to get current position from player\n");
+            rval = HLS_ERROR;
+            break;
+         }
+         DEBUG(DBG_INFO, "current position = %d\n", position);
+
+         rval = hlsSession_stop(pSession, 1);
+         if(HLS_OK != rval) 
+         {
+            ERROR("hlsSession_stop() failed");
+            break;
+         }
+         
+         rval = updateCurrentGroup(pSession, pSession->pCurrentPlaylist->pMediaData->audio, pNewGroup);
+         if(HLS_OK != rval)
+         {
+            ERROR("updateCurrentGroup() failed\n");
+            break;
+         }
+
+         rval = hlsSession_seek(pSession, position);
+         if(HLS_OK != rval) 
+         {
+            ERROR("hlsSession_seek() failed");
+            break;
+         }
+      }
+   
+   } while(0);
+      
+   if(HLS_OK == rval)
+   {
+      strlcpy(pSession->audioLanguageISOCode, audioLangISOCode, sizeof(pSession->audioLanguageISOCode));
+   }
+
+   /* Leave critical section */
+   pthread_mutex_unlock(&(pSession->stateMutex));
+   /* Leave critical section */
+   pthread_mutex_unlock(&(pSession->setMutex));
+
+   return rval;
+}
+
+/** 
+ * 
+ * 
+ * @param pSession
  * @param pDuration
  * 
  * @return #hlsStatus_t

@@ -48,23 +48,6 @@ extern "C" {
 /* Loop duration in seconds */
 #define PARSER_LOOP_SECS 1
 
-/*! \enum mediaAttrib_t 
- * Media group attributes 
- * 
- */
-typedef enum
-{
-   ATTRIB_LANGUAGE,
-   ATTRIB_DEFAULT,
-   ATTRIB_AUTOSELECT
-}mediaAttrib_t;
-
-static hlsStatus_t findAudioGroup(hlsSession_t *pSession);
-
-static hlsStatus_t findAudioGroupByAttrib(hlsSession_t *pSession,
-                                          mediaAttrib_t attrib,
-                                          int *pbFoundGroup);
-
 /**
  * Thread body responsible for playlist parsing.  Kicked off by 
  * hlsSession_prepare(). 
@@ -95,6 +78,10 @@ void m3u8ParserThread(hlsSession_t* pSession)
     struct timespec wakeTime;
    
     int ii = 0;
+
+    hlsGroup_t *pGroup = NULL;
+    srcPlayerSetData_t playerSetData = {};
+    srcStatus_t rval = SRC_ERROR;
 
     if(pSession == NULL)
     {
@@ -229,14 +216,31 @@ void m3u8ParserThread(hlsSession_t* pSession)
                DEBUG(DBG_INFO, "Current program has audio: %s",
                      pSession->pCurrentPlaylist->pMediaData->audio);
 
-               status = findAudioGroup(pSession);
-               if(HLS_OK != status)
+               status = findAudioGroup(pSession, &pGroup);
+               if((HLS_OK != status) || (NULL == pGroup))
                {
                   DEBUG(DBG_WARN, "Failed to find audio group: %s",
                         pSession->pCurrentPlaylist->pMediaData->audio);
                   /* Release playlist lock */
                   pthread_rwlock_unlock(&(pSession->playlistRWLock));
                   break;
+               }
+
+               strlcat(pSession->audioLanguageISOCode, pGroup->language, 
+                       sizeof(pSession->audioLanguageISOCode));
+               
+               if(NULL != pGroup->pPlaylist)
+               {
+                  pSession->pCurrentGroup[pSession->currentGroupCount++] = pGroup;
+
+                  playerSetData.setCode = SRC_PLAYER_SET_DISABLE_MAIN_STREAM_AUDIO;
+                  rval = hlsPlayer_set(pSession->pHandle, &playerSetData);
+                  if(rval != SRC_SUCCESS) 
+                  {
+                     ERROR("failed to set SRC_PLAYER_SET_DISABLE_MAIN_STREAM_AUDIO");
+                     status = HLS_ERROR;
+                     break;
+                  }
                }
             }
                         
@@ -451,31 +455,43 @@ void m3u8ParserThread(hlsSession_t* pSession)
  * Find the audio group associated with the current program 
  *  
  * @param pSession - pointer to the HLS session
+ * @param ppGroupOut - pointer to the media group if found or NULL
  * 
  * @return #hlsStatus_t 
  */
-static hlsStatus_t findAudioGroup(hlsSession_t *pSession)
+hlsStatus_t findAudioGroup(hlsSession_t *pSession, hlsGroup_t **ppGroupOut)
 {
    hlsStatus_t status = HLS_OK;
-   int bFoundGroup = 0;
+   hlsYesNo_t yesOrNo = HLS_YES;
 
-   do {
-
-      status = findAudioGroupByAttrib(pSession, ATTRIB_LANGUAGE, &bFoundGroup);
-      if((status != HLS_OK) || (1 == bFoundGroup))
+   do 
+   {
+      if((NULL == pSession) || (NULL == ppGroupOut))
       {
+         ERROR("Invalid param");
+         status = HLS_INVALID_PARAMETER;
          break;
       }
-      
-      status = findAudioGroupByAttrib(pSession, ATTRIB_DEFAULT, &bFoundGroup);
-      if((status != HLS_OK) || (1 == bFoundGroup))
+
+      status = findAudioGroupByAttrib(pSession, ATTRIB_LANGUAGE, 
+            (void *)pSession->audioLanguageISOCode, ppGroupOut);
+      if(HLS_OK == status)
       {
+         DEBUG(DBG_INFO, "Found audio group by attrib language\n");
          break;
       }
-      
-      status = findAudioGroupByAttrib(pSession, ATTRIB_AUTOSELECT, &bFoundGroup);
-      if((status != HLS_OK) || (1 == bFoundGroup))
+
+      status = findAudioGroupByAttrib(pSession, ATTRIB_DEFAULT, (void *)&yesOrNo, ppGroupOut);
+      if(HLS_OK == status)
       {
+         DEBUG(DBG_INFO, "Found audio group by attrib default\n");
+         break;
+      }
+
+      status = findAudioGroupByAttrib(pSession, ATTRIB_AUTOSELECT, (void *)&yesOrNo, ppGroupOut);
+      if(HLS_OK == status)
+      {
+         DEBUG(DBG_INFO, "Found audio group by attrib autoselect\n");
          break;
       }
 
@@ -489,37 +505,48 @@ static hlsStatus_t findAudioGroup(hlsSession_t *pSession)
  *  
  * @param pSession - pointer to the HLS session
  * @param attrib   - Media group attribute
- * @param pbFoundGroup - Found the group by attribute?
+ * @param pData    - pointer to data based on attrib parameter
+ * @param ppGroupOut - pointer to the media group if found or NULL
  *
  * @return #hlsStatus_t 
  */
-static hlsStatus_t findAudioGroupByAttrib(hlsSession_t *pSession,
-                                          mediaAttrib_t attrib,
-                                          int *pbFoundGroup)
+hlsStatus_t findAudioGroupByAttrib(hlsSession_t *pSession,
+                                   mediaAttrib_t attrib,
+                                   void *pData,
+                                   hlsGroup_t **ppGroupOut)
 {
-   hlsStatus_t status = HLS_OK;
+   hlsStatus_t status = HLS_NOT_FOUND;
    int ii = 0;
-   hlsGroup_t *pGroup = NULL;
    char *uri = NULL;
+   hlsGroup_t *pGroup = NULL;
    llNode_t* pGroupNode = NULL;
-   srcPlayerSetData_t playerSetData = {};
-   srcStatus_t rval = SRC_ERROR;
+   char *audioLanguage = NULL;
+   hlsYesNo_t yesOrNo = HLS_YES;
    
    do {
-   if((NULL == pSession) || (NULL == pbFoundGroup))
+   if((NULL == pSession) || (NULL == ppGroupOut) || (NULL == pData))
    {
       ERROR("Invalid param");
-      status = HLS_ERROR;
+      status = HLS_INVALID_PARAMETER;
       break;
    }
 
-   *pbFoundGroup = 0;
+   *ppGroupOut = NULL;
 
    if(NULL == pSession->pPlaylist->pGroupList)
    {
-      ERROR("Invalid group list");
-      status = HLS_ERROR;
+      ERROR("Empty group list");
+      status = HLS_NOT_FOUND;
       break;
+   }
+
+   if(ATTRIB_LANGUAGE == attrib)
+   {
+      audioLanguage = (char *)pData;
+   }
+   else if((ATTRIB_DEFAULT == attrib) || (ATTRIB_AUTOSELECT == attrib))
+   {
+      yesOrNo = *((hlsYesNo_t *)pData);
    }
    
    pGroupNode = pSession->pPlaylist->pGroupList->pHead;
@@ -539,30 +566,18 @@ static hlsStatus_t findAudioGroupByAttrib(hlsSession_t *pSession,
       if(0 == strcmp(pSession->pCurrentPlaylist->pMediaData->audio,
                      pGroup->groupID))
       {
-         if((ATTRIB_LANGUAGE == attrib) && ((pGroup->language != NULL) && (0 == strcmp(pGroup->language, "eng"))) ||
-            (ATTRIB_DEFAULT == attrib) && (HLS_YES == pGroup->def) ||
-            (ATTRIB_AUTOSELECT == attrib) && (HLS_YES == pGroup->autoSelect))
+         if((ATTRIB_LANGUAGE == attrib) && ((pGroup->language != NULL) && 
+                  (0 == strcmp(pGroup->language, audioLanguage))) ||
+            (ATTRIB_DEFAULT == attrib) && (yesOrNo == pGroup->def) ||
+            (ATTRIB_AUTOSELECT == attrib) && (yesOrNo == pGroup->autoSelect))
          {
+            *ppGroupOut = pGroup;
             if(NULL != pGroup->pPlaylist)
             {
-               pSession->pCurrentGroup[pSession->currentGroupCount++] = pGroup;
                uri = pGroup->pPlaylist->playlistURL;
-        
-               playerSetData.setCode = SRC_PLAYER_SET_DISABLE_MAIN_STREAM_AUDIO;
-               rval = hlsPlayer_set(pSession->pHandle, &playerSetData);
-               if(rval != SRC_SUCCESS) 
-               {
-                   ERROR("failed to set SRC_PLAYER_SET_DISABLE_MAIN_STREAM_AUDIO");
-                   status = HLS_ERROR;
-                   break;
-               }
-            }
-            else
-            {
-               uri = NULL;
             }
 
-            *pbFoundGroup = 1;
+            status = HLS_OK;
             DEBUG(DBG_INFO, "selecting audio group with name: %s, language: %s, playlistURL: %s",
                   pGroup->name, pGroup->language, PRINTNULL(uri));
             break;

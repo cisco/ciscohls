@@ -51,6 +51,7 @@ hlsStatus_t hlsSession_setBitrateLimit(hlsSession_t* pSession, hlsBitrateLimit_t
 hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed);
 hlsStatus_t hlsSession_stop(hlsSession_t* pSession, int bFlush);
 hlsStatus_t hlsSession_seek(hlsSession_t* pSession, float position);
+hlsStatus_t hlsSession_setAudioLanguage(hlsSession_t* pSession, char audioLangISOCode[]);
 hlsStatus_t hlsSession_getDuration(hlsSession_t* pSession, float* pDuration);
 hlsStatus_t hlsSession_getCurrentPosition(hlsSession_t* pSession, float* pPosition);
 hlsStatus_t hlsSession_getSpeed(hlsSession_t* pSession, float* pSpeed);

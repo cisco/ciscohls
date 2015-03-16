@@ -140,6 +140,7 @@ typedef enum
     SRC_PLUGIN_SET_MAX_BITRATE,     /*!< pData -> int* containg the maxinum bitrate, in bps */ 
     SRC_PLUGIN_SET_MIN_BITRATE,     /*!< pData -> int* containg the minimum bitrate, in bps */ 
     SRC_PLUGIN_SET_TARGET_BITRATE,  /*!< pData -> int* containg the target bitrate, in bps */ 
+    SRC_PLUGIN_SET_AUDIO_LANGUAGE,  /*!< pData -> char* containg the audio language ISO code */ 
     SRC_PLUGIN_SET_END
 
 } srcPluginSetCode_t;
@@ -199,6 +200,7 @@ typedef enum
 {
    SRC_PLAYER_GET_FIFO_DATA,     /*!< pData -> fifoData_t* ; Get demux fifo data */
    SRC_PLAYER_GET_LAST_PTS,      /*!< pData -> uint64_t* ; Get last 90khz PTS */
+   SRC_PLAYER_GET_POSITION,      /*!< pData -> int* ; Get position in milliseconds */
 
 } srcPlayerGetCode_t;
 

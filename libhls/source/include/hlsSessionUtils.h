@@ -72,6 +72,8 @@ void freeGroup(hlsGroup_t* pGroup);
 
 hlsStatus_t playlistSeek(hlsPlaylist_t *pMediaPlaylist, float position, int *pSeqNum);
 
+hlsStatus_t updateCurrentGroup(hlsSession_t *pSession, char groupID[], hlsGroup_t *pNewGroup);
+
 void printPlaylist(hlsPlaylist_t* pPlaylist);
 
 #ifdef __cplusplus

@@ -39,7 +39,8 @@ enum
 enum
 {
    PROP_0,
-   PROP_SILENT
+   PROP_SILENT,
+   PROP_AUDIO_LANGUAGE
 };
 
 /* the capabilities of the inputs and outputs.
@@ -323,6 +324,10 @@ gst_ciscdemux_class_init (GstciscdemuxClass * klass)
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output ?",
       FALSE, G_PARAM_READWRITE));
 
+   g_object_class_install_property (gobject_class, PROP_AUDIO_LANGUAGE,
+      g_param_spec_string ("audio-language", "Audio language ISO code",
+          "Sets audio language", NULL, G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
+
    gstelement_class->change_state = GST_DEBUG_FUNCPTR(gst_cscohlsdemuxer_change_state);
 
 #if GST_CHECK_VERSION(1,0,0)
@@ -384,6 +389,7 @@ gst_ciscdemux_init (Gstciscdemux * demux, GstciscdemuxClass * gclass)
    demux->bufferPts = INVALID_PTS;
    demux->isFlushOnSeek = FALSE;
    demux->drmType = NULL;
+   demux->defaultAudioLangISOCode[0] = '\0';
    if(0 != pthread_mutex_init(&demux->PTSMutex, NULL))
    {
       GST_WARNING("Failed to init PTSMutex\n");
@@ -400,11 +406,43 @@ gst_ciscdemux_set_property (GObject * object, guint prop_id,
                             const GValue * value, GParamSpec * pspec)
 {
    Gstciscdemux *demux = GST_CISCDEMUX (object);
+   srcPluginSetData_t setData = {};
+   tSession *pSession = demux->pCscoHlsSession;
+   char *pAudioLang = NULL;
+   srcPluginErr_t errTable;
 
    switch (prop_id) {
        case PROP_SILENT:
           demux->silent = g_value_get_boolean (value);
           break;
+
+       case PROP_AUDIO_LANGUAGE:
+          {
+             pAudioLang = g_value_get_string(value);
+             if(NULL == pAudioLang)
+             {
+                GST_ERROR("Invalid audio language ISO code\n");
+                break;
+             }
+
+             if((NULL == pSession) || (NULL == pSession->pSessionID))
+             {
+                strlcpy(demux->defaultAudioLangISOCode, pAudioLang, sizeof(demux->defaultAudioLangISOCode));
+                GST_WARNING("libhls session is NULL, audio lang will be set when libhls session is created\n");
+                break;
+             }
+
+             GST_WARNING("Setting audio language to %s\n", pAudioLang);
+
+             setData.setCode = SRC_PLUGIN_SET_AUDIO_LANGUAGE;
+             setData.pData = pAudioLang;
+             if(SRC_SUCCESS != demux->HLS_pluginTable.set( pSession->pSessionID, &setData, &errTable ))
+             {
+                GST_ERROR( "%s: Error %d while setting audio language to %s: %s", 
+                      __FUNCTION__, errTable.errCode, pAudioLang, errTable.errMsg);
+             }
+             break;
+          }
        default:
           G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
           break;
@@ -1418,10 +1456,71 @@ srcStatus_t hlsPlayer_set(void *pHandle, srcPlayerSetData_t *pSetData)
 
 srcStatus_t hlsPlayer_get(void *pHandle, srcPlayerGetData_t *pGetData)
 {
-   srcStatus_t status = SRC_SUCCESS;
+   srcStatus_t  status = SRC_ERROR;
+   gboolean     rc = FALSE;
+   GstFormat    gst_format;
+   gint64       pos = 0;
+   GstQuery     *query = NULL;
+   Gstciscdemux *demux = (Gstciscdemux *)pHandle;
 
    do
    {
+      if(NULL == demux)
+      {
+         GST_ERROR("Invalid pHandle param\n");
+         break;
+      }
+
+      if(NULL == pGetData)
+      {
+         GST_ERROR("Invalid parameter\n");
+         break;
+      }
+
+      switch(pGetData->getCode)
+      {
+         case SRC_PLAYER_GET_POSITION:
+            {
+               query = gst_query_new_position(GST_FORMAT_TIME);
+               if(NULL == query)
+               {
+                  GST_ERROR("Creating a position query failed\n");
+                  break;
+               }
+
+               rc = gst_pad_query(demux->downstream_peer_pad, query);
+               if (!rc)
+               {
+                  GST_ERROR("could not get current position\n");
+                  gst_query_unref(query);
+                  query = NULL;
+                  break;
+               }
+
+               gst_query_parse_position(query, &gst_format, &pos);
+
+               if(NULL == pGetData->pData)
+               {
+                  GST_ERROR("Invalid pData pointer in pGetData param\n");
+                  gst_query_unref(query);
+                  query = NULL;
+                  break;
+               }
+
+               *((int *)pGetData->pData) = pos / GST_MSECOND;
+               GST_INFO("Current position(millisec) = %d\n", 
+                     *((int *)pGetData->pData));
+
+               gst_query_unref(query);
+               query = NULL;
+               status = SRC_SUCCESS;
+            }
+            break;
+
+         default:
+            break;
+      }
+
    }while (0);
 
    return status;
@@ -1507,7 +1606,7 @@ static gboolean cisco_hls_open (Gstciscdemux *demux, char *pPlaylistUri)
    tSession *pSession = NULL;
    gboolean bError = FALSE;
    srcPluginSetData_t setData = {};
-   int                minBitrate = 0;
+   int minBitrate = 0;
 
    do 
    {
@@ -1570,6 +1669,18 @@ static gboolean cisco_hls_open (Gstciscdemux *demux, char *pPlaylistUri)
          break;
       }
 
+      if(strlen(demux->defaultAudioLangISOCode) > 0)
+      {
+         setData.setCode = SRC_PLUGIN_SET_AUDIO_LANGUAGE;
+         setData.pData = demux->defaultAudioLangISOCode;
+         stat = demux->HLS_pluginTable.set( pSession->pSessionID, &setData, &errTable );
+         if(stat)
+         {
+            GST_ERROR( "%s: Error %d while setting audio language to %s: %s", 
+                  __FUNCTION__, errTable.errCode, demux->defaultAudioLangISOCode, errTable.errMsg);
+         }
+      }
+
       /* prepare */
       stat = demux->HLS_pluginTable.prepare(pSession->pSessionID, &errTable );
       if(stat)
@@ -1577,7 +1688,7 @@ static gboolean cisco_hls_open (Gstciscdemux *demux, char *pPlaylistUri)
          GST_ERROR( "%s: Error %d while preparing playlist: %s", __FUNCTION__, errTable.errCode, errTable.errMsg);
          bError = TRUE;
       }
-   
+
    }while(0);
 
    return bError;
