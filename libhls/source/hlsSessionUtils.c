@@ -339,7 +339,7 @@ hlsStatus_t getExternalPosition(hlsPlaylist_t* pMediaPlaylist, double* pPosition
  * 
  * @return #hlsStatus_t
  */
-hlsStatus_t getSegmentXSecFromEnd(hlsPlaylist_t* pMediaPlaylist, double x, hlsSegment_t** ppSegment, hlsPlaylist_t* pOldMediaPlayList)
+hlsStatus_t getSegmentXSecFromEnd(hlsPlaylist_t* pMediaPlaylist, double x, hlsSegment_t** ppSegment, hlsPlaylist_t* pOldMediaPlaylist)
 {
     hlsStatus_t rval = HLS_OK;
     double targetTime;
@@ -352,7 +352,7 @@ hlsStatus_t getSegmentXSecFromEnd(hlsPlaylist_t* pMediaPlaylist, double x, hlsSe
        x = 0;
 
     targetTime = x;
-    
+
     if((pMediaPlaylist == NULL) || (ppSegment == NULL))
     {
         ERROR("invalid parameter, pMediaPlaylist: %p, ppSegment: %p, x: %llf", pMediaPlaylist, ppSegment, x);
@@ -361,14 +361,14 @@ hlsStatus_t getSegmentXSecFromEnd(hlsPlaylist_t* pMediaPlaylist, double x, hlsSe
 
     do
     {
-        if(pMediaPlaylist->type != PL_MEDIA) 
+        if(pMediaPlaylist->type != PL_MEDIA)
         {
             ERROR("not a media playlist");
             rval = HLS_ERROR;
             break;
         }
 
-        if(pMediaPlaylist->pMediaData == NULL) 
+        if(pMediaPlaylist->pMediaData == NULL)
         {
             ERROR("media playlist data is NULL");
             rval = HLS_ERROR;
@@ -386,16 +386,16 @@ hlsStatus_t getSegmentXSecFromEnd(hlsPlaylist_t* pMediaPlaylist, double x, hlsSe
 
         /* If we want to jump back more than the duration of the playlist,
            just return the HEAD of the list */
-        if(x >= pMediaPlaylist->pMediaData->duration) 
+        if(x >= pMediaPlaylist->pMediaData->duration)
         {
             DEBUG(DBG_INFO,"x = %5.2f s, playlist only %5.2f s long -- returning HEAD", x, pMediaPlaylist->pMediaData->duration);
             pNode = pMediaPlaylist->pList->pHead;
 
-            if(pNode != NULL) 
+            if(pNode != NULL)
             {
                 *ppSegment = (hlsSegment_t*)(pNode->pData);
 
-                if(*ppSegment == NULL) 
+                if(*ppSegment == NULL)
                 {
                     ERROR("invalid segment node");
                     rval = HLS_ERROR;
@@ -412,28 +412,34 @@ hlsStatus_t getSegmentXSecFromEnd(hlsPlaylist_t* pMediaPlaylist, double x, hlsSe
         }
         else
         {
-            if(NULL != pOldMediaPlayList && NULL != pOldMediaPlayList->pList)
+            /* Handle corresponding segment duration mismatch for non I-Frames playlists. */
+            if((NULL != pOldMediaPlaylist) && (NULL != pOldMediaPlaylist->pMediaData) && 
+                  !(pOldMediaPlaylist->pMediaData->bIframesOnly) && 
+                  !(pMediaPlaylist->pMediaData->bIframesOnly))
             {
-                pOldPlayListNode = pOldMediaPlayList->pList->pTail;
+               if(NULL != pOldMediaPlaylist->pList)
+               {
+                  pOldPlayListNode = pOldMediaPlaylist->pList->pTail;
+               }
             }
-            
+
             /* Start at the end of the list */
             pNode = pMediaPlaylist->pList->pTail;
-    
-            if(pNode == NULL) 
+
+            if(pNode == NULL)
             {
                 ERROR("invalid or empty segment list");
                 rval = HLS_ERROR;
                 break;
             }
-            
+
             /* Loop  until we get to a segment that starts 'x' or more seconds
                from the end. */
             do
             {
                 *ppSegment = (hlsSegment_t*)(pNode->pData);
-    
-                if(*ppSegment == NULL) 
+
+                if(*ppSegment == NULL)
                 {
                     ERROR("invalid segment node");
                     rval = HLS_ERROR;
@@ -443,11 +449,11 @@ hlsStatus_t getSegmentXSecFromEnd(hlsPlaylist_t* pMediaPlaylist, double x, hlsSe
 
                 targetTime -= (*ppSegment)->duration;
 
-              /* The following if block handles the following scenario. 
+              /* The following if block handles the following scenario.
                * we fetch the same segment in the new playlist when the duration of a 
                * corresponding segment in the old playlist is different.
                * For example.
-               * 
+               *
                * #EXTINF:0.720,
                * EuroNew_IPInput1_200/Seg_0/segment_360.ts
                *
@@ -457,7 +463,7 @@ hlsStatus_t getSegmentXSecFromEnd(hlsPlaylist_t* pMediaPlaylist, double x, hlsSe
                 if(pOldPlayListNode != NULL)
                 {
                     pOldSegment = (hlsSegment_t*)(pOldPlayListNode->pData);
-                    if(NULL != pOldSegment) 
+                    if(NULL != pOldSegment)
                     {
                         durDiff = pOldSegment->duration - (*ppSegment)->duration;
                         if(fabs(durDiff) > 0.0001)
@@ -469,7 +475,7 @@ hlsStatus_t getSegmentXSecFromEnd(hlsPlaylist_t* pMediaPlaylist, double x, hlsSe
                     }
                     pOldPlayListNode = pOldPlayListNode->pPrev;
                 }
-                
+
                 pNode = pNode->pPrev;
 
                 /* If our segment durations are floating point numbers, the
@@ -477,13 +483,13 @@ hlsStatus_t getSegmentXSecFromEnd(hlsPlaylist_t* pMediaPlaylist, double x, hlsSe
                    playlistDuration - (sum of all segment durations) != 0
                    So, use 0.1 millisecond as the smallest resolution.
                    i.e.: if (-0.0001 < x < 0.0001) --> x == 0 (effectively)
-                 
+
                    Once targetTime hits 0, this is the segment we want */
             } while((pNode != NULL) && (targetTime > 0.0001));
-            
+
             DEBUG(DBG_NOISE, "targetTime = %llf\n", targetTime);
-            
-            if(rval) 
+
+            if(rval)
             {
                 break;
             }
