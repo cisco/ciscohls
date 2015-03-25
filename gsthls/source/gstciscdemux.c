@@ -326,7 +326,7 @@ gst_ciscdemux_class_init (GstciscdemuxClass * klass)
 
    g_object_class_install_property (gobject_class, PROP_AUDIO_LANGUAGE,
       g_param_spec_string ("audio-language", "Audio language ISO code",
-          "Sets audio language", NULL, G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
+          "Sets audio language", NULL, G_PARAM_READWRITE));
 
    gstelement_class->change_state = GST_DEBUG_FUNCPTR(gst_cscohlsdemuxer_change_state);
 
@@ -427,7 +427,7 @@ gst_ciscdemux_set_property (GObject * object, guint prop_id,
 
              if((NULL == pSession) || (NULL == pSession->pSessionID))
              {
-                strlcpy(demux->defaultAudioLangISOCode, pAudioLang, sizeof(demux->defaultAudioLangISOCode));
+                g_strlcpy(demux->defaultAudioLangISOCode, pAudioLang, sizeof(demux->defaultAudioLangISOCode));
                 GST_WARNING("libhls session is NULL, audio lang will be set when libhls session is created\n");
                 break;
              }
@@ -438,7 +438,7 @@ gst_ciscdemux_set_property (GObject * object, guint prop_id,
              setData.pData = pAudioLang;
              if(SRC_SUCCESS != demux->HLS_pluginTable.set( pSession->pSessionID, &setData, &errTable ))
              {
-                GST_ERROR( "%s: Error %d while setting audio language to %s: %s", 
+                GST_ERROR( "%s: Error %d while setting audio language to %s: %s",
                       __FUNCTION__, errTable.errCode, pAudioLang, errTable.errMsg);
              }
              break;
@@ -453,12 +453,39 @@ static void
 gst_ciscdemux_get_property (GObject * object, guint prop_id,
                             GValue * value, GParamSpec * pspec)
 {
-   Gstciscdemux *demux = GST_CISCDEMUX (object);
+   Gstciscdemux       *demux = GST_CISCDEMUX (object);
+   srcStatus_t        stat = SRC_SUCCESS;
+   srcPluginGetData_t getData = {};
+   srcPluginErr_t     errTable = {};
+   gchar              audioLanguage[ISO_LANG_CODE_LEN + 1] = "";
 
    switch (prop_id) {
        case PROP_SILENT:
           g_value_set_boolean (value, demux->silent);
           break;
+       case PROP_AUDIO_LANGUAGE:
+          {
+             if((NULL == demux) || (NULL == demux->pCscoHlsSession))
+             {
+                GST_ERROR("Invalid session handle(s)\n");
+                break;
+             }
+
+             getData.getCode = SRC_PLUGIN_GET_AUDIO_LANGUAGE;
+             getData.pData = audioLanguage;
+             stat = demux->HLS_pluginTable.get(demux->pCscoHlsSession->pSessionID, &getData, &errTable);
+             if (stat != SRC_SUCCESS)
+             {
+                GST_ERROR("There was an error obtaining current audio language: %s\n",
+                      errTable.errMsg);
+                break;
+             }
+
+             GST_INFO("current audioLanguage: %s\n", audioLanguage);
+             g_value_set_string (value, audioLanguage);
+
+             break;
+          }
        default:
           G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
           break;

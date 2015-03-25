@@ -61,6 +61,7 @@ hlsStatus_t hlsSession_getNumAudioLanguages(hlsSession_t* pSession, int *pNumAud
 hlsStatus_t hlsSession_getAudioLanguagesInfo(hlsSession_t* pSession,
                                              srcPluginAudioLangInfo_t audioLangInfoArr[],
                                              int *pAudioLangInfoArrSize);
+hlsStatus_t hlsSession_getAudioLanguage(hlsSession_t* pSession, char audioLanguage[]);
 void hlsSession_playerEvtCallback(hlsSession_t* pSession, srcPlayerEvt_t* pEvt);
 
 void hlsSession_printInfo(hlsSession_t* pSession);

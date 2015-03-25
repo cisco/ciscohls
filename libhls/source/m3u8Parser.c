@@ -226,9 +226,10 @@ void m3u8ParserThread(hlsSession_t* pSession)
                   break;
                }
 
-               strlcat(pSession->audioLanguageISOCode, pGroup->language, 
-                       sizeof(pSession->audioLanguageISOCode));
-               
+               strncpy(pSession->audioLanguageISOCode, pGroup->language,
+                       ISO_LANG_CODE_LEN);
+               pSession->audioLanguageISOCode[ISO_LANG_CODE_LEN] = '\0';
+
                if(NULL != pGroup->pPlaylist)
                {
                   pSession->pCurrentGroup[pSession->currentGroupCount++] = pGroup;

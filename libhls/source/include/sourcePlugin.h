@@ -172,7 +172,8 @@ typedef enum
     SRC_PLUGIN_GET_CONTENT_TYPE,    /*!< pData -> srcPluginContentType_t */ 
     SRC_PLUGIN_GET_NUM_AUDIO_LANGUAGES, /*!< pData -> int* ; will contain number of available audio languages */ 
     SRC_PLUGIN_GET_AUDIO_LANGUAGES_INFO, /*!< pData -> srcPluginAudioLangInfo_t*; will contain info about audio languages */ 
-                                                                                   
+    SRC_PLUGIN_GET_AUDIO_LANGUAGE,  /*!< pData -> char*; containing the current audio language ISO code */
+
     SRC_PLUGIN_GET_END
 
 } srcPluginGetCode_t;

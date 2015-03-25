@@ -1209,6 +1209,27 @@ srcStatus_t hlsPlugin_get(srcSessionId_t sessionId, srcPluginGetData_t* pGetData
                    }
                 }
                 break;
+            case SRC_PLUGIN_GET_AUDIO_LANGUAGE:
+                {
+                   DEBUG(DBG_INFO,"getting current audio language for session %p", (void*)sessionId);
+                   status = hlsSession_getAudioLanguage(thePlugin.hlsSessions[sessionIndex],
+                                                             (char *)pGetData->pData);
+
+                   if(status != HLS_OK)
+                   {
+                      ERROR("hlsSession_getAudioLanguage failed on session %p with status: %d", (void*)sessionId, status);
+                      if(pErr != NULL)
+                      {
+                         pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
+                         snprintf(pErr->errMsg, SRC_ERR_MSG_LEN,
+                                  DEBUG_MSG("hlsSession_getAudioLanguage failed on session %p with status: %d",
+                                  (void*)sessionId, status));
+                      }
+                      rval = SRC_ERROR;
+                      break;
+                   }
+                }
+                break;
             default:
                 ERROR("unknown srcPlayerGetCode_t value: %d", pGetData->getCode);
                 if(pErr != NULL) 

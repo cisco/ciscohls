@@ -1886,12 +1886,12 @@ hlsStatus_t hlsSession_seek(hlsSession_t* pSession, float position)
     return rval;
 }
 
-/** 
- * 
- * 
+/**
+ * Change the current audio language
+ *
  * @param pSession
- * @param audioLangISOCode 
- * 
+ * @param audioLangISOCode
+ *
  * @return #hlsStatus_t
  */
 hlsStatus_t hlsSession_setAudioLanguage(hlsSession_t* pSession, char audioLangISOCode[])
@@ -1912,38 +1912,38 @@ hlsStatus_t hlsSession_setAudioLanguage(hlsSession_t* pSession, char audioLangIS
    pthread_mutex_lock(&(pSession->setMutex));
    /* Block state changes */
    pthread_mutex_lock(&(pSession->stateMutex));
-   
+
    do
    {
       /* Check for valid state */
-      if(pSession->state < HLS_INITIALIZED) 
+      if(pSession->state < HLS_INITIALIZED)
       {
          ERROR("%s invalid in state %d", __FUNCTION__, pSession->state);
          rval = HLS_STATE_ERROR;
          break;
       }
-      
+
       if(!strncmp(pSession->audioLanguageISOCode, audioLangISOCode, sizeof(pSession->audioLanguageISOCode)))
       {
          DEBUG(DBG_WARN, "Old and new audio language are same. Not taking any action\n");
          rval = HLS_OK;
          break;
       }
-      
+
       if(pSession->state >= HLS_PREPARED)
       {
          rval = findAudioGroupByAttrib(pSession, ATTRIB_LANGUAGE, pSession->audioLanguageISOCode, &pOldGroup);
          if(HLS_OK != rval)
          {
-            ERROR("Could not find media group for old audio language: %s\n", 
+            ERROR("Could not find media group for old audio language: %s\n",
                   audioLangISOCode);
             break;
          }
-         
+
          rval = findAudioGroupByAttrib(pSession, ATTRIB_LANGUAGE, audioLangISOCode, &pNewGroup);
          if(HLS_OK != rval)
          {
-            ERROR("Could not find media group for new audio language: %s\n", 
+            ERROR("Could not find media group for new audio language: %s\n",
                   audioLangISOCode);
             break;
          }
@@ -1979,12 +1979,12 @@ hlsStatus_t hlsSession_setAudioLanguage(hlsSession_t* pSession, char audioLangIS
          DEBUG(DBG_INFO, "current position = %d\n", position);
 
          rval = hlsSession_stop(pSession, 1);
-         if(HLS_OK != rval) 
+         if(HLS_OK != rval)
          {
             ERROR("hlsSession_stop() failed");
             break;
          }
-         
+
          rval = updateCurrentGroup(pSession, pSession->pCurrentPlaylist->pMediaData->audio, pNewGroup);
          if(HLS_OK != rval)
          {
@@ -1993,18 +1993,19 @@ hlsStatus_t hlsSession_setAudioLanguage(hlsSession_t* pSession, char audioLangIS
          }
 
          rval = hlsSession_seek(pSession, position);
-         if(HLS_OK != rval) 
+         if(HLS_OK != rval)
          {
             ERROR("hlsSession_seek() failed");
             break;
          }
       }
-   
+
    } while(0);
-      
+
    if(HLS_OK == rval)
    {
-      strlcpy(pSession->audioLanguageISOCode, audioLangISOCode, sizeof(pSession->audioLanguageISOCode));
+      strncpy(pSession->audioLanguageISOCode, audioLangISOCode, ISO_LANG_CODE_LEN);
+      pSession->audioLanguageISOCode[ISO_LANG_CODE_LEN] = '\0';
    }
 
    /* Leave critical section */
@@ -2362,13 +2363,13 @@ hlsStatus_t hlsSession_getNumAudioLanguages(hlsSession_t* pSession, int *pNumAud
    return rval;
 }
 
-/** 
- * 
- * 
+/**
+ * Get the list of audio languages info
+ *
  * @param pSession
  * @param audioLangInfoArr
  * @param pAudioLangInfoArrSize
- * 
+ *
  * @return #hlsStatus_t
  */
 hlsStatus_t hlsSession_getAudioLanguagesInfo(hlsSession_t* pSession,
@@ -2382,7 +2383,7 @@ hlsStatus_t hlsSession_getAudioLanguagesInfo(hlsSession_t* pSession,
 
    do
    {
-      if((pSession == NULL) || (audioLangInfoArr == NULL) 
+      if((pSession == NULL) || (audioLangInfoArr == NULL)
             || (pAudioLangInfoArrSize == NULL))
       {
          ERROR("invalid parameter");
@@ -2391,7 +2392,7 @@ hlsStatus_t hlsSession_getAudioLanguagesInfo(hlsSession_t* pSession,
       }
 
       /* Check for valid state */
-      if(pSession->state < HLS_PREPARED) 
+      if(pSession->state < HLS_PREPARED)
       {
          ERROR("%s invalid in state %d", __FUNCTION__, pSession->state);
          rval = HLS_STATE_ERROR;
@@ -2421,11 +2422,12 @@ hlsStatus_t hlsSession_getAudioLanguagesInfo(hlsSession_t* pSession,
          pGroup = (hlsGroup_t *)pGroupNode->pData;
          if((NULL != pGroup) && (HLS_MEDIA_TYPE_AUDIO == pGroup->type))
          {
-            DEBUG(DBG_NOISE, "%s Audio language[%d]: %s", 
+            DEBUG(DBG_NOISE, "%s Audio language[%d]: %s",
                   __FUNCTION__, numAudioLanguages, pGroup->language);
-            
-            strlcpy(audioLangInfoArr[numAudioLanguages].isoCode, pGroup->language, 
-                  sizeof(audioLangInfoArr[numAudioLanguages].isoCode));
+
+            strncpy(audioLangInfoArr[numAudioLanguages].isoCode, pGroup->language,
+                  ISO_LANG_CODE_LEN);
+            audioLangInfoArr[numAudioLanguages].isoCode[ISO_LANG_CODE_LEN] = '\0';
             if(NULL != pGroup->pPlaylist)
             {
                audioLangInfoArr[numAudioLanguages].bDiscrete = 1;
@@ -2442,9 +2444,52 @@ hlsStatus_t hlsSession_getAudioLanguagesInfo(hlsSession_t* pSession,
       /* Release playlist lock */
       pthread_rwlock_unlock(&(pSession->playlistRWLock));
    }while(0);
-      
+
    *pAudioLangInfoArrSize = numAudioLanguages;
    DEBUG(DBG_NOISE, "%s numAudiolang = %d", __FUNCTION__, *pAudioLangInfoArrSize);
+
+   return rval;
+}
+
+/**
+ * Get the current audio language
+ *
+ * @param pSession
+ * @param audioLanguage
+ *
+ * @return #hlsStatus_t
+ */
+hlsStatus_t hlsSession_getAudioLanguage(hlsSession_t* pSession,
+                                        char audioLanguage[])
+{
+   hlsStatus_t rval = HLS_OK;
+   llNode_t    *pGroupNode = NULL;
+   hlsGroup_t  *pGroup = NULL;
+   int         numAudioLanguages = 0;
+
+   do
+   {
+      if((pSession == NULL) || (audioLanguage == NULL))
+      {
+         ERROR("invalid parameter");
+         rval = HLS_INVALID_PARAMETER;
+         break;
+      }
+
+      /* Check for valid state */
+      if(pSession->state < HLS_INITIALIZED)
+      {
+         ERROR("%s invalid in state %d", __FUNCTION__, pSession->state);
+         rval = HLS_STATE_ERROR;
+         break;
+      }
+
+      strncpy(audioLanguage, pSession->audioLanguageISOCode, ISO_LANG_CODE_LEN + 1);
+      audioLanguage[ISO_LANG_CODE_LEN] = '\0';
+
+      DEBUG(DBG_NOISE, "%s current audiolanguage: %s", __FUNCTION__, audioLanguage);
+
+   }while(0);
 
    return rval;
 }
