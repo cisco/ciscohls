@@ -1,29 +1,30 @@
-/* ****************************************************************************
-*
-*                   Copyright 2012 Cisco Systems, Inc.
-*
-*                              CHS Engineering
-*                           5030 Sugarloaf Parkway
-*                               P.O. Box 465447
-*                          Lawrenceville, GA 30042
-*
-*                        Proprietary and Confidential
-*              Unauthorized distribution or copying is prohibited
-*                            All rights reserved
-*
-* No part of this computer software may be reprinted, reproduced or utilized
-* in any form or by any electronic, mechanical, or other means, now known or
-* hereafter invented, including photocopying and recording, or using any
-* information storage and retrieval system, without permission in writing
-* from Cisco Systems, Inc.
-*
-******************************************************************************/
+/*
+    LIBBHLS
+    Copyright (C) {2015}  {Cisco System}
 
+    This library is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation; either
+    version 2.1 of the License, or (at your option) any later version.
+
+    This library is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
+    USA
+
+    Contributing Authors: Saravanakumar Periyaswamy, Patryk Prus, Tankut Akgul
+
+*/
 /**
  * @file hlsPlaybackController.c @date February 9, 2012
- *  
- * @author Patryk Prus (pprus@cisco.com) 
- *  
+ *
+ * @author Patryk Prus (pprus@cisco.com)
+ *
  */
 
 #ifdef __cplusplus
@@ -46,8 +47,8 @@ extern "C" {
 #define PLAYBACK_CONTROL_LOOP_NSECS 500000000
 
 /**
- * 
- * 
+ *
+ *
  * @param pSession - pointer to pre-allocated hlsSession_t
  */
 void hlsPlaybackControllerThread(hlsSession_t* pSession)
@@ -85,7 +86,7 @@ void hlsPlaybackControllerThread(hlsSession_t* pSession)
     while(status == HLS_OK)
     {
         /* If the playback controller was signalled to exit, return HLS_CANCELLED */
-        if(pSession->bKillPlaybackController) 
+        if(pSession->bKillPlaybackController)
         {
             DEBUG(DBG_WARN, "playback controller signalled to stop");
             status = HLS_CANCELLED;
@@ -93,7 +94,7 @@ void hlsPlaybackControllerThread(hlsSession_t* pSession)
         }
 
         /* Get loop start time */
-        if(clock_gettime(CLOCK_MONOTONIC, &wakeTime) != 0) 
+        if(clock_gettime(CLOCK_MONOTONIC, &wakeTime) != 0)
         {
             ERROR("failed to get current time");
             status = HLS_ERROR;
@@ -107,14 +108,14 @@ void hlsPlaybackControllerThread(hlsSession_t* pSession)
          */
         if(pSession->state == HLS_PLAYING)
         {
-    
+
             /* Get playlist READ lock */
             pthread_rwlock_rdlock(&(pSession->playlistRWLock));
-    
+
             /* Validate current playlist */
-            if((pSession->pCurrentPlaylist == NULL) || 
-               (pSession->pCurrentPlaylist->type != PL_MEDIA) || 
-               (pSession->pCurrentPlaylist->pMediaData == NULL)) 
+            if((pSession->pCurrentPlaylist == NULL) ||
+               (pSession->pCurrentPlaylist->type != PL_MEDIA) ||
+               (pSession->pCurrentPlaylist->pMediaData == NULL))
             {
                 ERROR("current playlist invalid");
                 status = HLS_ERROR;
@@ -125,7 +126,7 @@ void hlsPlaybackControllerThread(hlsSession_t* pSession)
 
             /* Are we paused on a stream with a floating start point? */
             if((pSession->speed == 0) && // PAUSED
-               (pSession->pCurrentPlaylist->pMediaData->startOffset != 0)) // floating start point 
+               (pSession->pCurrentPlaylist->pMediaData->startOffset != 0)) // floating start point
             {
                 /* Get our current externally visible play position */
                 status = getExternalPosition(pSession->pCurrentPlaylist, &playPosition);
@@ -138,8 +139,8 @@ void hlsPlaybackControllerThread(hlsSession_t* pSession)
                 }
 
                 DEBUG(DBG_INFO,"Current position: %f", playPosition);
-                            
-                if(playPosition == 0) 
+
+                if(playPosition == 0)
                 {
                     /* Send SRC_PLUGIN_BOS message to player */
                     event.eventCode = SRC_PLUGIN_BOS;
@@ -150,25 +151,25 @@ void hlsPlaybackControllerThread(hlsSession_t* pSession)
                 }
 
             }
-    
+
             /* Release playlist lock */
             pthread_rwlock_unlock(&(pSession->playlistRWLock));
-                
-            if(bRestartPlayback) 
+
+            if(bRestartPlayback)
             {
-                if(pSession->speed == 0) 
+                if(pSession->speed == 0)
                 {
                     DEBUG(DBG_WARN,"Paused at position %f -- attempting to restart playback", playPosition);
 
                     /* Set the player back into PLAY mode */
-                    if(hlsSession_setSpeed(pSession, 1.0) != HLS_OK) 
+                    if(hlsSession_setSpeed(pSession, 1.0) != HLS_OK)
                     {
                         DEBUG(DBG_WARN, "failed to force playback, will try again later");
                     }
                     else
                     {
                         bRestartPlayback = 0;
-        
+
                         /* Send SRC_PLUGIN_FORCED_RESUME message to player */
                         event.eventCode = SRC_PLUGIN_FORCED_RESUME;
                         event.pData = NULL;
@@ -187,7 +188,7 @@ void hlsPlaybackControllerThread(hlsSession_t* pSession)
 
         /* Check for new messages */
         llerror = getMsgCount(pSession->playbackControllerMsgQueue, &numMsgs);
-        if(llerror != LL_OK) 
+        if(llerror != LL_OK)
         {
             ERROR("failed to get message count");
             status = HLS_ERROR;
@@ -195,11 +196,11 @@ void hlsPlaybackControllerThread(hlsSession_t* pSession)
         }
 
         /* Do we have any messages? */
-        while(numMsgs > 0) 
+        while(numMsgs > 0)
         {
             /* Pop off top message */
             llerror = popMsg(pSession->playbackControllerMsgQueue, (void**)(&pSignal));
-            if(llerror != LL_OK) 
+            if(llerror != LL_OK)
             {
                 ERROR("failed to pop message from queue");
                 status = HLS_ERROR;
@@ -209,7 +210,7 @@ void hlsPlaybackControllerThread(hlsSession_t* pSession)
             numMsgs--;
 
             /* Process the message */
-            switch(*pSignal) 
+            switch(*pSignal)
             {
                 case PBC_DOWNLOAD_COMPLETE:
                     DEBUG(DBG_INFO, "got PBC_DOWNLOAD_COMPLETE");
@@ -245,11 +246,11 @@ void hlsPlaybackControllerThread(hlsSession_t* pSession)
                     {
                         /* Get playlist READ lock */
                         pthread_rwlock_rdlock(&(pSession->playlistRWLock));
-    
+
                         /* Validate current playlist */
-                        if((pSession->pCurrentPlaylist == NULL) || 
-                           (pSession->pCurrentPlaylist->type != PL_MEDIA) || 
-                           (pSession->pCurrentPlaylist->pMediaData == NULL)) 
+                        if((pSession->pCurrentPlaylist == NULL) ||
+                           (pSession->pCurrentPlaylist->type != PL_MEDIA) ||
+                           (pSession->pCurrentPlaylist->pMediaData == NULL))
                         {
                             ERROR("current playlist invalid");
                             status = HLS_ERROR;
@@ -296,21 +297,21 @@ void hlsPlaybackControllerThread(hlsSession_t* pSession)
                         pthread_rwlock_unlock(&(pSession->playlistRWLock));
 
                         event.pData = NULL;
-              
+
 #if 0
                         /* Pause the player */
                         // TODO: should we quit if we fail, or just roll with it?
-                        if(hlsSession_setSpeed(pSession, 0.0) != HLS_OK) 
+                        if(hlsSession_setSpeed(pSession, 0.0) != HLS_OK)
                         {
                             DEBUG(DBG_WARN, "failed to pause playback");
                         }
 #else
-                        if(hlsSession_stop(pSession, 0) != HLS_OK) 
+                        if(hlsSession_stop(pSession, 0) != HLS_OK)
                         {
                             DEBUG(DBG_WARN, "failed to stop playback");
                         }
 #endif
-                           
+
                         /* Signal EOF/BOF to player */
                         hlsPlayer_pluginEvtCallback(pSession->pHandle, &event);
                     }
@@ -321,21 +322,21 @@ void hlsPlaybackControllerThread(hlsSession_t* pSession)
                     /* We have received a PBC_DOWNLOAD_COMPLETE message during 1x PLAY
                        and are waiting for the player to play through everything
                        that it has buffered before sending an EOF signal */
-                    if(bWaitForPlaybackCompletion) 
+                    if(bWaitForPlaybackCompletion)
                     {
                         /* Pause the player */
                         // TODO: should we quit if we fail, or just roll with it?
-                        if(hlsSession_setSpeed(pSession, 0.0) != HLS_OK) 
+                        if(hlsSession_setSpeed(pSession, 0.0) != HLS_OK)
                         {
                             DEBUG(DBG_WARN, "failed to pause playback");
                         }
-                            
+
                         /* Signal EOF to player */
                         DEBUG(DBG_INFO, "sending SRC_PLUGIN_EOF to player");
                         event.eventCode = SRC_PLUGIN_EOF;
                         event.pData = NULL;
                         hlsPlayer_pluginEvtCallback(pSession->pHandle, &event);
-            
+
                         bWaitForPlaybackCompletion = 0;
                     }
                     else
@@ -364,7 +365,7 @@ void hlsPlaybackControllerThread(hlsSession_t* pSession)
                        1) player wants to stop playback
                        2) setSpeed() has been called
                        3) seek() has been called
-                     
+
                        In all three cases we no longer need to wait for a PBC_PLAYER_AUDIO_UNDERRUN
                        to signify EOF, so reset the bWaitForPlaybackCompletion flag */
                     bWaitForPlaybackCompletion = 0;
@@ -390,22 +391,22 @@ void hlsPlaybackControllerThread(hlsSession_t* pSession)
             status = HLS_ERROR;
             break;
         }
-                        
+
         /* Wait for PLAYBACK_CONTROL_LOOP_NSECS before going again */
         wakeTime.tv_nsec += PLAYBACK_CONTROL_LOOP_NSECS;
 
         /* Handle a rollover of the nanosecond portion of wakeTime */
-        while(wakeTime.tv_nsec >= 1000000000) 
+        while(wakeTime.tv_nsec >= 1000000000)
         {
             wakeTime.tv_sec += 1;
             wakeTime.tv_nsec -= 1000000000;
         }
-                    
+
         DEBUG(DBG_NOISE,"sleeping until: %f", ((wakeTime.tv_sec)*1.0) + (wakeTime.tv_nsec/1000000000.0));
-                    
+
         /* Wait until wakeTime */
         pthread_status = PTHREAD_COND_TIMEDWAIT(&(pSession->playbackControllerWakeCond), &(pSession->playbackControllerWakeMutex), &wakeTime);
-                    
+
         /* Unlock the playback controller wake mutex */
         if(pthread_mutex_unlock(&(pSession->playbackControllerWakeMutex)) != 0)
         {
@@ -413,7 +414,7 @@ void hlsPlaybackControllerThread(hlsSession_t* pSession)
             status = HLS_ERROR;
             break;
         }
-                    
+
         /* If the timedwait call failed we need to bail */
         if((pthread_status != ETIMEDOUT) && (pthread_status != 0))
         {
@@ -423,7 +424,7 @@ void hlsPlaybackControllerThread(hlsSession_t* pSession)
         }
 
         /* Make sure we're still in a valid state */
-        if(pSession->state == HLS_INVALID_STATE) 
+        if(pSession->state == HLS_INVALID_STATE)
         {
             status = HLS_STATE_ERROR;
             break;
@@ -452,7 +453,7 @@ void hlsPlaybackControllerThread(hlsSession_t* pSession)
     }
 
     pSession->playbackControllerStatus = status;
-    
+
     DEBUG(DBG_INFO,"session %p playback controller thread exiting with status %d", pSession, status);
     pthread_exit(NULL);
 }

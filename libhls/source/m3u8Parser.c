@@ -1,29 +1,31 @@
-/* ****************************************************************************
-*
-*                   Copyright 2012 Cisco Systems, Inc.
-*
-*                              CHS Engineering
-*                           5030 Sugarloaf Parkway
-*                               P.O. Box 465447
-*                          Lawrenceville, GA 30042
-*
-*                        Proprietary and Confidential
-*              Unauthorized distribution or copying is prohibited
-*                            All rights reserved
-*
-* No part of this computer software may be reprinted, reproduced or utilized
-* in any form or by any electronic, mechanical, or other means, now known or
-* hereafter invented, including photocopying and recording, or using any
-* information storage and retrieval system, without permission in writing
-* from Cisco Systems, Inc.
-*
-******************************************************************************/
+/*
+    LIBBHLS
+    Copyright (C) {2015}  {Cisco System}
+
+    This library is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation; either
+    version 2.1 of the License, or (at your option) any later version.
+
+    This library is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
+    USA
+
+    Contributing Authors: Saravanakumar Periyaswamy, Patryk Prus, Tankut Akgul
+
+*/
 
 /**
  * @file m3u8Parser.c @date February 9, 2012
- *  
- * @author Patryk Prus (pprus@cisco.com) 
- *  
+ *
+ * @author Patryk Prus (pprus@cisco.com)
+ *
  */
 
 #ifdef __cplusplus
@@ -49,20 +51,20 @@ extern "C" {
 #define PARSER_LOOP_SECS 1
 
 /**
- * Thread body responsible for playlist parsing.  Kicked off by 
- * hlsSession_prepare(). 
- *  
- * Order of operations: 
- *  
- * 1) Parse playlist pointed to by pSession->pPlaylist 
- *  
- * 2) 
- *  
- * . 
- * . 
- * . 
- *  
- * @param pSession - pointer to pre-allocated hlsSession 
+ * Thread body responsible for playlist parsing.  Kicked off by
+ * hlsSession_prepare().
+ *
+ * Order of operations:
+ *
+ * 1) Parse playlist pointed to by pSession->pPlaylist
+ *
+ * 2)
+ *
+ * .
+ * .
+ * .
+ *
+ * @param pSession - pointer to pre-allocated hlsSession
  *                  structure
  */
 void m3u8ParserThread(hlsSession_t* pSession)
@@ -76,7 +78,7 @@ void m3u8ParserThread(hlsSession_t* pSession)
     int bitrate = 0;
 
     struct timespec wakeTime;
-   
+
     int ii = 0;
 
     hlsGroup_t *pGroup = NULL;
@@ -98,9 +100,9 @@ void m3u8ParserThread(hlsSession_t* pSession)
 
         /* Parse top level playlist */
         status = m3u8ParsePlaylist(pSession->pPlaylist, pSession);
-        if(status) 
+        if(status)
         {
-            if(status == HLS_CANCELLED) 
+            if(status == HLS_CANCELLED)
             {
                 DEBUG(DBG_WARN, "parser signalled to stop");
                 /* Release playlist lock */
@@ -115,7 +117,7 @@ void m3u8ParserThread(hlsSession_t* pSession)
                 break;
             }
         }
-        
+
         /* Set our intial program to the first available, and
            our initial playlist to the one in that program that
            is within the range set and closest to the targetBitrate */
@@ -135,7 +137,7 @@ void m3u8ParserThread(hlsSession_t* pSession)
             break;
         }
 
-        if(pSession->pPlaylist->type == PL_MEDIA) 
+        if(pSession->pPlaylist->type == PL_MEDIA)
         {
             /* This is the only playlist */
             pSession->pCurrentPlaylist = pSession->pPlaylist;
@@ -156,7 +158,7 @@ void m3u8ParserThread(hlsSession_t* pSession)
             /* For now, just use the first program we run across */
             pProgramNode = pSession->pPlaylist->pList->pHead;
             pSession->pCurrentProgram = (hlsProgram_t*)(pProgramNode->pData);
-            
+
             if(pSession->pCurrentProgram->pStreams == NULL)
             {
                 ERROR("malformed variant playlist");
@@ -168,7 +170,7 @@ void m3u8ParserThread(hlsSession_t* pSession)
 
             /* Find the best starting bitrate */
             status = getBestBitrate(pSession, &bitrate);
-            if(status != HLS_OK)    
+            if(status != HLS_OK)
             {
                 ERROR("problem getting initial bitrate");
                 status = HLS_ERROR;
@@ -178,7 +180,7 @@ void m3u8ParserThread(hlsSession_t* pSession)
             }
 
             /* Set our starting playlist */
-            status = getPlaylistByBitrate(pSession->pCurrentProgram->pStreams, bitrate, 
+            status = getPlaylistByBitrate(pSession->pCurrentProgram->pStreams, bitrate,
                                       &(pSession->pCurrentPlaylist));
             if(status != HLS_OK)
             {
@@ -195,7 +197,7 @@ void m3u8ParserThread(hlsSession_t* pSession)
             status = m3u8ParsePlaylist(pSession->pCurrentPlaylist, pSession);
             if(status != HLS_OK)
             {
-                if(status == HLS_CANCELLED) 
+                if(status == HLS_CANCELLED)
                 {
                     DEBUG(DBG_WARN, "parser signalled to stop");
                     /* Release playlist lock */
@@ -210,7 +212,7 @@ void m3u8ParserThread(hlsSession_t* pSession)
                     break;
                 }
             }
-            
+
             if(NULL != pSession->pCurrentPlaylist->pMediaData->audio)
             {
                DEBUG(DBG_INFO, "Current program has audio: %s",
@@ -236,7 +238,7 @@ void m3u8ParserThread(hlsSession_t* pSession)
 
                   playerSetData.setCode = SRC_PLAYER_SET_DISABLE_MAIN_STREAM_AUDIO;
                   rval = hlsPlayer_set(pSession->pHandle, &playerSetData);
-                  if(rval != SRC_SUCCESS) 
+                  if(rval != SRC_SUCCESS)
                   {
                      ERROR("failed to set SRC_PLAYER_SET_DISABLE_MAIN_STREAM_AUDIO");
                      status = HLS_ERROR;
@@ -244,12 +246,12 @@ void m3u8ParserThread(hlsSession_t* pSession)
                   }
                }
             }
-                        
+
             DEBUG(DBG_INFO, "currentGroupCount = %u", pSession->currentGroupCount);
 
             if(pSession->currentGroupCount > MAX_NUM_MEDIA_GROUPS)
             {
-               ERROR("currentGroupCount(%u) > MAX_NUM_MEDIA_GROUPS(%d)", 
+               ERROR("currentGroupCount(%u) > MAX_NUM_MEDIA_GROUPS(%d)",
                      pSession->currentGroupCount, MAX_NUM_MEDIA_GROUPS);
                /* Release playlist lock */
                pthread_rwlock_unlock(&(pSession->playlistRWLock));
@@ -261,7 +263,7 @@ void m3u8ParserThread(hlsSession_t* pSession)
                status = m3u8ParsePlaylist(pSession->pCurrentGroup[ii]->pPlaylist, pSession);
                if(status != HLS_OK)
                {
-                  if(status == HLS_CANCELLED) 
+                  if(status == HLS_CANCELLED)
                   {
                      DEBUG(DBG_WARN, "parser signalled to stop");
                      /* Release playlist lock */
@@ -298,7 +300,7 @@ void m3u8ParserThread(hlsSession_t* pSession)
 
         /* Release playlist lock */
         pthread_rwlock_unlock(&(pSession->playlistRWLock));
-        
+
         /* At this point we've done an initial pass on our current playlist -- we are PREPARED */
         pSession->state = HLS_PREPARED;
 
@@ -308,7 +310,7 @@ void m3u8ParserThread(hlsSession_t* pSession)
         while(status == HLS_OK)
         {
              /* If the parser was signalled to exit, return HLS_CANCELLED */
-            if(pSession->bKillParser) 
+            if(pSession->bKillParser)
             {
                 DEBUG(DBG_WARN, "parser signalled to stop");
                 status = HLS_CANCELLED;
@@ -316,19 +318,19 @@ void m3u8ParserThread(hlsSession_t* pSession)
             }
 
             /* Get current time */
-            if(clock_gettime(CLOCK_MONOTONIC, &wakeTime) != 0) 
+            if(clock_gettime(CLOCK_MONOTONIC, &wakeTime) != 0)
             {
                 ERROR("failed to get current time");
                 status = HLS_ERROR;
                 break;
             }
-            
+
             /* Get playlist WRITE lock */
             pthread_rwlock_wrlock(&(pSession->playlistRWLock));
 
             /* Check playlist validity */
             if((pSession->pCurrentPlaylist == NULL) ||
-               (pSession->pCurrentPlaylist->type != PL_MEDIA) || 
+               (pSession->pCurrentPlaylist->type != PL_MEDIA) ||
                (pSession->pCurrentPlaylist->pMediaData == NULL))
             {
                 ERROR("invalid current playlist");
@@ -342,21 +344,21 @@ void m3u8ParserThread(hlsSession_t* pSession)
             if(!(pSession->pCurrentPlaylist->pMediaData->bHaveCompletePlaylist))
             {
                 /* Check to make sure it is time for an update */
-                if(wakeTime.tv_sec > pSession->pCurrentPlaylist->nextReloadTime.tv_sec) 
+                if(wakeTime.tv_sec > pSession->pCurrentPlaylist->nextReloadTime.tv_sec)
                 {
                     /* Update our current playlist */
                     status = m3u8ParsePlaylist(pSession->pCurrentPlaylist, pSession);
-                    if(status) 
+                    if(status)
                     {
-                        if(status == HLS_CANCELLED) 
+                        if(status == HLS_CANCELLED)
                         {
-                            /* If the playlist download was cancelled, exit */ 
+                            /* If the playlist download was cancelled, exit */
                             DEBUG(DBG_WARN, "parser signalled to stop");
                             /* Release playlist lock */
                             pthread_rwlock_unlock(&(pSession->playlistRWLock));
                             break;
                         }
-                        else if (status == HLS_DL_ERROR) 
+                        else if (status == HLS_DL_ERROR)
                         {
                             /* If we encountered a download error, but we might have enough
                                buffer to get over whatever network issue, so pretent everything
@@ -375,7 +377,7 @@ void m3u8ParserThread(hlsSession_t* pSession)
                     }
                 }
             }
-            
+
             /* Release playlist lock (WRITE) */
             pthread_rwlock_unlock(&(pSession->playlistRWLock));
 
@@ -386,15 +388,15 @@ void m3u8ParserThread(hlsSession_t* pSession)
                 status = HLS_ERROR;
                 break;
             }
-    
+
             /* Wait for LOOP_SECS before going again */
             wakeTime.tv_sec += PARSER_LOOP_SECS;
-    
+
             DEBUG(DBG_NOISE,"sleeping %d seconds until %d", (int)PARSER_LOOP_SECS, (int)wakeTime.tv_sec);
-    
+
             /* Wait until wakeTime */
             pthread_status = PTHREAD_COND_TIMEDWAIT(&(pSession->parserWakeCond), &(pSession->parserWakeMutex), &wakeTime);
-    
+
             /* Unlock the parser wake mutex */
             if(pthread_mutex_unlock(&(pSession->parserWakeMutex)) != 0)
             {
@@ -402,7 +404,7 @@ void m3u8ParserThread(hlsSession_t* pSession)
                 status = HLS_ERROR;
                 break;
             }
-    
+
             /* If the timedwait call failed we need to bail */
             if((pthread_status != ETIMEDOUT) && (pthread_status != 0))
             {
@@ -410,15 +412,15 @@ void m3u8ParserThread(hlsSession_t* pSession)
                 status = HLS_ERROR;
                 break;
             }
-            
+
             /* Make sure we're still in a valid state */
-            if(pSession->state == HLS_INVALID_STATE) 
+            if(pSession->state == HLS_INVALID_STATE)
             {
                 status = HLS_STATE_ERROR;
                 break;
             }
         }
-        if(status != HLS_OK) 
+        if(status != HLS_OK)
         {
             break;
         }
@@ -453,19 +455,19 @@ void m3u8ParserThread(hlsSession_t* pSession)
 }
 
 /**
- * Find the audio group associated with the current program 
- *  
+ * Find the audio group associated with the current program
+ *
  * @param pSession - pointer to the HLS session
  * @param ppGroupOut - pointer to the media group if found or NULL
- * 
- * @return #hlsStatus_t 
+ *
+ * @return #hlsStatus_t
  */
 hlsStatus_t findAudioGroup(hlsSession_t *pSession, hlsGroup_t **ppGroupOut)
 {
    hlsStatus_t status = HLS_OK;
    hlsYesNo_t yesOrNo = HLS_YES;
 
-   do 
+   do
    {
       if((NULL == pSession) || (NULL == ppGroupOut))
       {
@@ -474,7 +476,7 @@ hlsStatus_t findAudioGroup(hlsSession_t *pSession, hlsGroup_t **ppGroupOut)
          break;
       }
 
-      status = findAudioGroupByAttrib(pSession, ATTRIB_LANGUAGE, 
+      status = findAudioGroupByAttrib(pSession, ATTRIB_LANGUAGE,
             (void *)pSession->audioLanguageISOCode, ppGroupOut);
       if(HLS_OK == status)
       {
@@ -502,14 +504,14 @@ hlsStatus_t findAudioGroup(hlsSession_t *pSession, hlsGroup_t **ppGroupOut)
 }
 
 /**
- * Find the audio group associated with the current program by attribute 
- *  
+ * Find the audio group associated with the current program by attribute
+ *
  * @param pSession - pointer to the HLS session
  * @param attrib   - Media group attribute
  * @param pData    - pointer to data based on attrib parameter
  * @param ppGroupOut - pointer to the media group if found or NULL
  *
- * @return #hlsStatus_t 
+ * @return #hlsStatus_t
  */
 hlsStatus_t findAudioGroupByAttrib(hlsSession_t *pSession,
                                    mediaAttrib_t attrib,
@@ -523,7 +525,7 @@ hlsStatus_t findAudioGroupByAttrib(hlsSession_t *pSession,
    llNode_t* pGroupNode = NULL;
    char *audioLanguage = NULL;
    hlsYesNo_t yesOrNo = HLS_YES;
-   
+
    do {
    if((NULL == pSession) || (NULL == ppGroupOut) || (NULL == pData))
    {
@@ -549,11 +551,11 @@ hlsStatus_t findAudioGroupByAttrib(hlsSession_t *pSession,
    {
       yesOrNo = *((hlsYesNo_t *)pData);
    }
-   
+
    pGroupNode = pSession->pPlaylist->pGroupList->pHead;
 
-   for(ii = 0; 
-       ((ii < pSession->pPlaylist->pGroupList->numElements) && (NULL != pGroupNode)); 
+   for(ii = 0;
+       ((ii < pSession->pPlaylist->pGroupList->numElements) && (NULL != pGroupNode));
        ii++, pGroupNode = pGroupNode->pNext)
    {
       pGroup = (hlsGroup_t*)(pGroupNode->pData);
@@ -567,7 +569,7 @@ hlsStatus_t findAudioGroupByAttrib(hlsSession_t *pSession,
       if(0 == strcmp(pSession->pCurrentPlaylist->pMediaData->audio,
                      pGroup->groupID))
       {
-         if((ATTRIB_LANGUAGE == attrib) && ((pGroup->language != NULL) && 
+         if((ATTRIB_LANGUAGE == attrib) && ((pGroup->language != NULL) &&
                   (0 == strcmp(pGroup->language, audioLanguage))) ||
             (ATTRIB_DEFAULT == attrib) && (yesOrNo == pGroup->def) ||
             (ATTRIB_AUTOSELECT == attrib) && (yesOrNo == pGroup->autoSelect))

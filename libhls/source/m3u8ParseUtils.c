@@ -1,29 +1,30 @@
-/* ****************************************************************************
-*
-*                   Copyright 2012 Cisco Systems, Inc.
-*
-*                              CHS Engineering
-*                           5030 Sugarloaf Parkway
-*                               P.O. Box 465447
-*                          Lawrenceville, GA 30042
-*
-*                        Proprietary and Confidential
-*              Unauthorized distribution or copying is prohibited
-*                            All rights reserved
-*
-* No part of this computer software may be reprinted, reproduced or utilized
-* in any form or by any electronic, mechanical, or other means, now known or
-* hereafter invented, including photocopying and recording, or using any
-* information storage and retrieval system, without permission in writing
-* from Cisco Systems, Inc.
-*
-******************************************************************************/
+/*
+    LIBBHLS
+    Copyright (C) {2015}  {Cisco System}
 
+    This library is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation; either
+    version 2.1 of the License, or (at your option) any later version.
+
+    This library is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
+    USA
+
+    Contributing Authors: Saravanakumar Periyaswamy, Patryk Prus, Tankut Akgul
+
+*/
 /**
  * @file m3u8ParseUtils.c @date February 9, 2012
- *  
- * @author Patryk Prus (pprus@cisco.com) 
- *  
+ *
+ * @author Patryk Prus (pprus@cisco.com)
+ *
  */
 
 #ifdef __cplusplus
@@ -105,18 +106,18 @@ static hlsStatus_t addSegmentEncInfo(hlsSegment_t* pSegment, srcEncType_t encTyp
 static hlsStatus_t incCtrIv(char ** pIV);
 static hlsStatus_t decCtrIv(char ** pIV);
 
-typedef struct 
+typedef struct
 {
    char key[16];
 }tmemkey;
 
 
-/* 
+/*
 ** The string returned is a copy of the quoted string value linked to the requested field (quotes are removed).
 ** It is up to the calling function to free it
 */
 hlsStatus_t parse4QuotedString( char *tagLine, const char *field, char **retString )
-{ 
+{
    hlsStatus_t rval = HLS_OK;
    char *pTemp = NULL;
    char *pIndex = NULL;
@@ -131,15 +132,15 @@ hlsStatus_t parse4QuotedString( char *tagLine, const char *field, char **retStri
       }
 
       *retString = NULL;
-      
+
       pTemp = strstr(tagLine, field);
-      if(NULL == pTemp) 
+      if(NULL == pTemp)
       {
          DEBUG(DBG_NOISE, "unable to find \"%s\" in \"%s\"", field, tagLine);
          rval = HLS_NOT_FOUND;
          break;
       }
-      
+
       len = strlen(field);
 
       pIndex = strchr(pTemp + len, '\"');
@@ -159,24 +160,24 @@ hlsStatus_t parse4QuotedString( char *tagLine, const char *field, char **retStri
          rval = HLS_MEMORY_ERROR;
          break;
       }
-      
+
       DEBUG(DBG_NOISE,"Looking for \"%s\" ... Found %s", field, *retString);
 
    }while(0);
 
-   return rval; 
+   return rval;
 }
 
-/* 
+/*
 ** The string returned is a copy of the string value linked to the requested field.
 ** It is up to the calling function to free it
 */
 hlsStatus_t parse4String( char *tagLine, const char *field, char **retString )
-{ 
+{
    hlsStatus_t rval = HLS_OK;
    char *pTemp;
-   int len = 0; 
-      
+   int len = 0;
+
    do
    {
       if((NULL == tagLine) || (NULL == field) || (NULL == retString))
@@ -184,11 +185,11 @@ hlsStatus_t parse4String( char *tagLine, const char *field, char **retString )
          rval = HLS_INVALID_PARAMETER;
          break;
       }
-      
+
       *retString = NULL;
-      
+
       pTemp = strstr(tagLine, field);
-      if(NULL == pTemp) 
+      if(NULL == pTemp)
       {
          DEBUG(DBG_NOISE, "unable to find \"%s\" in \"%s\"", field, tagLine);
          rval = HLS_NOT_FOUND;
@@ -206,24 +207,24 @@ hlsStatus_t parse4String( char *tagLine, const char *field, char **retString )
       }
 
       pTemp = strchr(*retString, ',');
-      if(pTemp != NULL) 
+      if(pTemp != NULL)
       {
          *pTemp = '\0'; // Cut the string to the end of requested field value
       }
       DEBUG(DBG_NOISE,"Looking for \"%s\" ... Found %s", field, *retString);
 
-   }while(0); 
+   }while(0);
 
    return rval;
 }
 
 hlsStatus_t parse4Int( char *tagLine, const char *field, int *retInt )
-{ 
+{
    hlsStatus_t rval = HLS_OK;
    char *pTemp = NULL;
    char *pFound = NULL;
-   int len = 0; 
-   
+   int len = 0;
+
    do
    {
       if((NULL == tagLine) || (NULL == field) || (NULL == retInt))
@@ -233,13 +234,13 @@ hlsStatus_t parse4Int( char *tagLine, const char *field, int *retInt )
       }
 
       pTemp = strstr(tagLine, field);
-      if(NULL == pTemp) 
+      if(NULL == pTemp)
       {
          DEBUG(DBG_NOISE, "unable to find \"%s\" in \"%s\"", field, tagLine);
          rval = HLS_NOT_FOUND;
          break;
       }
-      
+
       len = strlen(field);
 
       pFound = strdup(pTemp + len);
@@ -249,18 +250,18 @@ hlsStatus_t parse4Int( char *tagLine, const char *field, int *retInt )
          rval = HLS_MEMORY_ERROR;
          break;
       }
-      
+
       pTemp = strchr(pFound, ',');
       if (pTemp != NULL)
       {
          *pTemp = '\0'; // Cut the string to the end of requested field value
       }
-      
+
       *retInt = atoi(pFound);
       DEBUG(DBG_NOISE,"Looking for \"%s\" ... Found %d", field, *retInt);
-      
+
    }while(0);
-   
+
    if(NULL != pFound)
    {
       free(pFound);
@@ -293,7 +294,7 @@ static void strToHex( const char *pString,  char *pHex, int arraySize )
       {
          sscanf( &pString[jj], "%2x", &output );
          pHex[ii] = output;
-      }  
+      }
    }
    return;
 }
@@ -311,7 +312,7 @@ static size_t WriteMemoryCallback( void *contents, size_t size, size_t nmemb, vo
 
 }
 #if 0
-static void hexdump(void *ptr, int buflen) 
+static void hexdump(void *ptr, int buflen)
 {
    ptr = ptr;
    buflen = buflen;
@@ -319,13 +320,13 @@ static void hexdump(void *ptr, int buflen)
    int i, j;
    for (i=0; i<buflen; i+=16) {
       printf("%06x: ", i);
-      for (j=0; j<16; j++) 
+      for (j=0; j<16; j++)
          if (i+j < buflen)
             printf("%02x ", buf[i+j]);
          else
             printf("   ");
       printf(" ");
-      for (j=0; j<16; j++) 
+      for (j=0; j<16; j++)
          if (i+j < buflen)
             printf("%c", isprint(buf[i+j]) ? buf[i+j] : '.');
       printf("\n");
@@ -384,10 +385,10 @@ static int dwnld_parse_keyURI(char *pOutKey, const char *pInURI)
  * TODO: update...
  * But leaves all other fields as they are.
  * Assumes calling thread has playlist WRITE lock
- * 
+ *
  * @param pPlaylist - pointer to hlsPlaylist structure to parse
  * @param pSession
- * 
+ *
  * @return #hlsStatus_t
  */
 hlsStatus_t m3u8ParsePlaylist(hlsPlaylist_t* pPlaylist, hlsSession_t* pSession)
@@ -417,7 +418,7 @@ hlsStatus_t m3u8ParsePlaylist(hlsPlaylist_t* pPlaylist, hlsSession_t* pSession)
     {
         /* Generate the local download path */
         rval = getLocalPath(pPlaylist->playlistURL, &filePath, pSession->sessionName);
-        if(rval != HLS_OK) 
+        if(rval != HLS_OK)
         {
             ERROR("error generating local path");
             break;
@@ -428,24 +429,24 @@ hlsStatus_t m3u8ParsePlaylist(hlsPlaylist_t* pPlaylist, hlsSession_t* pSession)
         {
             /* Download the playlist */
             rval = m3u8DownloadPlaylist(pPlaylist->playlistURL, filePath, &(pPlaylist->redirectURL), pSession);
-            if(rval != HLS_OK) 
+            if(rval != HLS_OK)
             {
                 ERROR("error downloading playlist");
                 break;
             }
 
             /* Store the current download time (we will add the wait offset later) */
-            if(clock_gettime(CLOCK_MONOTONIC, &(pPlaylist->nextReloadTime)) != 0) 
+            if(clock_gettime(CLOCK_MONOTONIC, &(pPlaylist->nextReloadTime)) != 0)
             {
                 ERROR("failed to get current time");
                 rval = HLS_ERROR;
                 break;
             }
-    
+
             DEBUG(DBG_INFO,"downloaded playlist @ %d", (int)pPlaylist->nextReloadTime.tv_sec);
-    
+
             DEBUG(DBG_NOISE,"redirect URL: %s", pPlaylist->redirectURL);
-    
+
             /* Generate base URL based on redirect URL */
             rval = getBaseURL(pPlaylist->redirectURL, &(pPlaylist->baseURL));
             if(rval)
@@ -453,41 +454,41 @@ hlsStatus_t m3u8ParsePlaylist(hlsPlaylist_t* pPlaylist, hlsSession_t* pSession)
                 ERROR("failed to generate base URL");
                 break;
             }
-    
+
             DEBUG(DBG_NOISE,"base URL: %s", pPlaylist->baseURL);
-    
+
             /* Open downloaded file */
             fpPlaylist = fopen(filePath, "rb");
-            if(fpPlaylist == NULL) 
+            if(fpPlaylist == NULL)
             {
                 ERROR("fopen() failed on file %s -- %s", filePath, strerror(errno));
                 rval = HLS_FILE_ERROR;
                 break;
             }
-    
-            /* TODO: Comment... */ 
+
+            /* TODO: Comment... */
             rval = m3u8PreprocessPlaylist(fpPlaylist, pPlaylist, pSession);
-            if(rval != HLS_OK) 
+            if(rval != HLS_OK)
             {
                 /* If we errored on pre-processing, it is possible
                    that we will recover if we try again in a bit */
-                if(preParseErrors < MAX_PL_PARSE_REDL_RETRIES) 
+                if(preParseErrors < MAX_PL_PARSE_REDL_RETRIES)
                 {
                     DEBUG(DBG_WARN,"error pre-processing playlist -- will retry %d times", MAX_PL_PARSE_REDL_RETRIES - preParseErrors);
                     preParseErrors++;
 
                     /* Things are OK for now... */
                     rval = HLS_OK;
-    
+
                     /* Clean up and start over */
                     /* Close file */
-                    if(fpPlaylist) 
+                    if(fpPlaylist)
                     {
                         fclose(fpPlaylist);
                         fpPlaylist = NULL;
                     }
-                    
-                    /* Free allocated memory */                    
+
+                    /* Free allocated memory */
                     free(pPlaylist->redirectURL);
                     pPlaylist->redirectURL = NULL;
                     free(pPlaylist->baseURL);
@@ -506,13 +507,13 @@ hlsStatus_t m3u8ParsePlaylist(hlsPlaylist_t* pPlaylist, hlsSession_t* pSession)
             }
 
         } while(preParseErrors != 0);
-        if(rval != HLS_OK) 
+        if(rval != HLS_OK)
         {
             break;
         }
 
         /* Now that we know the playlist type, start parsing */
-        switch(pPlaylist->type) 
+        switch(pPlaylist->type)
         {
             case PL_VARIANT:
                 DEBUG(DBG_INFO,"got version %d variant playlist", pPlaylist->version);
@@ -545,7 +546,7 @@ hlsStatus_t m3u8ParsePlaylist(hlsPlaylist_t* pPlaylist, hlsSession_t* pSession)
                 ERROR("invalid playlist type: %d", pPlaylist->type);
                 break;
         }
-        if(rval) 
+        if(rval)
         {
             break;
         }
@@ -553,7 +554,7 @@ hlsStatus_t m3u8ParsePlaylist(hlsPlaylist_t* pPlaylist, hlsSession_t* pSession)
     }while(0);
 
     /* Close file */
-    if(fpPlaylist) 
+    if(fpPlaylist)
     {
         fclose(fpPlaylist);
         fpPlaylist = NULL;
@@ -561,7 +562,7 @@ hlsStatus_t m3u8ParsePlaylist(hlsPlaylist_t* pPlaylist, hlsSession_t* pSession)
 
     /* Delete downloaded file */
     // TODO: check for file deletion errors?
-    if(filePath != NULL) 
+    if(filePath != NULL)
     {
         unlink(filePath);
         free(filePath);
@@ -572,18 +573,18 @@ hlsStatus_t m3u8ParsePlaylist(hlsPlaylist_t* pPlaylist, hlsSession_t* pSession)
 }
 
 /**
- * Downloads an m3u8 playlist file. 
- *  
- * If the initial download fails because of a network error, 
- * this function will retry MAX_PL_DL_RETRIES times before 
- * returning an error. 
- * 
+ * Downloads an m3u8 playlist file.
+ *
+ * If the initial download fails because of a network error,
+ * this function will retry MAX_PL_DL_RETRIES times before
+ * returning an error.
+ *
  * @param URL - URL of the playlist to download
  * @param filePath - location to store the downloaded playlist
- * @param pRedirectURL - 
+ * @param pRedirectURL -
  * @param pSession - HLS session handle
- *  
- * @return #hlsStatus_t 
+ *
+ * @return #hlsStatus_t
  */
 static hlsStatus_t m3u8DownloadPlaylist(char* URL, char* filePath, char** pRedirectURL, hlsSession_t* pSession)
 {
@@ -616,7 +617,7 @@ static hlsStatus_t m3u8DownloadPlaylist(char* URL, char* filePath, char** pRedir
     do
     {
         /* Determine which thread we're being called from we can use the correct exit condition and sleep mutex */
-        if(pthread_equal(pthread_self(), pSession->downloader)) 
+        if(pthread_equal(pthread_self(), pSession->downloader))
         {
             DEBUG(DBG_NOISE, "called from downloader thread");
 
@@ -624,7 +625,7 @@ static hlsStatus_t m3u8DownloadPlaylist(char* URL, char* filePath, char** pRedir
             pDownloadWakeCond = &(pSession->downloaderWakeCond);
             pDownloadWakeMutex = &(pSession->downloaderWakeMutex);
         }
-        else if(pthread_equal(pthread_self(), pSession->parser)) 
+        else if(pthread_equal(pthread_self(), pSession->parser))
         {
             DEBUG(DBG_NOISE, "called from parser thread");
 
@@ -636,7 +637,7 @@ static hlsStatus_t m3u8DownloadPlaylist(char* URL, char* filePath, char** pRedir
         while(rval == HLS_OK)
         {
             /* Get loop start time */
-            if(clock_gettime(CLOCK_MONOTONIC, &wakeTime) != 0) 
+            if(clock_gettime(CLOCK_MONOTONIC, &wakeTime) != 0)
             {
                 ERROR("failed to get current time");
                 rval = HLS_ERROR;
@@ -645,13 +646,13 @@ static hlsStatus_t m3u8DownloadPlaylist(char* URL, char* filePath, char** pRedir
 
             /* Open local file for download */
             fpPlaylist = fopen(filePath, "wb");
-            if(fpPlaylist == NULL) 
+            if(fpPlaylist == NULL)
             {
                 ERROR("fopen() failed on file %s -- %s", filePath, strerror(errno));
                 rval = HLS_FILE_ERROR;
                 break;
             }
-    
+
             /* Populate download handle struct */
             dlHandle.fpTarget = fpPlaylist;
             dlHandle.pFileMutex = NULL;
@@ -678,11 +679,11 @@ static hlsStatus_t m3u8DownloadPlaylist(char* URL, char* filePath, char** pRedir
                 }
 
                 /* Make sure we actually downloaded some data */
-                if(downloadSize > 0) 
+                if(downloadSize > 0)
                 {
                     /* Unlock cURL mutex */
                     pthread_mutex_unlock(&(pSession->curlMutex));
-    
+
                     /* Break out of the loop */
                     break;
                 }
@@ -695,7 +696,7 @@ static hlsStatus_t m3u8DownloadPlaylist(char* URL, char* filePath, char** pRedir
                     *pRedirectURL = NULL;
                 }
             }
-            else if(rval != HLS_DL_ERROR) 
+            else if(rval != HLS_DL_ERROR)
             {
                 /* If we didn't fail because of a network error, quit here and report it (this includes
                    HLS_CANCELLED) */
@@ -703,7 +704,7 @@ static hlsStatus_t m3u8DownloadPlaylist(char* URL, char* filePath, char** pRedir
                 /* Unlock cURL mutex */
                 pthread_mutex_unlock(&(pSession->curlMutex));
 
-                if(rval == HLS_CANCELLED) 
+                if(rval == HLS_CANCELLED)
                 {
                     DEBUG(DBG_WARN, "playlist download cancelled");
                 }
@@ -717,9 +718,9 @@ static hlsStatus_t m3u8DownloadPlaylist(char* URL, char* filePath, char** pRedir
 
             /* Unlock cURL mutex */
             pthread_mutex_unlock(&(pSession->curlMutex));
-        
-            if(++attempts > MAX_PL_DL_RETRIES) 
-            {   
+
+            if(++attempts > MAX_PL_DL_RETRIES)
+            {
                 ERROR("playlist download failed after %d retries", MAX_PL_DL_RETRIES);
                 break;
             }
@@ -728,7 +729,7 @@ static hlsStatus_t m3u8DownloadPlaylist(char* URL, char* filePath, char** pRedir
             rval = HLS_OK;
 
             /* Close file so we can re-open it on the next iteration */
-            if(fpPlaylist) 
+            if(fpPlaylist)
             {
                 fclose(fpPlaylist);
                 fpPlaylist = NULL;
@@ -752,22 +753,22 @@ static hlsStatus_t m3u8DownloadPlaylist(char* URL, char* filePath, char** pRedir
                     rval = HLS_ERROR;
                     break;
                 }
-                                    
+
                 /* Wait for DOWNLOAD_RETRY_WAIT_NSECS before going again */
                 wakeTime.tv_nsec += DOWNLOAD_RETRY_WAIT_NSECS;
-                
+
                 /* Handle a rollover of the nanosecond portion of wakeTime */
-                while(wakeTime.tv_nsec >= 1000000000) 
+                while(wakeTime.tv_nsec >= 1000000000)
                 {
                     wakeTime.tv_sec += 1;
                     wakeTime.tv_nsec -= 1000000000;
                 }
-                                
+
                 DEBUG(DBG_NOISE,"sleeping until: %f", ((wakeTime.tv_sec)*1.0) + (wakeTime.tv_nsec/1000000000.0));
-                                
+
                 /* Wait until wakeTime */
                 pthread_status = PTHREAD_COND_TIMEDWAIT(pDownloadWakeCond, pDownloadWakeMutex, &wakeTime);
-                                    
+
                 /* Unlock the playback controller wake mutex */
                 if(pthread_mutex_unlock(pDownloadWakeMutex) != 0)
                 {
@@ -775,7 +776,7 @@ static hlsStatus_t m3u8DownloadPlaylist(char* URL, char* filePath, char** pRedir
                     rval = HLS_ERROR;
                     break;
                 }
-                                
+
                 /* If the timedwait call failed we need to bail */
                 if((pthread_status != ETIMEDOUT) && (pthread_status != 0))
                 {
@@ -798,15 +799,15 @@ static hlsStatus_t m3u8DownloadPlaylist(char* URL, char* filePath, char** pRedir
                 break;
             }
         }
-        if(rval != HLS_OK) 
+        if(rval != HLS_OK)
         {
             break;
         }
 
     }while(0);
- 
+
     /* Close file */
-    if(fpPlaylist) 
+    if(fpPlaylist)
     {
         fclose(fpPlaylist);
         fpPlaylist = NULL;
@@ -818,12 +819,12 @@ static hlsStatus_t m3u8DownloadPlaylist(char* URL, char* filePath, char** pRedir
 /**
  * hls_ok == valid playlist
  * Assumes calling thread has playlist WRITE lock
- * 
- * 
+ *
+ *
  * @param fpPlaylist
  * @param pPlaylist
  * @param pSession
- * 
+ *
  * @return #hlsStatus_t
  */
 static hlsStatus_t m3u8PreprocessPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pPlaylist, hlsSession_t* pSession)
@@ -845,7 +846,7 @@ static hlsStatus_t m3u8PreprocessPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pPlay
         ERROR("invalid parameter");
         return HLS_INVALID_PARAMETER;
     }
-    
+
     do
     {
         /* Set initial values */
@@ -854,14 +855,14 @@ static hlsStatus_t m3u8PreprocessPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pPlay
 
         /* Grab first line from the file */
         rval = m3u8GetLine(fpPlaylist, parseLine, PL_LINE_LENGTH);
-        if(rval) 
+        if(rval)
         {
             ERROR("problem reading from file");
-            break;    
+            break;
         }
 
-        /* Check for EXTM3U tag in first line of file */    
-        if(strstr(parseLine, "#EXTM3U") == NULL) 
+        /* Check for EXTM3U tag in first line of file */
+        if(strstr(parseLine, "#EXTM3U") == NULL)
         {
             ERROR("invalid playlist");
             rval = HLS_ERROR;
@@ -875,9 +876,9 @@ static hlsStatus_t m3u8PreprocessPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pPlay
         while(!rval && strlen(parseLine) != 0)
         {
             /* Ignore lines without tags */
-            if(strncmp(parseLine, "#EXT", strlen("#EXT")) == 0) 
+            if(strncmp(parseLine, "#EXT", strlen("#EXT")) == 0)
             {
-                switch(m3u8GetTag(parseLine)) 
+                switch(m3u8GetTag(parseLine))
                 {
                     case EXTM3U:
                         /* ignore */
@@ -892,15 +893,15 @@ static hlsStatus_t m3u8PreprocessPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pPlay
                     case EXT_X_VERSION:
                         pTemp = parseLine + strlen("#EXT-X-VERSION:");
                         pPlaylist->version = atoi(pTemp);
-                        if(pPlaylist->version > MAX_SUPPORTED_PL_VERSION) 
+                        if(pPlaylist->version > MAX_SUPPORTED_PL_VERSION)
                         {
                             pPlaylist->type = PL_WRONGVER;
-                            ERROR("got version %d playlist -- max supported version: %d", 
+                            ERROR("got version %d playlist -- max supported version: %d",
                                   pPlaylist->version, MAX_SUPPORTED_PL_VERSION);
                             rval = HLS_ERROR;
                         }
-        
-                        DEBUG(DBG_NOISE,"got version %d playlist -- max supported version: %d", 
+
+                        DEBUG(DBG_NOISE,"got version %d playlist -- max supported version: %d",
                               pPlaylist->version, MAX_SUPPORTED_PL_VERSION);
 
                         break;
@@ -928,14 +929,14 @@ static hlsStatus_t m3u8PreprocessPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pPlay
                         {
                             mutability = HLS_EVENT;
                         }
-                        else if(strncmp(pTemp, "VOD", strlen("VOD")) == 0) 
+                        else if(strncmp(pTemp, "VOD", strlen("VOD")) == 0)
                         {
                             mutability = HLS_VOD;
                         }
                         break;
                     case EXT_X_CISCO_PROT_HEADER:
                         rval = m3u8ParseProtHeader(parseLine, pSession);
-                        if(rval != HLS_OK) 
+                        if(rval != HLS_OK)
                         {
                             ERROR("failed to parse #EXT-X-CISCO-PROT-HEADER");
                             break;
@@ -945,12 +946,12 @@ static hlsStatus_t m3u8PreprocessPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pPlay
                         bIframesOnly = 1;
                         break;
                     default:
-                        break;                    
-                }   
+                        break;
+                }
 
             }
 
-            if(rval) 
+            if(rval)
             {
                 ERROR("error parsing tags");
                 break;
@@ -958,20 +959,20 @@ static hlsStatus_t m3u8PreprocessPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pPlay
 
             rval = m3u8GetLine(fpPlaylist, parseLine, PL_LINE_LENGTH);
         }
-        if(rval) 
+        if(rval)
         {
             break;
         }
 
-        switch(pPlaylist->type) 
+        switch(pPlaylist->type)
         {
             case PL_MEDIA:
                 /* If we have a media playlist, we need to allocate the pMediaData structure to
                    hold all the additional media playlist data, if it doesn't already exist */
-                if(pPlaylist->pMediaData == NULL) 
+                if(pPlaylist->pMediaData == NULL)
                 {
                     pPlaylist->pMediaData = (hlsMediaPlaylistData_t*)malloc(sizeof(hlsMediaPlaylistData_t));
-                    if(pPlaylist->pMediaData == NULL) 
+                    if(pPlaylist->pMediaData == NULL)
                     {
                         ERROR("malloc error");
                         rval = HLS_MEMORY_ERROR;
@@ -1014,7 +1015,7 @@ static hlsStatus_t m3u8PreprocessPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pPlay
             case PL_VARIANT:
                 /* If we have a variant playlist and the pMediaData structure was previously allocated,
                    we need to free it here */
-                if(pPlaylist->pMediaData != NULL) 
+                if(pPlaylist->pMediaData != NULL)
                 {
                     free(pPlaylist->pMediaData);
                     pPlaylist->pMediaData = NULL;
@@ -1023,7 +1024,7 @@ static hlsStatus_t m3u8PreprocessPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pPlay
             default:
                 break;
         }
-        if(rval) 
+        if(rval)
         {
             break;
         }
@@ -1037,15 +1038,15 @@ static hlsStatus_t m3u8PreprocessPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pPlay
 }
 
 /**
- * Parses a variant playlist.  This function should be run after 
- * m3u8PreprocessPlaylist(). 
- *  
- * Assumes calling thread has playlist WRITE lock 
- * 
+ * Parses a variant playlist.  This function should be run after
+ * m3u8PreprocessPlaylist().
+ *
+ * Assumes calling thread has playlist WRITE lock
+ *
  * @param fpPlaylist - pointer to playlist file to parse
- * @param pPlaylist - pointer to pre-allocated hlsPlaylist 
+ * @param pPlaylist - pointer to pre-allocated hlsPlaylist
  *                  structure to datafill
- * 
+ *
  * @return #hlsStatus_t
  */
 static hlsStatus_t m3u8ProcessVariantPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pPlaylist)
@@ -1065,7 +1066,7 @@ static hlsStatus_t m3u8ProcessVariantPlaylist(FILE* fpPlaylist, hlsPlaylist_t* p
     do
     {
         /* Check that we have the right type of playlist */
-        if(pPlaylist->type != PL_VARIANT) 
+        if(pPlaylist->type != PL_VARIANT)
         {
             ERROR("wrong playlist type");
             rval = HLS_ERROR;
@@ -1077,9 +1078,9 @@ static hlsStatus_t m3u8ProcessVariantPlaylist(FILE* fpPlaylist, hlsPlaylist_t* p
         while(!rval && strlen(parseLine) != 0)
         {
             /* Ignore lines without tags */
-            if(strncmp(parseLine, "#EXT", strlen("#EXT")) == 0) 
+            if(strncmp(parseLine, "#EXT", strlen("#EXT")) == 0)
             {
-                switch(m3u8GetTag(parseLine)) 
+                switch(m3u8GetTag(parseLine))
                 {
                     case EXTM3U:
                         /* ignore this tag */
@@ -1089,28 +1090,28 @@ static hlsStatus_t m3u8ProcessVariantPlaylist(FILE* fpPlaylist, hlsPlaylist_t* p
                         break;
                     case EXT_X_STREAM_INF:
                         /* Create program list if it doesn't exist */
-                        if(pPlaylist->pList == NULL) 
+                        if(pPlaylist->pList == NULL)
                         {
                             pPlaylist->pList = newLinkedList();
-                            if(pPlaylist->pList == NULL) 
+                            if(pPlaylist->pList == NULL)
                             {
                                 ERROR("problem allocating program list");
                                 rval = HLS_ERROR;
                                 break;
                             }
                         }
-    
+
                         /* find next URL in file */
                         rval = m3u8findURL(urlLine, PL_LINE_LENGTH, fpPlaylist);
-                        if(rval) 
+                        if(rval)
                         {
                             ERROR("problem finding URL in file");
                             break;
                         }
-    
+
                         /* Copy off the URL */
                         tempURL = (char*)malloc(strlen(urlLine)+1);
-                        if(tempURL == NULL) 
+                        if(tempURL == NULL)
                         {
                             ERROR("malloc error");
                             rval = HLS_MEMORY_ERROR;
@@ -1118,10 +1119,10 @@ static hlsStatus_t m3u8ProcessVariantPlaylist(FILE* fpPlaylist, hlsPlaylist_t* p
                         }
                         memset(tempURL, 0, strlen(urlLine)+1);
                         strcpy(tempURL, urlLine);
-                
+
                         /* Prepend the baseURL, if necessary */
                         rval = createFullURL(&tempURL, pPlaylist->baseURL);
-                        if(rval != HLS_OK) 
+                        if(rval != HLS_OK)
                         {
                             ERROR("error creating full URL");
                             break;
@@ -1133,34 +1134,34 @@ static hlsStatus_t m3u8ProcessVariantPlaylist(FILE* fpPlaylist, hlsPlaylist_t* p
                         break;
                     case EXT_X_I_FRAME_STREAM_INF:
                         /* Create program list if it doesn't exist */
-                        if(pPlaylist->pList == NULL) 
+                        if(pPlaylist->pList == NULL)
                         {
                             pPlaylist->pList = newLinkedList();
-                            if(pPlaylist->pList == NULL) 
+                            if(pPlaylist->pList == NULL)
                             {
                                 ERROR("problem allocating program list");
                                 rval = HLS_ERROR;
                                 break;
                             }
                         }
-    
-                        /* Parse the tag */    
+
+                        /* Parse the tag */
                         rval = m3u8ParseIFrameStreamInf(parseLine, pPlaylist->baseURL, pPlaylist->pList);
                         break;
                     case EXT_X_MEDIA:
                         DEBUG(DBG_INFO,"got EXT-X-MEDIA tag");
                         /* Create program list if it doesn't exist */
-                        if(pPlaylist->pGroupList == NULL) 
+                        if(pPlaylist->pGroupList == NULL)
                         {
                             pPlaylist->pGroupList = newLinkedList();
-                            if(pPlaylist->pGroupList == NULL) 
+                            if(pPlaylist->pGroupList == NULL)
                             {
                                 ERROR("problem allocating group list");
                                 rval = HLS_ERROR;
                                 break;
                             }
                         }
-                        
+
                         rval = m3u8ParseMedia(parseLine, pPlaylist->baseURL, pPlaylist->pGroupList);
                         if(HLS_UNSUPPORTED == rval)
                         {
@@ -1173,7 +1174,7 @@ static hlsStatus_t m3u8ProcessVariantPlaylist(FILE* fpPlaylist, hlsPlaylist_t* p
                 }
             }
 
-            if(rval) 
+            if(rval)
             {
                 ERROR("error parsing tags");
                 break;
@@ -1190,21 +1191,21 @@ static hlsStatus_t m3u8ProcessVariantPlaylist(FILE* fpPlaylist, hlsPlaylist_t* p
         }
 
     }while (0);
-    
+
     return rval;
 }
 
 /**
- * Parses a media playlist.  If pPlaylist->pList is not empty, 
- * then it assumes we are updating the playlist with a new 
- * version, and will add/remove segments as needed. 
- *  
- * Assumes calling thread has playlist WRITE lock 
- * 
+ * Parses a media playlist.  If pPlaylist->pList is not empty,
+ * then it assumes we are updating the playlist with a new
+ * version, and will add/remove segments as needed.
+ *
+ * Assumes calling thread has playlist WRITE lock
+ *
  * @param fpPlaylist - pointer to playlist file to parse
- * @param pPlaylist - pointer to pre-allocated hlsPlaylist 
+ * @param pPlaylist - pointer to pre-allocated hlsPlaylist
  *                  structure to datafill
- * 
+ *
  * @return #hlsStatus_t
  */
 static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMediaPlaylist)
@@ -1213,7 +1214,7 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
     char parseLine[PL_LINE_LENGTH];
     m3u8Tag_t tag = NUM_SUPPORTED_TAGS;
     char urlLine[PL_LINE_LENGTH];
-    int currSeqNum = 0; // The sequence number of the segment we are currently processing. 
+    int currSeqNum = 0; // The sequence number of the segment we are currently processing.
                         // Incremented each time we read a URL line (non-empty line that
                         // doesn't start with '#').
 
@@ -1245,14 +1246,14 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
     do
     {
         /* Check that we have the right type of playlist */
-        if(pMediaPlaylist->type != PL_MEDIA) 
+        if(pMediaPlaylist->type != PL_MEDIA)
         {
             ERROR("wrong playlist type");
             rval = HLS_ERROR;
             break;
         }
 
-        if(pMediaPlaylist->pMediaData == NULL) 
+        if(pMediaPlaylist->pMediaData == NULL)
         {
             ERROR("media playlist data is NULL");
             rval = HLS_ERROR;
@@ -1263,7 +1264,7 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
         currSeqNum = pMediaPlaylist->pMediaData->startingSequenceNumber;
 
         /* If we already have some segments in our list, this is an update */
-        if(pMediaPlaylist->pList != NULL) 
+        if(pMediaPlaylist->pList != NULL)
         {
             /* Save off the last sequence number in our existing list */
             lastSeqNum = currSeqNum + pMediaPlaylist->pList->numElements - 1;
@@ -1274,10 +1275,10 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
         while(!rval && strlen(parseLine) != 0)
         {
             /* Tags start with #EXT */
-            if(strncmp(parseLine, "#EXT", strlen("#EXT")) == 0) 
+            if(strncmp(parseLine, "#EXT", strlen("#EXT")) == 0)
             {
                 tag = m3u8GetTag(parseLine);
-                switch(tag) 
+                switch(tag)
                 {
                     case EXTM3U:
                         /* ignore this tag */
@@ -1288,42 +1289,42 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
                     case EXTINF:
                         /* Skip over segments that should already be in
                            our segment list */
-                        if(currSeqNum > lastSeqNum) 
+                        if(currSeqNum > lastSeqNum)
                         {
                             /* We're adding segments, so reset this counter */
                             pMediaPlaylist->unchangedReloads = -1;
 
                             /* Create segment list if it doesn't exist */
-                            if(pMediaPlaylist->pList == NULL) 
+                            if(pMediaPlaylist->pList == NULL)
                             {
                                 pMediaPlaylist->pList = newLinkedList();
-                                if(pMediaPlaylist->pList == NULL) 
+                                if(pMediaPlaylist->pList == NULL)
                                 {
                                     ERROR("problem allocating segment list");
                                     rval = HLS_ERROR;
                                     break;
                                 }
                             }
-        
+
                             /* find next URL in file */
                             rval = m3u8findURL(urlLine, PL_LINE_LENGTH, fpPlaylist);
-                            if(rval) 
+                            if(rval)
                             {
                                 ERROR("problem finding URL in file");
                                 break;
                             }
-    
+
                             /* Parse the tag -- this should add a segment node
                                to the segment linked list */
                             rval = m3u8ParseInf(parseLine, urlLine, pMediaPlaylist->pList);
-                            if(rval) 
+                            if(rval)
                             {
                                 break;
                             }
-    
+
                             /* Get last added segment */
                             if(pMediaPlaylist->pList != NULL &&
-                               pMediaPlaylist->pList->pTail != NULL) 
+                               pMediaPlaylist->pList->pTail != NULL)
                             {
                                 pSegment = (hlsSegment_t*)(pMediaPlaylist->pList->pTail->pData);
                             }
@@ -1334,21 +1335,21 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
                             }
 
                             /* Fill in additional segment information */
-                            if(pSegment != NULL) 
+                            if(pSegment != NULL)
                             {
                                 /* Set the sequence number */
                                 pSegment->seqNum = currSeqNum;
 
                                 /* Update playlist duration */
                                 pMediaPlaylist->pMediaData->duration += pSegment->duration;
-    
+
                                 /* Increment the current playlist position from 'end' */
                                 pMediaPlaylist->pMediaData->positionFromEnd += pSegment->duration;
-    
+
                                 /* If we have hit a key tag, all the subsequent
                                    segments should use the information in that
                                    tag */
-                                if(bKeyFound) 
+                                if(bKeyFound)
                                 {
                                     /* For AES-128-CTR encryption where a KEY tag
                                      * specifies an IV:
@@ -1357,14 +1358,14 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
                                      *    BYTERANGE tag == IV of previous segment
                                      *  - IV for subsequent segments NOT specified using
                                      *    BYTERANGE tag == [IV of previous segment] + *2^64
-                                     */ 
-                                    if((iv != NULL) && 
-                                       (encType == SRC_ENC_AES128_CTR) && 
+                                     */
+                                    if((iv != NULL) &&
+                                       (encType == SRC_ENC_AES128_CTR) &&
                                        (!bSignalRangeFound) &&  // no BYTERANGE tag
                                        (pSegment->seqNum != firstKeySeqNum))  // not first segment after KEY tag
                                     {
                                         rval = incCtrIv(&iv);
-                                        if(rval != HLS_OK) 
+                                        if(rval != HLS_OK)
                                         {
                                             ERROR("failed to increment AES-128-CTR IV");
                                             break;
@@ -1372,30 +1373,30 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
                                     }
 
                                     rval = addSegmentEncInfo(pSegment, encType, iv, keyURI);
-                                    if(rval != HLS_OK) 
+                                    if(rval != HLS_OK)
                                     {
                                         ERROR("failed to add key info to segment");
                                         break;
                                     }
-    
+
                                 }
-    
+
                                 /* A discontinuity was signalled prior to
                                    this segment */
-                                if(bSignalDiscontinuity) 
+                                if(bSignalDiscontinuity)
                                 {
                                     pSegment->bDiscontinuity = 1;
                                     bSignalDiscontinuity = 0;
                                 }
-    
+
                                 /* A program date/time tag was encountered
                                    prior to this segment */
-                                if(bSignalDateTime) 
+                                if(bSignalDateTime)
                                 {
                                     rval = m3u8ParseDateTime(dateLine, pSegment);
                                     memset(dateLine, 0, PL_LINE_LENGTH);
                                     bSignalDateTime = 0;
-                                    if(rval != HLS_OK) 
+                                    if(rval != HLS_OK)
                                     {
                                         break;
                                     }
@@ -1403,12 +1404,12 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
 
                                 /* A byterange tag was encountered
                                    prior to this segment */
-                                if(bSignalRangeFound) 
+                                if(bSignalRangeFound)
                                 {
                                     rval = m3u8ParseByteRange(rangeLine, pSegment, &nextSegmentOffset);
                                     memset(rangeLine, 0, PL_LINE_LENGTH);
                                     bSignalRangeFound = 0;
-                                    if(rval != HLS_OK) 
+                                    if(rval != HLS_OK)
                                     {
                                         break;
                                     }
@@ -1462,11 +1463,11 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
                     case EXT_X_DISCONTINUITY:
                         /* Skip over segments that should already be in
                            our segment list */
-                        if(currSeqNum > lastSeqNum) 
+                        if(currSeqNum > lastSeqNum)
                         {
                             /* Get last added segment */
                             if(pMediaPlaylist->pList != NULL &&
-                               pMediaPlaylist->pList->pTail != NULL) 
+                               pMediaPlaylist->pList->pTail != NULL)
                             {
                                 pSegment = (hlsSegment_t*)(pMediaPlaylist->pList->pTail->pData);
                             }
@@ -1476,9 +1477,9 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
                                 bSignalDiscontinuity = 1;
                                 break;
                             }
-    
+
                             /* Compare the current sequence number to the last-added sequence number */
-                            if(currSeqNum == pSegment->seqNum) 
+                            if(currSeqNum == pSegment->seqNum)
                             {
                                 pSegment->bDiscontinuity = 1;
                             }
@@ -1491,11 +1492,11 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
                     case EXT_X_PROGRAM_DATE_TIME:
                         /* Skip over segments that should already be in
                            our segment list */
-                        if(currSeqNum > lastSeqNum) 
+                        if(currSeqNum > lastSeqNum)
                         {
                             /* Get last added segment */
                             if(pMediaPlaylist->pList != NULL &&
-                               pMediaPlaylist->pList->pTail != NULL) 
+                               pMediaPlaylist->pList->pTail != NULL)
                             {
                                 pSegment = (hlsSegment_t*)(pMediaPlaylist->pList->pTail->pData);
                             }
@@ -1507,13 +1508,13 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
                                 bSignalDateTime = 1;
                                 break;
                             }
-    
+
                             /* Compare the current sequence number to the last-added sequence number */
-                            if(currSeqNum == pSegment->seqNum) 
+                            if(currSeqNum == pSegment->seqNum)
                             {
                                 rval = m3u8ParseDateTime(parseLine, pSegment);
                                 bSignalDateTime = 0;
-                                if(rval) 
+                                if(rval)
                                 {
                                     break;
                                 }
@@ -1537,7 +1538,7 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
 
                         /* Parse the key tag to get the relevant information */
                         rval = m3u8ParseKey(parseLine, &encType, &iv, &keyURI);
-                        if(rval || (NULL == keyURI)) 
+                        if(rval || (NULL == keyURI))
                         {
                             break;
                         }
@@ -1548,7 +1549,7 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
 
                         if (0 != strncmp("htt", keyURI, 3))
                         {
-                           // We are not starting at a full url we will have to 
+                           // We are not starting at a full url we will have to
                            // generate the full url
 
 
@@ -1576,14 +1577,14 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
 
                         /* Skip over segments that should already be in
                            our segment list */
-                        if(currSeqNum > lastSeqNum) 
+                        if(currSeqNum > lastSeqNum)
                         {
                             /* We need to see if we've already processed a "following"
                                segment */
-    
+
                             /* Get last added segment */
                             if(pMediaPlaylist->pList != NULL &&
-                               pMediaPlaylist->pList->pTail != NULL) 
+                               pMediaPlaylist->pList->pTail != NULL)
                             {
                                 pSegment = (hlsSegment_t*)(pMediaPlaylist->pList->pTail->pData);
                             }
@@ -1592,14 +1593,14 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
                                 /* No segments in the list */
                                 break;
                             }
-    
+
                             /* Compare the current sequence number to the last-added sequence number */
-                            if(currSeqNum == pSegment->seqNum) 
+                            if(currSeqNum == pSegment->seqNum)
                             {
                                 /* The first segment this applies to was already added to the playlist,
                                    so add key info to it */
                                 rval = addSegmentEncInfo(pSegment, encType, iv, keyURI);
-                                if(rval != HLS_OK) 
+                                if(rval != HLS_OK)
                                 {
                                     ERROR("failed to add key info to segment");
                                     break;
@@ -1610,11 +1611,11 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
                     case EXT_X_BYTERANGE:
                         /* Skip over segments that should already be in
                            our segment list */
-                        if(currSeqNum > lastSeqNum) 
+                        if(currSeqNum > lastSeqNum)
                         {
                             /* Get last added segment */
                             if(pMediaPlaylist->pList != NULL &&
-                               pMediaPlaylist->pList->pTail != NULL) 
+                               pMediaPlaylist->pList->pTail != NULL)
                             {
                                 pSegment = (hlsSegment_t*)(pMediaPlaylist->pList->pTail->pData);
                             }
@@ -1626,15 +1627,15 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
                                 bSignalRangeFound = 1;
                                 break;
                             }
-    
+
                             /* Compare the current sequence number to the last-added sequence number */
-                            if(currSeqNum == pSegment->seqNum) 
+                            if(currSeqNum == pSegment->seqNum)
                             {
                                 /* The segment this BYTERANGE applies to has already been added to the playlist,
                                    so apply the range to it. */
                                 rval = m3u8ParseByteRange(parseLine, pSegment, &nextSegmentOffset);
                                 bSignalRangeFound = 0;
-                                if(rval) 
+                                if(rval)
                                 {
                                     break;
                                 }
@@ -1650,7 +1651,7 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
                                  *  If we have already added the segment this BYTERANGE applies to
                                  *  to the playlist, and we have applied an incremented IV, we need to
                                  *  decrement the IV to correct it.
-                                 */ 
+                                 */
                                 if((bKeyFound) && (iv != NULL) &&
                                    (pSegment->encType == SRC_ENC_AES128_CTR) &&
                                    (pSegment->seqNum != firstKeySeqNum)) // Don't decrement if this is the first segment after KEY tag
@@ -1661,7 +1662,7 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
                                    //
                                     /* Decrement the segment's IV */
                                     rval = decCtrIv(&(pSegment->iv));
-                                    if(rval != HLS_OK) 
+                                    if(rval != HLS_OK)
                                     {
                                         ERROR("failed to decrement AES-128-CTR IV");
                                         break;
@@ -1669,7 +1670,7 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
 
                                     /* Decrement the stored IV for the last segment (this segment). */
                                     rval = decCtrIv(&iv);
-                                    if(rval != HLS_OK) 
+                                    if(rval != HLS_OK)
                                     {
                                         ERROR("failed to decrement AES-128-CTR IV");
                                         break;
@@ -1689,19 +1690,19 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
                         break;
                 }
             }
-            else if(strncmp(parseLine, "#", strlen("#")) != 0) 
+            else if(strncmp(parseLine, "#", strlen("#")) != 0)
             {
                 /* Lines that don't start with '#' are URIs -- when
                  * we hit one, increment the current sequence number.
-                 * Ignore empty lines... 
-                 */ 
-                if(strlen(parseLine) != strlen("")) 
+                 * Ignore empty lines...
+                 */
+                if(strlen(parseLine) != strlen(""))
                 {
                     currSeqNum++;
                 }
             }
 
-            if(rval) 
+            if(rval)
             {
                 ERROR("error parsing tags");
                 break;
@@ -1718,7 +1719,7 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
         }
 
     }while (0);
-    
+
     free(iv);
     iv = NULL;
     free(keyURI);
@@ -1735,11 +1736,11 @@ static hlsStatus_t m3u8ProcessMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMe
  * re-check for redirects and will update the playlist structure
  * as necessary.
  * Assumes calling thread has playlist WRITE lock
- * 
- * 
+ *
+ *
  * @param pPlaylist - pointer to hlsPlaylist structure to update
  * @param pSession
- * 
+ *
  * @return #hlsStatus_t
  */
 static hlsStatus_t m3u8UpdatePlaylist(hlsPlaylist_t* pPlaylist, hlsSession_t* pSession)
@@ -1766,7 +1767,7 @@ static hlsStatus_t m3u8UpdatePlaylist(hlsPlaylist_t* pPlaylist, hlsSession_t* pS
 
     /* Currently we don't support updating variant playlists.
        This shouldn't be an error, though. */
-    if(pPlaylist->type != PL_MEDIA) 
+    if(pPlaylist->type != PL_MEDIA)
     {
         DEBUG(DBG_WARN,"we don't support updating playlists of type %d", pPlaylist->type);
         return HLS_OK;
@@ -1782,7 +1783,7 @@ static hlsStatus_t m3u8UpdatePlaylist(hlsPlaylist_t* pPlaylist, hlsSession_t* pS
     {
         /* Generate the local download path */
         rval = getLocalPath(pPlaylist->playlistURL, &filePath, pSession->sessionName);
-        if(rval != HLS_OK) 
+        if(rval != HLS_OK)
         {
             ERROR("error generating local path");
             break;
@@ -1792,61 +1793,61 @@ static hlsStatus_t m3u8UpdatePlaylist(hlsPlaylist_t* pPlaylist, hlsSession_t* pS
         {
             /* Download the playlist */
             rval = m3u8DownloadPlaylist(pPlaylist->playlistURL, filePath, &tempRedirectURL, pSession);
-            if(rval != HLS_OK) 
+            if(rval != HLS_OK)
             {
                 ERROR("error downloading playlist");
                 break;
             }
-    
+
             /* Store the current download time (we will add the wait offset later) */
-            if(clock_gettime(CLOCK_MONOTONIC, &(pPlaylist->nextReloadTime)) != 0) 
+            if(clock_gettime(CLOCK_MONOTONIC, &(pPlaylist->nextReloadTime)) != 0)
             {
                 ERROR("failed to get current time");
                 rval = HLS_ERROR;
                 break;
             }
-    
+
             DEBUG(DBG_INFO,"downloaded playlist @ %d", (int)pPlaylist->nextReloadTime.tv_sec);
-    
+
             /* Open downloaded file */
             fpPlaylist = fopen(filePath, "r");
-            if(fpPlaylist == NULL) 
+            if(fpPlaylist == NULL)
             {
                 ERROR("fopen() failed on file %s -- %s", filePath, strerror(errno));
                 rval = HLS_FILE_ERROR;
                 break;
             }
-    
+
             pTempPlaylist = newHlsPlaylist();
-            if(pTempPlaylist == NULL) 
+            if(pTempPlaylist == NULL)
             {
                 ERROR("newHlsPlaylist() failed");
                 rval = HLS_MEMORY_ERROR;
                 break;
             }
-    
-            /* TODO: Comment... */ 
+
+            /* TODO: Comment... */
             rval = m3u8PreprocessPlaylist(fpPlaylist, pTempPlaylist, pSession);
-            if(rval != HLS_OK) 
+            if(rval != HLS_OK)
             {
                 /* If we errored on pre-processing the update, it is possible
                    that we will recover if we try again in a bit */
-                if(preParseErrors < MAX_PL_PARSE_REDL_RETRIES) 
+                if(preParseErrors < MAX_PL_PARSE_REDL_RETRIES)
                 {
                     DEBUG(DBG_WARN,"error pre-processing playlist -- will retry %d times", MAX_PL_PARSE_REDL_RETRIES - preParseErrors);
                     preParseErrors++;
 
                     /* Things are OK for now... */
                     rval = HLS_OK;
-    
+
                     /* Clean up and start over */
                     /* Close file */
-                    if(fpPlaylist) 
+                    if(fpPlaylist)
                     {
                         fclose(fpPlaylist);
                         fpPlaylist = NULL;
                     }
-                    
+
                     free(tempRedirectURL);
                     tempRedirectURL = NULL;
                     freePlaylist(pTempPlaylist);
@@ -1865,14 +1866,14 @@ static hlsStatus_t m3u8UpdatePlaylist(hlsPlaylist_t* pPlaylist, hlsSession_t* pS
             }
 
         } while(preParseErrors != 0);
-        if(rval != HLS_OK) 
+        if(rval != HLS_OK)
         {
             break;
         }
 
         /* If this playlist isn't the same type and version as the previous one, quit */
-        if((pTempPlaylist->type != pPlaylist->type) || 
-           (pTempPlaylist->version != pPlaylist->version)) 
+        if((pTempPlaylist->type != pPlaylist->type) ||
+           (pTempPlaylist->version != pPlaylist->version))
         {
             ERROR("type or version mismatch in updated playlist");
             rval = HLS_ERROR;
@@ -1887,7 +1888,7 @@ static hlsStatus_t m3u8UpdatePlaylist(hlsPlaylist_t* pPlaylist, hlsSession_t* pS
                         break;
 #endif
 
-        if(pPlaylist->type == PL_MEDIA) 
+        if(pPlaylist->type == PL_MEDIA)
         {
             if((pPlaylist->pMediaData == NULL) || (pTempPlaylist->pMediaData == NULL))
             {
@@ -1907,11 +1908,11 @@ static hlsStatus_t m3u8UpdatePlaylist(hlsPlaylist_t* pPlaylist, hlsSession_t* pS
         }
 
         /* Check if redirection stuff has changed since the last time we downloaded */
-        if(strcmp(tempRedirectURL, pPlaylist->redirectURL) != 0) 
+        if(strcmp(tempRedirectURL, pPlaylist->redirectURL) != 0)
         {
             /* Copy off the new redirect URL */
             pPlaylist->redirectURL = (char*)realloc(pPlaylist->redirectURL, strlen(tempRedirectURL)+1);
-            if(pPlaylist->redirectURL == NULL) 
+            if(pPlaylist->redirectURL == NULL)
             {
                 ERROR("realloc error");
                 rval = HLS_MEMORY_ERROR;
@@ -1919,9 +1920,9 @@ static hlsStatus_t m3u8UpdatePlaylist(hlsPlaylist_t* pPlaylist, hlsSession_t* pS
             }
             memset(pPlaylist->redirectURL, 0, strlen(tempRedirectURL)+1);
             strcpy(pPlaylist->redirectURL, tempRedirectURL);
-    
+
             DEBUG(DBG_NOISE,"redirect URL: %s", pPlaylist->redirectURL);
-    
+
             free(pPlaylist->baseURL);
             pPlaylist->baseURL = NULL;
 
@@ -1932,12 +1933,12 @@ static hlsStatus_t m3u8UpdatePlaylist(hlsPlaylist_t* pPlaylist, hlsSession_t* pS
                 ERROR("failed to generate base URL");
                 break;
             }
-        
+
             DEBUG(DBG_NOISE,"base URL: %s", pPlaylist->baseURL);
         }
 
         /* Now that we know the playlist type, start parsing */
-        switch(pPlaylist->type) 
+        switch(pPlaylist->type)
         {
             case PL_VARIANT:
                 /* This should have been caught above -- if we're here
@@ -1951,7 +1952,7 @@ static hlsStatus_t m3u8UpdatePlaylist(hlsPlaylist_t* pPlaylist, hlsSession_t* pS
                 if(rval == HLS_OK)
                 {
                     /* Set the time until the next reload of the playlist */
-                    switch(pPlaylist->unchangedReloads) 
+                    switch(pPlaylist->unchangedReloads)
                     {
                         case 0:
                             /* If playlist has changed, the minimum wait time is the length
@@ -1995,7 +1996,7 @@ static hlsStatus_t m3u8UpdatePlaylist(hlsPlaylist_t* pPlaylist, hlsSession_t* pS
                 ERROR("invalid playlist type: %d", pPlaylist->type);
                 break;
         }
-        if(rval) 
+        if(rval)
         {
             break;
         }
@@ -2003,7 +2004,7 @@ static hlsStatus_t m3u8UpdatePlaylist(hlsPlaylist_t* pPlaylist, hlsSession_t* pS
     }while(0);
 
     /* Close file */
-    if(fpPlaylist) 
+    if(fpPlaylist)
     {
         fclose(fpPlaylist);
         fpPlaylist = NULL;
@@ -2011,7 +2012,7 @@ static hlsStatus_t m3u8UpdatePlaylist(hlsPlaylist_t* pPlaylist, hlsSession_t* pS
 
     /* Delete downloaded file */
     // TODO: check for file deletion errors?
-    if(filePath != NULL) 
+    if(filePath != NULL)
     {
         unlink(filePath);
         free(filePath);
@@ -2027,18 +2028,18 @@ static hlsStatus_t m3u8UpdatePlaylist(hlsPlaylist_t* pPlaylist, hlsSession_t* pS
 }
 
 /**
- * Update the playlist structure pointed to by pPlaylist using 
- * the information in new playlist file pointed to by 
- * fpPlaylist.  Assumes that m3u8PreprocessPlaylist() has 
- * already been called on the new playlist and the relevant 
- * values have been updated (startingSequenceNumber, etc.). 
- *  
- * Assumes calling thread has playlist WRITE lock 
- *  
+ * Update the playlist structure pointed to by pPlaylist using
+ * the information in new playlist file pointed to by
+ * fpPlaylist.  Assumes that m3u8PreprocessPlaylist() has
+ * already been called on the new playlist and the relevant
+ * values have been updated (startingSequenceNumber, etc.).
+ *
+ * Assumes calling thread has playlist WRITE lock
+ *
  * @param fpPlaylist - file pointer to new playlist file
- * @param pMediaPlaylist - pointer to hlsPlaylist structure to 
+ * @param pMediaPlaylist - pointer to hlsPlaylist structure to
  *                       update
- * 
+ *
  * @return #hlsStatus_t
  */
 static hlsStatus_t m3u8UpdateMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMediaPlaylist)
@@ -2060,32 +2061,32 @@ static hlsStatus_t m3u8UpdateMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMed
     do
     {
         /* Check that we have the right type of playlist */
-        if(pMediaPlaylist->type != PL_MEDIA) 
+        if(pMediaPlaylist->type != PL_MEDIA)
         {
             ERROR("wrong playlist type");
             rval = HLS_ERROR;
             break;
         }
 
-        if(pMediaPlaylist->pMediaData == NULL) 
+        if(pMediaPlaylist->pMediaData == NULL)
         {
             ERROR("media playlist data is NULL");
             rval = HLS_ERROR;
             break;
-        }        
+        }
 
         /* Compare the current segment list to the contents of the new playlist,
            and remove any segments that have been dropped */
-        if(pMediaPlaylist->pList != NULL) 
+        if(pMediaPlaylist->pList != NULL)
         {
             /* Get the first sequence number in our existing list.
                Can't use pPlaylist->startingSequenceNumber as
                it will have been updated by m3u8PreprocessPlaylist() */
             pSegmentNode = pMediaPlaylist->pList->pHead;
-            if(pSegmentNode != NULL) 
+            if(pSegmentNode != NULL)
             {
                 pSegment = (hlsSegment_t*)(pSegmentNode->pData);
-                if(pSegment != NULL) 
+                if(pSegment != NULL)
                 {
                     seqNum = pSegment->seqNum;
                 }
@@ -2102,26 +2103,26 @@ static hlsStatus_t m3u8UpdateMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMed
                 rval = HLS_ERROR;
                 break;
             }
-            
+
             /* If there was no change in the starting sequence number, don't drop any segments
                If oldSeq < newSeq, remove segments with seqNum < newSeq
                if oldSeq > newSeq, something weird is going on -- dump the existing playlist and start from scratch */
-            if(seqNum < pMediaPlaylist->pMediaData->startingSequenceNumber) 
+            if(seqNum < pMediaPlaylist->pMediaData->startingSequenceNumber)
             {
                 /* We're deleting segments, so reset this counter */
                 pMediaPlaylist->unchangedReloads = -1;
 
-                while(pSegmentNode != NULL) 
+                while(pSegmentNode != NULL)
                 {
                     pSegment = (hlsSegment_t*)(pSegmentNode->pData);
 
-                    if(pSegment == NULL) 
+                    if(pSegment == NULL)
                     {
                         ERROR("NULL segment in linked list");
                         rval = HLS_ERROR;
                         break;
                     }
-                    
+
                     if(pSegment->seqNum < pMediaPlaylist->pMediaData->startingSequenceNumber)
                     {
                         pSegment = NULL;
@@ -2148,16 +2149,16 @@ static hlsStatus_t m3u8UpdateMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMed
                     {
                         break;
                     }
-    
+
                     pSegmentNode = pMediaPlaylist->pList->pHead;
                 }
-                if(rval != HLS_OK) 
+                if(rval != HLS_OK)
                 {
                     break;
                 }
 
             }
-            else if(seqNum > pMediaPlaylist->pMediaData->startingSequenceNumber) 
+            else if(seqNum > pMediaPlaylist->pMediaData->startingSequenceNumber)
             {
                 /* We're starting over, so reset this counter */
                 pMediaPlaylist->unchangedReloads = -1;
@@ -2166,7 +2167,7 @@ static hlsStatus_t m3u8UpdateMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMed
 
                 pSegment = NULL;
 
-                while(pMediaPlaylist->pList->numElements > 0) 
+                while(pMediaPlaylist->pList->numElements > 0)
                 {
                     llstat = removeHead(pMediaPlaylist->pList, (void**)(&pSegment));
                     if(llstat != LL_OK)
@@ -2176,13 +2177,13 @@ static hlsStatus_t m3u8UpdateMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMed
                         break;
                     }
 
-                    if(pSegment != NULL) 
+                    if(pSegment != NULL)
                     {
                         freeSegment(pSegment);
                         pSegment = NULL;
                     }
                 }
-                if(rval != HLS_OK) 
+                if(rval != HLS_OK)
                 {
                     break;
                 }
@@ -2196,22 +2197,22 @@ static hlsStatus_t m3u8UpdateMediaPlaylist(FILE* fpPlaylist, hlsPlaylist_t* pMed
         rval = m3u8ProcessMediaPlaylist(fpPlaylist, pMediaPlaylist);
 
     } while (0);
-    
+
     return rval;
 }
 
 /**
  * Grabs one line from the source file, removes any '\n' or '\r'
- * characters, and writes it into a buffer. 
- *  
+ * characters, and writes it into a buffer.
+ *
  * Any empty lines are skipped.
- *  
+ *
  * On EOF, returns HLS_OK but pDest will be empty (all 0s)
- *  
+ *
  * @param fpPlaylist - file pointer to source file
  * @param pDest - buffer to write data to
  * @param length - size of pDest
- * 
+ *
  * @return #hlsStatus_t
  */
 static hlsStatus_t m3u8GetLine(FILE* fpPlaylist, char* pDest, int length)
@@ -2233,7 +2234,7 @@ static hlsStatus_t m3u8GetLine(FILE* fpPlaylist, char* pDest, int length)
 
         /* If after normalizing the strlen == 0, we got an empty line
            and should try again to grab a valid one. */
-        if(strlen(pDest) == 0) 
+        if(strlen(pDest) == 0)
         {
             DEBUG(DBG_NOISE, "got empty line, try again");
             m3u8GetLine(fpPlaylist, pDest, length);
@@ -2258,9 +2259,9 @@ static hlsStatus_t m3u8GetLine(FILE* fpPlaylist, char* pDest, int length)
 
 /**
  * Parses input string and returns the first supported tag.
- * 
+ *
  * @param pString - string to parse
- * 
+ *
  * @return m3u8Tag
  */
 static m3u8Tag_t m3u8GetTag(char* pString)
@@ -2280,7 +2281,7 @@ static m3u8Tag_t m3u8GetTag(char* pString)
         {
             DEBUG(DBG_NOISE,"found tag \'%s\'", m3u8TagStrings[i]);
             tag = i;
-            break;  
+            break;
         }
     }
 
@@ -2289,7 +2290,7 @@ static m3u8Tag_t m3u8GetTag(char* pString)
 
 /**
  * Removes trailing '\n' and '\r' from string
- * 
+ *
  * @param pString - string to normalize
  */
 static void m3u8NormalizeString(char *pString)
@@ -2297,18 +2298,18 @@ static void m3u8NormalizeString(char *pString)
     int strLen = 0;
     char *strTmp = NULL;
     int i = 0;
-   
-    if(pString != NULL) 
+
+    if(pString != NULL)
     {
         DEBUG(DBG_NOISE, "pString = %s", pString);
 
         strLen = strlen(pString);
-       
+
         /* Loop in the string and look for /r, /n, etc */
         for(i = 1; i <= strLen; i++)
         {
             strTmp = pString + (strLen - i);
-          
+
             if(*strTmp == '\n')
             {
                 DEBUG(DBG_NOISE,"replacing '\\n' with '\\0'");
@@ -2327,20 +2328,20 @@ static void m3u8NormalizeString(char *pString)
     }
 }
 
-/** 
- * Finds the next URL in the file pointed to by fpPlaylist. 
- *  
- * A URL is defined as any line not starting with '#'. 
- *  
- * If no URL is found, return HLS_OK but buffer is empty. 
- *  
- * File pointed to by fpPlaylist is unchanged and the stream is 
- * reset to where it was at call time. 
- * 
+/**
+ * Finds the next URL in the file pointed to by fpPlaylist.
+ *
+ * A URL is defined as any line not starting with '#'.
+ *
+ * If no URL is found, return HLS_OK but buffer is empty.
+ *
+ * File pointed to by fpPlaylist is unchanged and the stream is
+ * reset to where it was at call time.
+ *
  * @param buffer - pre-allocated buffer to write found URL into
  * @param bufferLength - length of buffer
  * @param fpPlaylist - pointer to playlist file to parse
- * 
+ *
  * @return #hlsStatus_t
  */
 static hlsStatus_t m3u8findURL(char* buffer, int bufferLength, FILE* fpPlaylist)
@@ -2358,7 +2359,7 @@ static hlsStatus_t m3u8findURL(char* buffer, int bufferLength, FILE* fpPlaylist)
     {
         /* get current file position */
         filepos = ftell(fpPlaylist);
-                                
+
         /* find next URL in file (line not starting with '#') */
         rval = m3u8GetLine(fpPlaylist, buffer, bufferLength);
         while(!rval && strlen(buffer) != 0)
@@ -2373,12 +2374,12 @@ static hlsStatus_t m3u8findURL(char* buffer, int bufferLength, FILE* fpPlaylist)
         }
 
         /* Did we error out or hit EOF? */
-        if(rval) 
+        if(rval)
         {
             ERROR("problem reading from file");
             break;
         }
-            
+
         /* reset the file position to before the URL search */
         if(fseek(fpPlaylist, filepos, SEEK_SET))
         {
@@ -2386,19 +2387,19 @@ static hlsStatus_t m3u8findURL(char* buffer, int bufferLength, FILE* fpPlaylist)
             rval = HLS_FILE_ERROR;
             break;
         }
-    
+
     } while (0);
 
     return rval;
 }
 
-/** 
- * 
- * 
+/**
+ *
+ *
  * @param tagLine
  * @param urlLine
  * @param pProgramList
- * 
+ *
  * @return #hlsStatus_t
  */
 static hlsStatus_t m3u8ParseStreamInf(char *tagLine, char* urlLine, llist_t* pProgramList)
@@ -2452,9 +2453,9 @@ static hlsStatus_t m3u8ParseStreamInf(char *tagLine, char* urlLine, llist_t* pPr
 
         /* Extracting and processing "BANDWIDTH=" REQUIRED field of tagLine */
         rval = parse4Int(pTemp, "BANDWIDTH=", &bitrate);
-        if (rval == HLS_OK) 
+        if (rval == HLS_OK)
         {
-            if ( bitrate == 0 ) 
+            if ( bitrate == 0 )
             {
                 ERROR("no valid bandwidth parameter in EXT-X-STREAM-INF tag");
                 rval = HLS_ERROR;
@@ -2507,12 +2508,12 @@ static hlsStatus_t m3u8ParseStreamInf(char *tagLine, char* urlLine, llist_t* pPr
 
         /* Look for a program node with matching program ID */
         pProgramNode = pProgramList->pHead;
-        while(pProgramNode != NULL) 
+        while(pProgramNode != NULL)
         {
             pProgram = (hlsProgram_t*)(pProgramNode->pData);
-            if(pProgram != NULL) 
+            if(pProgram != NULL)
             {
-                if(pProgram->programID == programID) 
+                if(pProgram->programID == programID)
                 {
                     DEBUG(DBG_NOISE,"found program node with programID %d", programID);
                     break;
@@ -2530,18 +2531,18 @@ static hlsStatus_t m3u8ParseStreamInf(char *tagLine, char* urlLine, llist_t* pPr
                 rval = HLS_ERROR;
             }
         }
-        if(rval) 
+        if(rval)
         {
             break;
         }
 
         /* If matching program node wasn't found, allocate a new one */
-        if(pProgramNode == NULL) 
+        if(pProgramNode == NULL)
         {
             DEBUG(DBG_NOISE,"program node with ID %d not found", programID);
 
             pProgram = newHlsProgram();
-            if(pProgram == NULL) 
+            if(pProgram == NULL)
             {
                 ERROR("newHlsProgram() failed");
                 rval = HLS_MEMORY_ERROR;
@@ -2553,7 +2554,7 @@ static hlsStatus_t m3u8ParseStreamInf(char *tagLine, char* urlLine, llist_t* pPr
 
             /* Insert new node at end of list */
             llerror = insertTail(pProgramList, pProgram);
-            if(llerror != LL_OK) 
+            if(llerror != LL_OK)
             {
                 ERROR("problem adding program node");
                 /* Clean up before quitting */
@@ -2568,20 +2569,20 @@ static hlsStatus_t m3u8ParseStreamInf(char *tagLine, char* urlLine, llist_t* pPr
         }
 
         /* Add new stream list if needed */
-        if(pProgram->pStreams == NULL) 
+        if(pProgram->pStreams == NULL)
         {
             pProgram->pStreams = newLinkedList();
-            if(pProgram->pStreams == NULL) 
+            if(pProgram->pStreams == NULL)
             {
                 ERROR("problem allocating stream list");
                 rval = HLS_ERROR;
                 break;
-            }            
+            }
         }
 
         /* Create new stream playlist structure */
         pStreamPL = newHlsMediaPlaylist();
-        if(pStreamPL == NULL) 
+        if(pStreamPL == NULL)
         {
             ERROR("newHlsMediaPlaylist() failed");
             rval = HLS_MEMORY_ERROR;
@@ -2609,7 +2610,7 @@ static hlsStatus_t m3u8ParseStreamInf(char *tagLine, char* urlLine, llist_t* pPr
 
         /* Copy URL into our structure */
         pStreamPL->playlistURL = (char*)malloc(strlen(urlLine)+1);
-        if(pStreamPL->playlistURL == NULL) 
+        if(pStreamPL->playlistURL == NULL)
         {
             ERROR("malloc error");
             rval = HLS_MEMORY_ERROR;
@@ -2625,7 +2626,7 @@ static hlsStatus_t m3u8ParseStreamInf(char *tagLine, char* urlLine, llist_t* pPr
 
         /* Insert new node at end of list */
         llerror = insertTail(pProgram->pStreams, pStreamPL);
-        if(llerror != LL_OK) 
+        if(llerror != LL_OK)
         {
             ERROR("problem adding stream playlist node");
             /* Clean up before quitting */
@@ -2641,7 +2642,7 @@ static hlsStatus_t m3u8ParseStreamInf(char *tagLine, char* urlLine, llist_t* pPr
         /* Add new bitrate to program node's list of available ones */
         pProgram->pAvailableBitrates = realloc(pProgram->pAvailableBitrates,
                                                 (pProgram->pStreams->numElements)*sizeof(*(pProgram->pAvailableBitrates)));
-        if(pProgram->pAvailableBitrates == NULL) 
+        if(pProgram->pAvailableBitrates == NULL)
         {
             ERROR("malloc error");
             rval = HLS_MEMORY_ERROR;
@@ -2667,23 +2668,23 @@ static hlsStatus_t m3u8ParseStreamInf(char *tagLine, char* urlLine, llist_t* pPr
     } while (0);
 
     /* Clean up if we errored */
-    if(rval != HLS_OK) 
+    if(rval != HLS_OK)
     {
         free(codecs);
         free(audio);
         free(video);
     }
 
-    return rval;    
+    return rval;
 }
 
-/** 
- * 
- * 
+/**
+ *
+ *
  * @param tagLine
  * @param urlLine
  * @param pSegmentList
- * 
+ *
  * @return #hlsStatus_t
  */
 static hlsStatus_t m3u8ParseInf(char *tagLine, char* urlLine, llist_t* pSegmentList)
@@ -2714,14 +2715,14 @@ static hlsStatus_t m3u8ParseInf(char *tagLine, char* urlLine, llist_t* pSegmentL
         /* Tokenize and parse attributes */
         pTok = strtok(pTemp, ",");
 
-        if(pTok != NULL) 
+        if(pTok != NULL)
         {
             /* Remove leading whitespace */
-            while(pTok[0] == ' ') 
+            while(pTok[0] == ' ')
             {
                 pTok++;
             }
-    
+
             /* First token is the duration */
             duration = atof(pTok);
         }
@@ -2735,17 +2736,17 @@ static hlsStatus_t m3u8ParseInf(char *tagLine, char* urlLine, llist_t* pSegmentL
         /* Get next token (name) */
         pTok = strtok(NULL, ",");
 
-        if(pTok != NULL) 
+        if(pTok != NULL)
         {
             /* Remove leading whitespace */
-            while(pTok[0] == ' ') 
+            while(pTok[0] == ' ')
             {
                 pTok++;
             }
-    
-            /* Second token is optional name */    
+
+            /* Second token is optional name */
             name = malloc(strlen(pTok)+1);
-            if(name == NULL) 
+            if(name == NULL)
             {
                 ERROR("malloc error");
                 rval = HLS_MEMORY_ERROR;
@@ -2760,7 +2761,7 @@ static hlsStatus_t m3u8ParseInf(char *tagLine, char* urlLine, llist_t* pSegmentL
 
         /* Create new segment structure */
         pSegment = newHlsSegment();
-        if(pSegment == NULL) 
+        if(pSegment == NULL)
         {
             ERROR("newHlsSegment() failed");
             rval = HLS_MEMORY_ERROR;
@@ -2777,7 +2778,7 @@ static hlsStatus_t m3u8ParseInf(char *tagLine, char* urlLine, llist_t* pSegmentL
 
         /* Copy URL into our structure */
         pSegment->URL = (char*)malloc(strlen(urlLine)+1);
-        if(pSegment->URL == NULL) 
+        if(pSegment->URL == NULL)
         {
             ERROR("malloc error");
             /* Clean up before quitting */
@@ -2791,7 +2792,7 @@ static hlsStatus_t m3u8ParseInf(char *tagLine, char* urlLine, llist_t* pSegmentL
 
         /* Insert new node at end of list */
         llerror = insertTail(pSegmentList, pSegment);
-        if(llerror != LL_OK) 
+        if(llerror != LL_OK)
         {
             ERROR("problem adding stream playlist node");
             /* Clean up before quitting */
@@ -2807,7 +2808,7 @@ static hlsStatus_t m3u8ParseInf(char *tagLine, char* urlLine, llist_t* pSegmentL
     }while (0);
 
     /* Clean up if we errored */
-    if(rval != HLS_OK) 
+    if(rval != HLS_OK)
     {
         free(name);
     }
@@ -2815,12 +2816,12 @@ static hlsStatus_t m3u8ParseInf(char *tagLine, char* urlLine, llist_t* pSegmentL
     return rval;
 }
 
-/** 
- * 
- * 
+/**
+ *
+ *
  * @param tagLine
  * @param pSegment
- * 
+ *
  * @return #hlsStatus_t
  */
 static hlsStatus_t m3u8ParseDateTime(char* tagLine, hlsSegment_t* pSegment)
@@ -2843,7 +2844,7 @@ static hlsStatus_t m3u8ParseDateTime(char* tagLine, hlsSegment_t* pSegment)
 
         /* Allocate new struct tm to hold our date/time information. */
         pSegment->pProgramTime = malloc(sizeof(struct tm));
-        if(pSegment->pProgramTime == NULL) 
+        if(pSegment->pProgramTime == NULL)
         {
             ERROR("malloc error");
             rval = HLS_MEMORY_ERROR;
@@ -2865,19 +2866,19 @@ static hlsStatus_t m3u8ParseDateTime(char* tagLine, hlsSegment_t* pSegment)
         DEBUG(DBG_NOISE, "parsing date/time from: %s", pTemp);
 
         /*  See en.wikipedia.org/wiki/ISO_8601 for info on the date/time format
-         
+
             There are countless combinations of date/time specified on in the spec,
             but we only support:
-         
+
             YYYY-MM-DDTHH:MM:SS
-         
+
             There is currently no handling for the timezone...
-         
+
             */
 
         /* Parse the date/time string and store the values in a struct tm */
         pTemp = strptime(pTemp, "%FT%T", pSegment->pProgramTime);
-        if(pTemp == NULL) 
+        if(pTemp == NULL)
         {
             DEBUG(DBG_WARN, "date/time in unsupported format (should be YYYY-MM-DDTHH:MM:SS)");
 
@@ -2888,7 +2889,7 @@ static hlsStatus_t m3u8ParseDateTime(char* tagLine, hlsSegment_t* pSegment)
 
             free(pSegment->pProgramTime);
             pSegment->pProgramTime = NULL;
-            
+
             break;
         }
 
@@ -2910,14 +2911,14 @@ static hlsStatus_t m3u8ParseDateTime(char* tagLine, hlsSegment_t* pSegment)
 }
 
 /**
- * *pIV and *pKeyURI MUST be NULL, as they will be allocated by 
+ * *pIV and *pKeyURI MUST be NULL, as they will be allocated by
  *  this function.
- * 
+ *
  * @param tagLine
  * @param pEncType
  * @param pIV
- * @param pKeyURI 
- *  
+ * @param pKeyURI
+ *
  * @return #hlsStatus_t
  */
 static hlsStatus_t m3u8ParseKey(char* tagLine, srcEncType_t* pEncType, char** pIV, char** pKeyURI)
@@ -2927,7 +2928,7 @@ static hlsStatus_t m3u8ParseKey(char* tagLine, srcEncType_t* pEncType, char** pI
     char* pTemp = NULL;
     char* pTok = NULL;
 
-    if((tagLine == NULL) || (pEncType == NULL) || (pIV == NULL) || 
+    if((tagLine == NULL) || (pEncType == NULL) || (pIV == NULL) ||
        (pKeyURI == NULL) || (*pIV != NULL) || (*pKeyURI != NULL))
     {
         ERROR("invalid parameter");
@@ -2939,7 +2940,7 @@ static hlsStatus_t m3u8ParseKey(char* tagLine, srcEncType_t* pEncType, char** pI
     do
     {
         /* Get to the start of the attribute list */
-        if(strncmp(tagLine, "#EXT-X-CISCO-KEY:", strlen("#EXT-X-CISCO-KEY:")) == 0) 
+        if(strncmp(tagLine, "#EXT-X-CISCO-KEY:", strlen("#EXT-X-CISCO-KEY:")) == 0)
         {
             pTemp = tagLine + strlen("#EXT-X-CISCO-KEY:");
         }
@@ -2961,31 +2962,31 @@ static hlsStatus_t m3u8ParseKey(char* tagLine, srcEncType_t* pEncType, char** pI
 
         /* Tokenize and parse attributes */
         pTok = strtok(pTemp, ",");
-        while(pTok != NULL) 
+        while(pTok != NULL)
         {
             /* Because attributes can include whitespace, we don't want to
                tokenzie using the ' ' character.  Because of this, we have
                to remove any leading whitespace following a ',' in the
                attribute list */
-            while(pTok[0] == ' ') 
+            while(pTok[0] == ' ')
             {
                 pTok++;
             }
             DEBUG(DBG_NOISE,"got token \"%s\"", pTok);
 
-            if(strncmp(pTok, "METHOD", strlen("METHOD")) == 0) 
+            if(strncmp(pTok, "METHOD", strlen("METHOD")) == 0)
             {
                 pTok += strlen("METHOD=");
-                if(strncmp(pTok, "AES-128-CTR", strlen("AES-128-CTR")) == 0) 
+                if(strncmp(pTok, "AES-128-CTR", strlen("AES-128-CTR")) == 0)
                 {
                     *pEncType = SRC_ENC_AES128_CTR;
                 }
-                else if(strncmp(pTok, "AES-128", strlen("AES-128")) == 0) 
+                else if(strncmp(pTok, "AES-128", strlen("AES-128")) == 0)
                 {
                     *pEncType = SRC_ENC_AES128_CBC;
                 }
             }
-            else if(strncmp(pTok, "IV", strlen("IV")) == 0) 
+            else if(strncmp(pTok, "IV", strlen("IV")) == 0)
             {
                 /* the attribute will be a hexadecimal integer
                    prefixed with "0x" */
@@ -2993,7 +2994,7 @@ static hlsStatus_t m3u8ParseKey(char* tagLine, srcEncType_t* pEncType, char** pI
                 pTok += strlen("IV=0x");
 
                 *pIV = (char*)malloc(strlen(pTok)+1);
-                if(*pIV == NULL) 
+                if(*pIV == NULL)
                 {
                     ERROR("malloc error");
                     rval = HLS_MEMORY_ERROR;
@@ -3002,25 +3003,25 @@ static hlsStatus_t m3u8ParseKey(char* tagLine, srcEncType_t* pEncType, char** pI
                 memset(*pIV, 0, strlen(pTok)+1);
                 strcpy(*pIV, pTok);
             }
-            
+
             pTok = strtok(NULL, ",");
         }
-        if(rval) 
+        if(rval)
         {
             break;
         }
-                    
+
     } while (0);
-    
+
     return rval;
 }
 
-/** 
- * 
- * 
+/**
+ *
+ *
  * @param tagLine
  * @param pProgramList
- * 
+ *
  * @return #hlsStatus_t
  */
 static hlsStatus_t m3u8ParseMedia(char *tagLine, char* baseURL, llist_t* pGroupList)
@@ -3069,12 +3070,12 @@ static hlsStatus_t m3u8ParseMedia(char *tagLine, char* baseURL, llist_t* pGroupL
          rval = ret;
          break;
       }
-      
-      if(NULL != uri) 
+
+      if(NULL != uri)
       {
          /* Prepend the baseURL, if necessary */
          rval = createFullURL(&uri, baseURL);
-         if(rval != HLS_OK) 
+         if(rval != HLS_OK)
          {
             ERROR("error creating full URL");
             break;
@@ -3182,9 +3183,9 @@ static hlsStatus_t m3u8ParseMedia(char *tagLine, char* baseURL, llist_t* pGroupL
       DEBUG(DBG_INFO,"default = %s", (def == HLS_YES)?"YES":"NO");
       DEBUG(DBG_INFO,"autoselect = %s", (autoSelect == HLS_YES)?"YES":"NO");
 
-      /* Allocate a new group */ 
+      /* Allocate a new group */
       pGroup = newHlsGroup();
-      if(pGroup == NULL) 
+      if(pGroup == NULL)
       {
          ERROR("newHlsGroup() failed");
          rval = HLS_MEMORY_ERROR;
@@ -3193,7 +3194,7 @@ static hlsStatus_t m3u8ParseMedia(char *tagLine, char* baseURL, llist_t* pGroupL
 
       /* Insert new node at end of list */
       llerror = insertTail(pGroupList, pGroup);
-      if(llerror != LL_OK) 
+      if(llerror != LL_OK)
       {
          ERROR("problem adding Group node");
          /* Clean up before quitting */
@@ -3214,7 +3215,7 @@ static hlsStatus_t m3u8ParseMedia(char *tagLine, char* baseURL, llist_t* pGroupL
       {
          /* Create new stream playlist structure */
          pStreamPL = newHlsMediaPlaylist();
-         if(pStreamPL == NULL) 
+         if(pStreamPL == NULL)
          {
             ERROR("newHlsMediaPlaylist() failed");
             rval = HLS_MEMORY_ERROR;
@@ -3247,7 +3248,7 @@ static hlsStatus_t m3u8ParseMedia(char *tagLine, char* baseURL, llist_t* pGroupL
    } while (0);
 
    /* Clean up if we errored */
-   if(rval != HLS_OK) 
+   if(rval != HLS_OK)
    {
       free(uri);
       free(language);
@@ -3255,17 +3256,17 @@ static hlsStatus_t m3u8ParseMedia(char *tagLine, char* baseURL, llist_t* pGroupL
       free(groupID);
    }
 
-   return rval;    
+   return rval;
 }
 
-/** 
- * 
- * 
+/**
+ *
+ *
  * @param pSegment
  * @param encType
  * @param iv
  * @param keyURI
- * 
+ *
  * @return #hlsStatus_t
  */
 static hlsStatus_t addSegmentEncInfo(hlsSegment_t* pSegment, srcEncType_t encType, char* iv, char* keyURI)
@@ -3281,7 +3282,7 @@ static hlsStatus_t addSegmentEncInfo(hlsSegment_t* pSegment, srcEncType_t encTyp
     do
     {
         /* If we are supposed to be encrypted we MUST have a key URI */
-        if((encType != SRC_ENC_NONE) && (keyURI == NULL)) 
+        if((encType != SRC_ENC_NONE) && (keyURI == NULL))
         {
             ERROR("invalid #EXT-X-KEY or #EXT-X-CISCO-KEY tag");
             rval = HLS_ERROR;
@@ -3297,12 +3298,12 @@ static hlsStatus_t addSegmentEncInfo(hlsSegment_t* pSegment, srcEncType_t encTyp
         pSegment->keyURI = NULL;
 
         /* Write new key and IV values */
-        if(encType != SRC_ENC_NONE) 
+        if(encType != SRC_ENC_NONE)
         {
-            if(keyURI != NULL) 
+            if(keyURI != NULL)
             {
                 pSegment->keyURI = (char*)malloc(strlen(keyURI)+1);
-                if(pSegment->keyURI == NULL) 
+                if(pSegment->keyURI == NULL)
                 {
                     ERROR("malloc error");
                     rval = HLS_MEMORY_ERROR;
@@ -3316,34 +3317,34 @@ static hlsStatus_t addSegmentEncInfo(hlsSegment_t* pSegment, srcEncType_t encTyp
                 dwnld_parse_keyURI(pSegment->key, keyURI);
 #endif
             }
-    
-            if(iv != NULL) 
+
+            if(iv != NULL)
             {
                 strToHex(iv,pSegment->iv, 16);
             }
-    
+
             /* If we are encrypted but no IV is specified,
                we need to use the sequence number */
             if((encType != SRC_ENC_NONE) && (iv == NULL))
             {
                memset(pSegment->iv, 0, 16);
             }
-    
-            DEBUG(DBG_INFO,"encType = %s", (pSegment->encType == SRC_ENC_AES128_CBC ? "AES-128-CBC" : 
+
+            DEBUG(DBG_INFO,"encType = %s", (pSegment->encType == SRC_ENC_AES128_CBC ? "AES-128-CBC" :
                                              (pSegment->encType == SRC_ENC_AES128_CTR ? "AES-128-CTR" : "NONE")));
             DEBUG(DBG_INFO,"keyURI = %s", pSegment->keyURI);
         }
-                    
+
     } while (0);
 
     return rval;
 }
 
-/** 
+/**
  * Increments IV provided in *pIV by 2^64
- * 
+ *
  * @param pIV
- * 
+ *
  * @return #hlsStatus_t
  */
 static hlsStatus_t incCtrIv(char ** pIV)
@@ -3363,7 +3364,7 @@ static hlsStatus_t incCtrIv(char ** pIV)
     {
         /* Need to modify top 64 bits only */
         tempIV = malloc(17);
-        if(tempIV == NULL) 
+        if(tempIV == NULL)
         {
             ERROR("malloc error");
             rval = HLS_MEMORY_ERROR;
@@ -3386,7 +3387,7 @@ static hlsStatus_t incCtrIv(char ** pIV)
         /* Write new value back to iv */
         memcpy(*pIV, tempIV, 16);
 
-        DEBUG(DBG_INFO, "new AES-128-CTR iv: %s", *pIV);                    
+        DEBUG(DBG_INFO, "new AES-128-CTR iv: %s", *pIV);
 
     } while (0);
 
@@ -3396,11 +3397,11 @@ static hlsStatus_t incCtrIv(char ** pIV)
     return rval;
 }
 
-/** 
+/**
  * Decrements IV provided in *pIV by 2^64
- * 
+ *
  * @param pIV
- * 
+ *
  * @return #hlsStatus_t
  */
 static hlsStatus_t decCtrIv(char ** pIV)
@@ -3420,7 +3421,7 @@ static hlsStatus_t decCtrIv(char ** pIV)
     {
         /* Need to modify top 64 bits only */
         tempIV = malloc(17);
-        if(tempIV == NULL) 
+        if(tempIV == NULL)
         {
             ERROR("malloc error");
             rval = HLS_MEMORY_ERROR;
@@ -3443,7 +3444,7 @@ static hlsStatus_t decCtrIv(char ** pIV)
         /* Write new value back to iv */
         memcpy(*pIV, tempIV, 16);
 
-        DEBUG(DBG_INFO, "new AES-128-CTR iv: %s", *pIV);                    
+        DEBUG(DBG_INFO, "new AES-128-CTR iv: %s", *pIV);
 
     } while (0);
 
@@ -3454,12 +3455,12 @@ static hlsStatus_t decCtrIv(char ** pIV)
 }
 
 /**
- * 
- * 
+ *
+ *
  * @param tagLine
  * @param pSegment
  * @param lastSegmentEnd
- * 
+ *
  * @return #hlsStatus_t
  */
 static hlsStatus_t m3u8ParseByteRange(char* tagLine, hlsSegment_t* pSegment, long* pNextSegmentOffset)
@@ -3488,14 +3489,14 @@ static hlsStatus_t m3u8ParseByteRange(char* tagLine, hlsSegment_t* pSegment, lon
         /* Tokenize and parse attributes */
         pTok = strtok(pTemp, "@");
 
-        if(pTok != NULL) 
+        if(pTok != NULL)
         {
             /* Remove leading whitespace */
-            while(pTok[0] == ' ') 
+            while(pTok[0] == ' ')
             {
                 pTok++;
             }
-    
+
             /* First token is the byte length */
             byteLength = atoi(pTok);
         }
@@ -3509,15 +3510,15 @@ static hlsStatus_t m3u8ParseByteRange(char* tagLine, hlsSegment_t* pSegment, lon
         /* Get next token (byte offset) */
         pTok = strtok(NULL, "@");
 
-        if(pTok != NULL) 
+        if(pTok != NULL)
         {
             /* Remove leading whitespace */
-            while(pTok[0] == ' ') 
+            while(pTok[0] == ' ')
             {
                 pTok++;
             }
-    
-            /* Second token is optional byte offset */    
+
+            /* Second token is optional byte offset */
             byteOffset = atoi(pTok);
         }
         else
@@ -3543,16 +3544,16 @@ static hlsStatus_t m3u8ParseByteRange(char* tagLine, hlsSegment_t* pSegment, lon
 }
 
 /**
- * 
- * 
+ *
+ *
  * @param tagLine
  * @param pSession
- * 
+ *
  * @return #hlsStatus_t
  */
 static hlsStatus_t m3u8ParseProtHeader(char* tagLine, hlsSession_t *pSession)
 {
-    hlsStatus_t rval = HLS_OK;    
+    hlsStatus_t rval = HLS_OK;
     srcDrmLicenseInfo_t licenseInfo;
 
     srcPluginEvt_t event;
@@ -3579,34 +3580,34 @@ static hlsStatus_t m3u8ParseProtHeader(char* tagLine, hlsSession_t *pSession)
 
         /* Tokenize and parse attributes */
         pTok = strtok(pTemp, ",");
-        while(pTok != NULL) 
+        while(pTok != NULL)
         {
 
             /* Because attributes can include whitespace, we don't want to
                tokenzie using the ' ' character.  Because of this, we have
                to remove any leading whitespace following a ',' in the
                attribute list */
-            while(pTok[0] == ' ') 
+            while(pTok[0] == ' ')
             {
                 pTok++;
             }
             DEBUG(DBG_NOISE,"got token \"%s\"", pTok);
 
-            if(strncmp(pTok, "PROGRAM-ID", strlen("PROGRAM-ID")) == 0) 
+            if(strncmp(pTok, "PROGRAM-ID", strlen("PROGRAM-ID")) == 0)
             {
                 pTok += strlen("PROGRAM-ID=");
-                licenseInfo.programID = atoi(pTok);                
+                licenseInfo.programID = atoi(pTok);
             }
-            else if(strncmp(pTok, "DRM_TYPE", strlen("DRM_TYPE")) == 0) 
+            else if(strncmp(pTok, "DRM_TYPE", strlen("DRM_TYPE")) == 0)
             {
                 pTok += strlen("DRM_TYPE=");
 
-                if(strncmp(pTok, "PLAYREADY", strlen("PLAYREADY")) == 0) 
+                if(strncmp(pTok, "PLAYREADY", strlen("PLAYREADY")) == 0)
                 {
                     licenseInfo.drmType = SRC_DRM_PLAYREADY;
                 }
             }
-            else if(strncmp(pTok, "KID", strlen("KID")) == 0) 
+            else if(strncmp(pTok, "KID", strlen("KID")) == 0)
             {
                 /* the attribute will be a quoted-string -- we want
                    to strip off the " characters */
@@ -3615,7 +3616,7 @@ static hlsStatus_t m3u8ParseProtHeader(char* tagLine, hlsSession_t *pSession)
                 pTok++; // Jump over leading " character
 
                 licenseInfo.keyID = (char*)malloc(strlen(pTok));
-                if(licenseInfo.keyID == NULL) 
+                if(licenseInfo.keyID == NULL)
                 {
                     ERROR("malloc error");
                     rval = HLS_MEMORY_ERROR;
@@ -3625,7 +3626,7 @@ static hlsStatus_t m3u8ParseProtHeader(char* tagLine, hlsSession_t *pSession)
                 /* Don't want to copy the trailing " character */
                 strncpy(licenseInfo.keyID, pTok, strlen(pTok)-1);
             }
-            else if(strncmp(pTok, "DRM", strlen("DRM")) == 0) 
+            else if(strncmp(pTok, "DRM", strlen("DRM")) == 0)
             {
                 /* the attribute will be a quoted-string -- we want
                    to strip off the " characters */
@@ -3634,7 +3635,7 @@ static hlsStatus_t m3u8ParseProtHeader(char* tagLine, hlsSession_t *pSession)
                 pTok++; // Jump over leading " character
 
                 licenseInfo.drm = (char*)malloc(strlen(pTok));
-                if(licenseInfo.drm == NULL) 
+                if(licenseInfo.drm == NULL)
                 {
                     ERROR("malloc error");
                     rval = HLS_MEMORY_ERROR;
@@ -3644,16 +3645,16 @@ static hlsStatus_t m3u8ParseProtHeader(char* tagLine, hlsSession_t *pSession)
                 /* Don't want to copy the trailing " character */
                 strncpy(licenseInfo.drm, pTok, strlen(pTok)-1);
             }
-            
+
             pTok = strtok(NULL, ",");
         }
-        if(rval) 
+        if(rval)
         {
             break;
         }
 
         /* Check that we got a valid DRM-TYPE */
-        if(licenseInfo.drmType == -1) 
+        if(licenseInfo.drmType == -1)
         {
             ERROR("invalid or missing DRM-TYPE in tag");
             rval = HLS_ERROR;
@@ -3678,7 +3679,7 @@ static hlsStatus_t m3u8ParseProtHeader(char* tagLine, hlsSession_t *pSession)
         event.eventCode = SRC_PLUGIN_DRM_LICENSE;
         event.pData = (srcDrmLicenseInfo_t*)&licenseInfo;
         hlsPlayer_pluginEvtCallback(pSession->pHandle, &event);
-            
+
     } while (0);
 
     free(licenseInfo.drm);
@@ -3690,12 +3691,12 @@ static hlsStatus_t m3u8ParseProtHeader(char* tagLine, hlsSession_t *pSession)
 }
 
 /**
- * 
- * 
+ *
+ *
  * @param tagLine
  * @param baseURL
  * @param pProgramList
- * 
+ *
  * @return #hlsStatus_t
  */
 static hlsStatus_t m3u8ParseIFrameStreamInf(char *tagLine, char* baseURL, llist_t* pProgramList)
@@ -3758,7 +3759,7 @@ static hlsStatus_t m3u8ParseIFrameStreamInf(char *tagLine, char* baseURL, llist_
         rval = parse4Int(pTemp, "BANDWIDTH=", &bitrate);
         if (rval == HLS_OK)
         {
-            if(bitrate == 0) 
+            if(bitrate == 0)
             {
                 ERROR("no valid bandwidth parameter in EXT-X-I-FRAME-STREAM-INF tag");
                 rval = HLS_ERROR;
@@ -3792,12 +3793,12 @@ static hlsStatus_t m3u8ParseIFrameStreamInf(char *tagLine, char* baseURL, llist_
 
         /* Look for a program node with matching program ID */
         pProgramNode = pProgramList->pHead;
-        while(pProgramNode != NULL) 
+        while(pProgramNode != NULL)
         {
             pProgram = (hlsProgram_t*)(pProgramNode->pData);
-            if(pProgram != NULL) 
+            if(pProgram != NULL)
             {
-                if(pProgram->programID == programID) 
+                if(pProgram->programID == programID)
                 {
                     DEBUG(DBG_NOISE,"found program node with programID %d", programID);
                     break;
@@ -3815,18 +3816,18 @@ static hlsStatus_t m3u8ParseIFrameStreamInf(char *tagLine, char* baseURL, llist_
                 rval = HLS_ERROR;
             }
         }
-        if(rval) 
+        if(rval)
         {
             break;
         }
 
         /* If matching program node wasn't found, allocate a new one */
-        if(pProgramNode == NULL) 
+        if(pProgramNode == NULL)
         {
             DEBUG(DBG_NOISE,"program node with ID %d not found", programID);
 
             pProgram = newHlsProgram();
-            if(pProgram == NULL) 
+            if(pProgram == NULL)
             {
                 ERROR("newHlsProgram() failed");
                 rval = HLS_MEMORY_ERROR;
@@ -3838,7 +3839,7 @@ static hlsStatus_t m3u8ParseIFrameStreamInf(char *tagLine, char* baseURL, llist_
 
             /* Insert new node at end of list */
             llerror = insertTail(pProgramList, pProgram);
-            if(llerror != LL_OK) 
+            if(llerror != LL_OK)
             {
                 ERROR("problem adding program node");
                 /* Clean up before quitting */
@@ -3853,20 +3854,20 @@ static hlsStatus_t m3u8ParseIFrameStreamInf(char *tagLine, char* baseURL, llist_
         }
 
         /* Add new stream list if needed */
-        if(pProgram->pIFrameStreams == NULL) 
+        if(pProgram->pIFrameStreams == NULL)
         {
             pProgram->pIFrameStreams = newLinkedList();
-            if(pProgram->pIFrameStreams == NULL) 
+            if(pProgram->pIFrameStreams == NULL)
             {
                 ERROR("problem allocating stream list");
                 rval = HLS_ERROR;
                 break;
-            }            
+            }
         }
 
         /* Create new stream playlist structure */
         pStreamPL = newHlsMediaPlaylist();
-        if(pStreamPL == NULL) 
+        if(pStreamPL == NULL)
         {
             ERROR("newHlsMediaPlaylist() failed");
             rval = HLS_MEMORY_ERROR;
@@ -3884,7 +3885,7 @@ static hlsStatus_t m3u8ParseIFrameStreamInf(char *tagLine, char* baseURL, llist_
 
         /* Prepend the baseURL, if necessary */
         rval = createFullURL(&uri, baseURL);
-        if(rval != HLS_OK) 
+        if(rval != HLS_OK)
         {
             ERROR("error creating full URL");
             /* Clean up before quitting */
@@ -3902,7 +3903,7 @@ static hlsStatus_t m3u8ParseIFrameStreamInf(char *tagLine, char* baseURL, llist_
 
         /* Insert new node at end of list */
         llerror = insertTail(pProgram->pIFrameStreams, pStreamPL);
-        if(llerror != LL_OK) 
+        if(llerror != LL_OK)
         {
             ERROR("problem adding stream playlist node");
             /* Clean up before quitting */
@@ -3916,9 +3917,9 @@ static hlsStatus_t m3u8ParseIFrameStreamInf(char *tagLine, char* baseURL, llist_
         pStreamPL->pParentNode = pProgram->pIFrameStreams->pTail;
 
         /* Add new bitrate to program node's list of available ones */
-        pProgram->pAvailableIFrameBitrates = realloc(pProgram->pAvailableIFrameBitrates, 
+        pProgram->pAvailableIFrameBitrates = realloc(pProgram->pAvailableIFrameBitrates,
                                                      (pProgram->pIFrameStreams->numElements)*sizeof(*(pProgram->pAvailableIFrameBitrates)));
-        if(pProgram->pAvailableIFrameBitrates == NULL) 
+        if(pProgram->pAvailableIFrameBitrates == NULL)
         {
             ERROR("malloc error");
             rval = HLS_MEMORY_ERROR;
@@ -3944,13 +3945,13 @@ static hlsStatus_t m3u8ParseIFrameStreamInf(char *tagLine, char* baseURL, llist_
     } while (0);
 
     /* Clean up if we errored */
-    if(rval != HLS_OK) 
+    if(rval != HLS_OK)
     {
         free(codecs);
         free(uri);
     }
 
-    return rval;    
+    return rval;
 }
 
 #ifdef __cplusplus

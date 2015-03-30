@@ -1,6 +1,24 @@
 /*
-* This gstreamer plugin was written for the cisco HLS library.  It will handle auto plugging
-* and with the correct elements downstream can decrypt DRM encrypted HLS streams.
+    GSTHLS
+    Copyright (C) {2015}  {Cisco System}
+
+    This library is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation; either
+    version 2.1 of the License, or (at your option) any later version.
+
+    This library is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
+    USA
+
+    Contributing Authors: Matt Snoby, Tankut Akgul, Saravanakumar Periyaswamy
+
 */
 
 /**
@@ -197,10 +215,10 @@ static void hls_type_find (GstTypeFind * tf, gpointer unused)
       data_scan_ctx_advance (tf, &c, 1);
    }
 }
-static GstEvent* gst_ciscdemux_create_decryption_event(  srcBufferMetadata_t* metadata,  Gstciscdemux *demux) 
+static GstEvent* gst_ciscdemux_create_decryption_event(  srcBufferMetadata_t* metadata,  Gstciscdemux *demux)
 {
    GstEvent       *event = NULL;
-   GstStructure   *structure = NULL;       
+   GstStructure   *structure = NULL;
    char  strKey[64];
    char  strIv[64];
    int   i;
@@ -215,7 +233,7 @@ static GstEvent* gst_ciscdemux_create_decryption_event(  srcBufferMetadata_t* me
    if (metadata)
    {
       //This buffer has meta data, need to see if it's encrypted
-      //TODO: This will take a lot of research but instead of converting the 
+      //TODO: This will take a lot of research but instead of converting the
       //key and iv array from binary to string, just send a byte array down the pipline.
       //
       if (metadata->encType == SRC_ENC_AES128_CBC)
@@ -255,8 +273,8 @@ static GstEvent* gst_ciscdemux_create_decryption_event(  srcBufferMetadata_t* me
 									            NULL);
 			}
 			else if(g_strstr_len (demux->drmType, strlen(DRM_TYPE_VGDRM), DRM_TYPE_VGDRM) != NULL)
-			
-			{         
+
+			{
 				GST_DEBUG("Forcing DRM type to: \"%s\"\n", demux->drmType);
 	         	structure = gst_structure_new(	demux->drmType,
 									            "keyURI",   G_TYPE_STRING, metadata->keyURI,
@@ -272,8 +290,8 @@ static GstEvent* gst_ciscdemux_create_decryption_event(  srcBufferMetadata_t* me
 		else
 		{
 			GST_ERROR("Unknown DRM type!\n");
-		}			
-		
+		}
+
          if (structure == NULL)
          {
             GST_ERROR("Error creating event message\n");
@@ -617,7 +635,7 @@ static gboolean gst_cscohlsdemuxer_src_query (GstPad * pad, GstQuery * query)
    if ( pSession == NULL )
    {
       GST_ERROR("libhls session is NULL!\n");
-      return FALSE; 
+      return FALSE;
    }
 
    switch (GST_QUERY_TYPE(query))
@@ -718,7 +736,7 @@ static gboolean gst_cscohlsdemuxer_src_query (GstPad * pad, GstQuery * query)
          else if(gst_structure_has_name(pStruct, "getAudioLangInfo"))
          {
             GST_WARNING("getAudioLangInfo query\n");
-            
+
             getData.getCode = SRC_PLUGIN_GET_NUM_AUDIO_LANGUAGES;
             getData.pData = &numAudioLanguages;
             stat = demux->HLS_pluginTable.get(pSession->pSessionID, &getData, &errTable);
@@ -731,7 +749,7 @@ static gboolean gst_cscohlsdemuxer_src_query (GstPad * pad, GstQuery * query)
             GST_INFO("numAudioLanguages = %d\n", numAudioLanguages);
 
             audioLanguages.numAudioLanguages = numAudioLanguages;
-            audioLanguages.audioLangInfoArr = 
+            audioLanguages.audioLangInfoArr =
                (srcPluginAudioLangInfo_t *)g_malloc(sizeof(srcPluginAudioLangInfo_t) * numAudioLanguages);
             if(NULL == audioLanguages.audioLangInfoArr)
             {
@@ -753,38 +771,38 @@ static gboolean gst_cscohlsdemuxer_src_query (GstPad * pad, GstQuery * query)
                break;
             }
             GST_DEBUG("numAudioLanguages = %d\n", audioLanguages.numAudioLanguages);
-          
+
             for(ii = 0; ii < audioLanguages.numAudioLanguages; ii++)
             {
                GST_DEBUG("isoCode[%d]: %s\n", ii, audioLanguages.audioLangInfoArr[ii].isoCode);
                GST_DEBUG("discrete[%d]: %d\n", ii, audioLanguages.audioLangInfoArr[ii].bDiscrete);
-               
+
                if(1 == audioLanguages.audioLangInfoArr[ii].bDiscrete)
                {
-                  g_strlcat(commaSepDiscreteLangISO, audioLanguages.audioLangInfoArr[ii].isoCode, 
+                  g_strlcat(commaSepDiscreteLangISO, audioLanguages.audioLangInfoArr[ii].isoCode,
                         sizeof(commaSepDiscreteLangISO));
                   g_strlcat(commaSepDiscreteLangISO, ",", sizeof(commaSepDiscreteLangISO));
                }
                else
                {
-                  g_strlcat(commaSepMuxedLangISO, audioLanguages.audioLangInfoArr[ii].isoCode, 
+                  g_strlcat(commaSepMuxedLangISO, audioLanguages.audioLangInfoArr[ii].isoCode,
                         sizeof(commaSepMuxedLangISO));
                   g_strlcat(commaSepMuxedLangISO, ",", sizeof(commaSepMuxedLangISO));
                }
             }
-           
+
             isoStrLen = strlen(commaSepMuxedLangISO);
             if((isoStrLen > 0) && (commaSepMuxedLangISO[isoStrLen - 1] == ','))
             {
                commaSepMuxedLangISO[isoStrLen - 1] = '\0';
             }
-            
+
             isoStrLen = strlen(commaSepDiscreteLangISO);
             if((isoStrLen > 0) && (commaSepDiscreteLangISO[isoStrLen - 1] == ','))
             {
                commaSepDiscreteLangISO[isoStrLen - 1] = '\0';
             }
-            
+
             GST_WARNING("commaSepMuxedLangISO: %s\n", commaSepMuxedLangISO);
             GST_WARNING("commaSepDiscreteLangISO: %s\n", commaSepDiscreteLangISO);
 
@@ -847,7 +865,7 @@ static gboolean gst_cscohlsdemuxer_src_event (GstPad * pad, GstEvent * event)
 #endif
          return ret;
       }
-      default: 
+      default:
 #if GST_CHECK_VERSION(1,0,0)
          ret = gst_pad_event_default (pad, parent, event);
 #else
@@ -1050,7 +1068,7 @@ static GstStateChangeReturn gst_cscohlsdemuxer_change_state (GstElement * elemen
    return ret;
 }
 
-/* This is the begining of the integration code of the 
+/* This is the begining of the integration code of the
 * cisco hls plugin
 */
 
@@ -1064,11 +1082,11 @@ const char *strHLSEvent [] =
    "SRC_PLUGIN_BOF             ",
    "SRC_PLUGIN_BOS             ",
    "SRC_PLUGIN_EOF             ",
-   "SRC_PLUGIN_EOS            " 
+   "SRC_PLUGIN_EOS            "
 };
 
 void hlsPlayer_pluginEvtCallback(void* pHandle, srcPluginEvt_t* pEvt)
-{   
+{
 
    Gstciscdemux *demux = (Gstciscdemux *)pHandle;
    int ii = 0;
@@ -1087,7 +1105,7 @@ void hlsPlayer_pluginEvtCallback(void* pHandle, srcPluginEvt_t* pEvt)
       case SRC_PLUGIN_BOS:
          GST_INFO("Received boundary event(BOS/BOF/EOF/EOS)");
          gst_ciscdemux_send_eos(demux->srcpad);
-         
+
          for(ii = 0; ii < demux->numSrcPadsActive - 1; ii++)
          {
             gst_ciscdemux_send_eos(demux->srcpad_discrete[ii]);
@@ -1109,7 +1127,7 @@ void hlsPlayer_pluginEvtCallback(void* pHandle, srcPluginEvt_t* pEvt)
 void hlsPlayer_pluginErrCallback(void* pHandle, srcPluginErr_t* pErr)
 {
    Gstciscdemux *demux = (Gstciscdemux *)pHandle;
-   
+
    do
    {
       if(NULL == demux)
@@ -1286,20 +1304,20 @@ srcStatus_t hlsPlayer_sendBuffer(void* pHandle, char* buffer, int size, srcBuffe
 
       // we don't need the pPrivate anymore
       g_free (pmem);
-      
+
       if((metadata->streamNum > SRC_STREAM_NUM_MAIN) && (NULL == demux->srcpad_discrete[metadata->streamNum - 1]))
       {
          if(TRUE != gst_ciscdemux_get_caps(demux, metadata, buf, &demux->inputStreamCap[metadata->streamNum]))
          {
             break;
          }
-         
-         GST_INFO_OBJECT(demux, "Discrete stream %d Capabilities: %" GST_PTR_FORMAT, 
+
+         GST_INFO_OBJECT(demux, "Discrete stream %d Capabilities: %" GST_PTR_FORMAT,
                          metadata->streamNum - 1, demux->inputStreamCap[metadata->streamNum]);
 
-         pad_name = g_strdup_printf ("src_discrete_%02d", metadata->streamNum - 1);     
+         pad_name = g_strdup_printf ("src_discrete_%02d", metadata->streamNum - 1);
          GST_INFO_OBJECT(demux, "Adding discrete src pad (name:%s)...\n", pad_name);
-         demux->srcpad_discrete[metadata->streamNum - 1] = gst_pad_new_from_static_template (&src_discrete_factory, pad_name);     
+         demux->srcpad_discrete[metadata->streamNum - 1] = gst_pad_new_from_static_template (&src_discrete_factory, pad_name);
          g_free (pad_name);
 
 #if GST_CHECK_VERSION(1,0,0)
@@ -1307,16 +1325,16 @@ srcStatus_t hlsPlayer_sendBuffer(void* pHandle, char* buffer, int size, srcBuffe
 #endif
          if(FALSE == gst_pad_set_active (demux->srcpad_discrete[metadata->streamNum - 1], TRUE))
          {
-            GST_WARNING_OBJECT(demux,"I was not able to set the discrete(%d) src pad to active\n!", 
-                               metadata->streamNum - 1); 
+            GST_WARNING_OBJECT(demux,"I was not able to set the discrete(%d) src pad to active\n!",
+                               metadata->streamNum - 1);
          }
-         
+
          if(FALSE == gst_pad_set_caps (demux->srcpad_discrete[metadata->streamNum - 1], demux->inputStreamCap[metadata->streamNum]))
          {
             GST_WARNING_OBJECT(demux,"I was not able to set the discrete(%d) src pad to active\n!",
-                               metadata->streamNum - 1); 
+                               metadata->streamNum - 1);
          }
-         
+
          gst_element_add_pad (GST_ELEMENT_CAST (demux), demux->srcpad_discrete[metadata->streamNum - 1]);
 
          demux->numSrcPadsActive++;
@@ -1332,8 +1350,8 @@ srcStatus_t hlsPlayer_sendBuffer(void* pHandle, char* buffer, int size, srcBuffe
          {
             break;
          }
-         
-         GST_INFO_OBJECT(demux, "Main stream Capabilities: %" GST_PTR_FORMAT, 
+
+         GST_INFO_OBJECT(demux, "Main stream Capabilities: %" GST_PTR_FORMAT,
                          demux->inputStreamCap[metadata->streamNum]);
 
          gst_pad_set_event_function(demux->srcpad, GST_DEBUG_FUNCPTR(gst_cscohlsdemuxer_src_event));
@@ -1348,7 +1366,7 @@ srcStatus_t hlsPlayer_sendBuffer(void* pHandle, char* buffer, int size, srcBuffe
 
          if (FALSE == gst_pad_set_active (demux->srcpad, TRUE))
          {
-            GST_WARNING_OBJECT(demux,"I was not able to set the main src pad to active\n!"); 
+            GST_WARNING_OBJECT(demux,"I was not able to set the main src pad to active\n!");
          }
 
          if (FALSE == gst_pad_set_caps (demux->srcpad, demux->inputStreamCap[metadata->streamNum]))
@@ -1357,7 +1375,7 @@ srcStatus_t hlsPlayer_sendBuffer(void* pHandle, char* buffer, int size, srcBuffe
          }
 
          demux->capsSet = 1;
-         
+
          demux->numSrcPadsActive++;
          if(metadata->totalNumStreams == demux->numSrcPadsActive)
          {
@@ -1389,14 +1407,14 @@ srcStatus_t hlsPlayer_sendBuffer(void* pHandle, char* buffer, int size, srcBuffe
       }
 
       // Now that the pad is setup and the capabilities set on the pad we can send a decryption event
-      // if necessary or we can just send the buffer down the pipeline this is outside the above block 
+      // if necessary or we can just send the buffer down the pipeline this is outside the above block
       // because you can get a new key tag at any time
       if (1 == metadata->bFirstBufferInSegment)
       {
          if (metadata->encType ==SRC_ENC_AES128_CBC)
          {
             // now we can send the event downstream. :-)
-            event = gst_ciscdemux_create_decryption_event(metadata,demux); 
+            event = gst_ciscdemux_create_decryption_event(metadata,demux);
             if (event == NULL) { GST_ERROR("Error no event to send\n");}
 
             GST_INFO_OBJECT(demux, "Sending the encryption key information downstream\n");
@@ -1424,11 +1442,11 @@ srcStatus_t hlsPlayer_set(void *pHandle, srcPlayerSetData_t *pSetData)
 {
    srcStatus_t status = SRC_SUCCESS;
 
-   Gstciscdemux *demux = (Gstciscdemux *)pHandle;   
+   Gstciscdemux *demux = (Gstciscdemux *)pHandle;
 
    if (demux == NULL)
       return SRC_ERROR;
-   
+
    switch(pSetData->setCode)
    {
       case SRC_PLAYER_SET_BUFFER_FLUSH:
@@ -1466,7 +1484,7 @@ srcStatus_t hlsPlayer_set(void *pHandle, srcPlayerSetData_t *pSetData)
                GST_INFO_OBJECT(demux, "Received SRC_PLAYER_MODE_NORMAL");
                gst_ciscdemux_send_low_delay_videomask_event(demux, FALSE);
 
-               //HLS may switch audio sample rate or codec. Making audio master makes playback 
+               //HLS may switch audio sample rate or codec. Making audio master makes playback
                //very sensitive to these events and can cause glitches. Therefore, we want video
                //to be the master stream for HLS.
                gst_ciscdemux_set_video_master(demux);
@@ -1535,7 +1553,7 @@ srcStatus_t hlsPlayer_get(void *pHandle, srcPlayerGetData_t *pGetData)
                }
 
                *((int *)pGetData->pData) = pos / GST_MSECOND;
-               GST_INFO("Current position(millisec) = %d\n", 
+               GST_INFO("Current position(millisec) = %d\n",
                      *((int *)pGetData->pData));
 
                gst_query_unref(query);
@@ -1573,10 +1591,10 @@ static gboolean cisco_hls_initialize (Gstciscdemux *demux)
    do
    {
       memset(errTable.errMsg, 0, SRC_ERR_MSG_LEN);
-      //from hlsPlugin.c 
+      //from hlsPlugin.c
       // the demux->HLS_pluginTable will be empty
       // we pass in a filled in version of the gPlayerFunc table
-      // btw it is rediculous that I have to do this with the playerfunctions.  
+      // btw it is rediculous that I have to do this with the playerfunctions.
       // The source code directly calls these functions.
       stat = srcPluginLoad( &demux->HLS_pluginTable, /* empty structure*/
          &gPlayerFunc , /* filled in functions of our player in this case GST wrapper*/
@@ -1604,7 +1622,7 @@ static gboolean cisco_hls_initialize (Gstciscdemux *demux)
       }
       else
       {
-         GST_LOG("Done loading the HLS src plugin\n"); 
+         GST_LOG("Done loading the HLS src plugin\n");
       }
 
       // ok now we need to register the event callback
@@ -1618,7 +1636,7 @@ static gboolean cisco_hls_initialize (Gstciscdemux *demux)
       }
       else
       {
-         GST_LOG("Done loading the HLS callbacks\n"); 
+         GST_LOG("Done loading the HLS callbacks\n");
       }
 
    } while(0);
@@ -1635,7 +1653,7 @@ static gboolean cisco_hls_open (Gstciscdemux *demux, char *pPlaylistUri)
    srcPluginSetData_t setData = {};
    int minBitrate = 0;
 
-   do 
+   do
    {
       demux->pCscoHlsSession = pSession = (tSession *) g_malloc(sizeof(tSession));
       pSession->pHandle_Player = demux;
@@ -1648,16 +1666,16 @@ static gboolean cisco_hls_open (Gstciscdemux *demux, char *pPlaylistUri)
       }
       else
       {
-         GST_LOG("Done opening the HLS callbacks\n"); 
+         GST_LOG("Done opening the HLS callbacks\n");
       }
-         
+
       setData.setCode = SRC_PLUGIN_SET_MIN_BITRATE;
       minBitrate = 320000;
       setData.pData = &minBitrate;
       stat = demux->HLS_pluginTable.set( pSession->pSessionID, &setData, &errTable );
       if(stat)
       {
-         GST_ERROR( "%s: Error %d while setting minBitrate to %d: %s", 
+         GST_ERROR( "%s: Error %d while setting minBitrate to %d: %s",
                     __FUNCTION__, errTable.errCode, minBitrate, errTable.errMsg);
       }
 
@@ -1703,7 +1721,7 @@ static gboolean cisco_hls_open (Gstciscdemux *demux, char *pPlaylistUri)
          stat = demux->HLS_pluginTable.set( pSession->pSessionID, &setData, &errTable );
          if(stat)
          {
-            GST_ERROR( "%s: Error %d while setting audio language to %s: %s", 
+            GST_ERROR( "%s: Error %d while setting audio language to %s: %s",
                   __FUNCTION__, errTable.errCode, demux->defaultAudioLangISOCode, errTable.errMsg);
          }
       }
@@ -1810,7 +1828,7 @@ static gboolean cisco_hls_close(Gstciscdemux *demux)
    }
    else
    {
-      GST_LOG("Done closing the HLS plugin session\n"); 
+      GST_LOG("Done closing the HLS plugin session\n");
    }
    GST_DEBUG("Timestamp when hls close returns : %llu\n", (unsigned long long)time(NULL));
 
@@ -1847,7 +1865,7 @@ static gboolean cisco_hls_finalize(Gstciscdemux *demux)
    }
    else
    {
-      GST_LOG("Done finalizing the HLS src plugin\n"); 
+      GST_LOG("Done finalizing the HLS src plugin\n");
    }
 
    if(0 != pthread_mutex_destroy(&demux->PTSMutex))
@@ -1870,7 +1888,7 @@ static gboolean cisco_hls_finalize(Gstciscdemux *demux)
       g_free(demux->inputStreamCap);
       demux->inputStreamCap = NULL;
    }
-   
+
    if(NULL != demux->srcpad_discrete)
    {
       g_free(demux->srcpad_discrete);
@@ -1925,13 +1943,13 @@ static gboolean gst_cisco_hls_seek (Gstciscdemux *demux, GstEvent *event)
    gint64 cur, stop;
 
    if ( demux == NULL )
-   {      
+   {
       return FALSE;
    }
 
    pSession = demux->pCscoHlsSession;
    if ( pSession == NULL )
-   {      
+   {
       GST_ERROR("HLS session not opened!\n");
       return FALSE;
    }
@@ -1959,7 +1977,7 @@ static gboolean gst_cisco_hls_seek (Gstciscdemux *demux, GstEvent *event)
    gst_event_parse_seek (event, &rate, &format, &flags, &curType, &cur, &stopType, &stop);
 
    GST_WARNING("[cischlsdemux] current speed: %f, rate: %f\n", speed, rate);
-  
+
    if((speed == rate) && (GST_FORMAT_TIME == format))
    {
       //if we are paused currently, before doing a seek, send a flush downstream to
@@ -1999,12 +2017,12 @@ static gboolean gst_cisco_hls_seek (Gstciscdemux *demux, GstEvent *event)
       stat = demux->HLS_pluginTable.set( pSession->pSessionID, &setData, &errTable );
       if(stat)
       {
-         GST_ERROR("%s: Error %d while setting speed to %f: %s", __FUNCTION__, 
+         GST_ERROR("%s: Error %d while setting speed to %f: %s", __FUNCTION__,
                    errTable.errCode, speed, errTable.errMsg);
          //Reset the flag if call failed
          demux->isFlushOnSeek = FALSE;
          return FALSE;
-      }     
+      }
 
       GST_LOG("SRC_PLUGIN_SET_SPEED returned\n");
    }
@@ -2090,7 +2108,7 @@ static void * getCurrentPTSNotify(void *data)
             GST_WARNING("could not get pts");
             gst_query_unref(query);
             continue;
-         }    
+         }
 
          ptr = g_value_get_pointer(val);
          if(NULL == ptr)
@@ -2100,7 +2118,7 @@ static void * getCurrentPTSNotify(void *data)
             continue;
          }
 
-         memcpy((gchar *)&pts_45khz, (gchar *)&ptr, sizeof(pts_45khz)); 
+         memcpy((gchar *)&pts_45khz, (gchar *)&ptr, sizeof(pts_45khz));
 
          if ((int)pts_45khz == INVALID_PTS)
          {
@@ -2275,17 +2293,17 @@ static gboolean gst_ciscdemux_flush(Gstciscdemux *demux, GstPad *srcpad)
 
       ret = TRUE;
    }while(0);
-   
+
    return ret;
 }
 
 static gboolean gst_ciscdemux_disable_main_stream_audio(Gstciscdemux *demux)
 {
    GstEvent     *event = NULL;
-   GstStructure *structure = NULL;       
+   GstStructure *structure = NULL;
    gboolean     ret = FALSE;
 
-   do 
+   do
    {
       structure = gst_structure_new("disable-audio-stream", NULL);
       if(NULL == structure)
@@ -2319,10 +2337,10 @@ static gboolean gst_ciscdemux_disable_main_stream_audio(Gstciscdemux *demux)
 static gboolean gst_ciscdemux_set_video_master(Gstciscdemux *demux)
 {
    GstEvent     *event = NULL;
-   GstStructure *structure = NULL;       
+   GstStructure *structure = NULL;
    gboolean     ret = FALSE;
 
-   do 
+   do
    {
       structure = gst_structure_new("set-video-master", NULL);
       if(NULL == structure)
@@ -2356,12 +2374,12 @@ static gboolean gst_ciscdemux_set_video_master(Gstciscdemux *demux)
 static gboolean gst_ciscdemux_set_audio_thresholds( Gstciscdemux *demux )
 {
    GstEvent     *event = NULL;
-   GstStructure *structure = NULL;       
+   GstStructure *structure = NULL;
    gboolean     ret = FALSE;
 
    do
    {
-      structure = gst_structure_new("set-audio-thresholds", 
+      structure = gst_structure_new("set-audio-thresholds",
                                     "gaThreshold", G_TYPE_UINT, 50,           // Set GA threshold to 50ms to prevent audio PTS errors during bitrate changes
                                     "discardThreshold", G_TYPE_UINT, 0,       // Default value
                                     "wideGaThreshold", G_TYPE_BOOLEAN, FALSE, // Default value
@@ -2415,9 +2433,9 @@ static gboolean gst_ciscdemux_send_low_delay_videomask_event(Gstciscdemux *demux
 {
    gboolean     ret = FALSE;
    GstEvent     *event = NULL;
-   GstStructure *structure = NULL;       
+   GstStructure *structure = NULL;
    gchar        video_mask_str[16] = "";
-  
+
    do {
    if(TRUE == enable)
    {
@@ -2452,7 +2470,7 @@ static gboolean gst_ciscdemux_send_low_delay_videomask_event(Gstciscdemux *demux
       GST_ERROR("Error sending low-delay event\n");
       break;
    }
-   
+
    structure = gst_structure_new("video-mask", "video-mask-str", G_TYPE_STRING, video_mask_str, NULL);
    if(NULL == structure)
    {
@@ -2476,9 +2494,9 @@ static gboolean gst_ciscdemux_send_low_delay_videomask_event(Gstciscdemux *demux
       GST_ERROR("Error sending video-mask event\n");
       break;
    }
-   
+
    ret = TRUE;
-   }while(0); 
+   }while(0);
 
    return ret;
 }
@@ -2499,7 +2517,7 @@ static gboolean gst_ciscdemux_send_event_to_all_srcpads(Gstciscdemux *demux, Gst
          break;
       }
    }
-   
+
    ret = gst_pad_push_event(demux->srcpad, event);
    if(TRUE != ret)
    {
@@ -2523,7 +2541,7 @@ static gboolean gst_ciscdemux_send_flush_to_all_srcpads(Gstciscdemux *demux)
       {
          break;
       }
-      
+
       for(ii = 0; ii < demux->numSrcPadsActive - 1; ii++)
       {
          ret = gst_ciscdemux_flush(demux, demux->srcpad_discrete[ii]);

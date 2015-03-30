@@ -1,31 +1,33 @@
-/* ****************************************************************************
-*
-*                   Copyright 2012 Cisco Systems, Inc.
-*
-*                              CHS Engineering
-*                           5030 Sugarloaf Parkway
-*                               P.O. Box 465447
-*                          Lawrenceville, GA 30042
-*
-*                        Proprietary and Confidential
-*              Unauthorized distribution or copying is prohibited
-*                            All rights reserved
-*
-* No part of this computer software may be reprinted, reproduced or utilized
-* in any form or by any electronic, mechanical, or other means, now known or
-* hereafter invented, including photocopying and recording, or using any
-* information storage and retrieval system, without permission in writing
-* from Cisco Systems, Inc.
-*
-******************************************************************************/
+/*
+    LIBBHLS
+    Copyright (C) {2015}  {Cisco System}
+
+    This library is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation; either
+    version 2.1 of the License, or (at your option) any later version.
+
+    This library is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
+    USA
+
+    Contributing Authors: Saravanakumar Periyaswamy, Patryk Prus, Tankut Akgul
+
+*/
 
 /**
- * @file hlsPlugin.c @date February 9, 2012 
- *  
- * @author Patryk Prus (pprus@cisco.com)  
+ * @file hlsPlugin.c @date February 9, 2012
  *
- * Implements the HLS source plugin interface defined by 
- * sourcePlugin.h 
+ * @author Patryk Prus (pprus@cisco.com)
+ *
+ * Implements the HLS source plugin interface defined by
+ * sourcePlugin.h
  *
  * @addtogroup hlsPlugin HLS Plugin
  * @{
@@ -62,23 +64,23 @@ hlsPlugin_t thePlugin;
 /**
  * Load the source plugin
  *
- * This API is called by the player to load a given source 
- * plugin.  Each plugin MUST expose a function of this type 
- * named srcPluginLoad(). 
+ * This API is called by the player to load a given source
+ * plugin.  Each plugin MUST expose a function of this type
+ * named srcPluginLoad().
  *
- * @param pluginTable - pointer to empty #srcPluginFunc_t to be 
+ * @param pluginTable - pointer to empty #srcPluginFunc_t to be
  *                    populated by the plugin with appropriate
  *                    functions
- * @param playerTable - pointer to #srcPlayerFunc_t populated 
+ * @param playerTable - pointer to #srcPlayerFunc_t populated
  *                    with function pointers to valid player
  *                    functions
- * @param pErr - Pointer to #srcPluginErr_t error structure if 
+ * @param pErr - Pointer to #srcPluginErr_t error structure if
  *             applicable.  May be NULL.
- *  
- * @pre 
+ *
+ * @pre
  *       - none
- *  
- * @post 
+ *
+ * @post
  *       - pluginTable populated with valid plugin functions, or
  *         NULL
  *
@@ -97,11 +99,11 @@ srcStatus_t srcPluginLoad(srcPluginFunc_t* pluginTable, srcPlayerFunc_t* playerT
     /* Open the logging module/file */
     OPEN_LOG;
 
-    if((pluginTable == NULL) || (playerTable == NULL)) 
+    if((pluginTable == NULL) || (playerTable == NULL))
     {
         ERROR("invalid paramater");
 
-        if(pErr != NULL) 
+        if(pErr != NULL)
         {
             pErr->errCode = SRC_PLUGIN_ERR_INVALID_PARAM;
             snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("invalid parameter"));
@@ -114,7 +116,7 @@ srcStatus_t srcPluginLoad(srcPluginFunc_t* pluginTable, srcPlayerFunc_t* playerT
     {
 #if 0
   /* I'm bypassing all the dll load for this particular build.  I'm doing this because all I want to do is load
-   * the HLS plugin and glue it into GST 
+   * the HLS plugin and glue it into GST
    */
 
 
@@ -123,9 +125,9 @@ srcStatus_t srcPluginLoad(srcPluginFunc_t* pluginTable, srcPlayerFunc_t* playerT
         /* Clear out the HLS cache folder.  This needs to be removed and become the
            responsibility of the application. */
         pDir = opendir(LOCAL_PATH);
-        if(pDir != NULL) 
+        if(pDir != NULL)
         {
-            while((pDirEntry = readdir(pDir)) != NULL) 
+            while((pDirEntry = readdir(pDir)) != NULL)
             {
                 if(getFileName(pDirEntry->d_name, &filename, LOCAL_PATH) == HLS_OK)
                 {
@@ -133,9 +135,9 @@ srcStatus_t srcPluginLoad(srcPluginFunc_t* pluginTable, srcPlayerFunc_t* playerT
                     {
                         ERROR("unlink() failed on file %s -- %s", filename, strerror(errno));
                     }
-    
+
                     free(filename);
-                    filename = NULL;    
+                    filename = NULL;
                 }
             }
 
@@ -146,7 +148,7 @@ srcStatus_t srcPluginLoad(srcPluginFunc_t* pluginTable, srcPlayerFunc_t* playerT
             ERROR("opendir() failed on directory %s -- %s", LOCAL_PATH, strerror(errno));
         }
 
-#endif 
+#endif
         /* Initialize our plugin structure */
         memset(&thePlugin, 0, sizeof(hlsPlugin_t));
 
@@ -163,10 +165,10 @@ srcStatus_t srcPluginLoad(srcPluginFunc_t* pluginTable, srcPlayerFunc_t* playerT
 
         /* Save off player function table */
         thePlugin.pHlsPlayerFuncTable = malloc(sizeof(*playerTable));
-        if(thePlugin.pHlsPlayerFuncTable == NULL) 
+        if(thePlugin.pHlsPlayerFuncTable == NULL)
         {
             ERROR("malloc error");
-            if(pErr != NULL) 
+            if(pErr != NULL)
             {
                 pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
                 snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("malloc error"));
@@ -184,17 +186,17 @@ srcStatus_t srcPluginLoad(srcPluginFunc_t* pluginTable, srcPlayerFunc_t* playerT
 /**
  * Unload the source plugin
  *
- * This API is called by the player to unload a given source 
- * plugin. Each plugin MUST expose a function of this type 
+ * This API is called by the player to unload a given source
+ * plugin. Each plugin MUST expose a function of this type
  * named srcPluginUnload().
  *
- * @param pErr - Pointer to #srcPluginErr_t error structure if 
+ * @param pErr - Pointer to #srcPluginErr_t error structure if
  *             applicable.  May be NULL.
- *  
- * @pre 
+ *
+ * @pre
  *       - none
- *  
- * @post 
+ *
+ * @post
  *       - none
  *
  * @return #srcStatus_t
@@ -215,22 +217,22 @@ srcStatus_t srcPluginUnload( srcPluginErr_t* pErr )
 /**
  * Initialization function for the HLS plugin
  *
- * This API is called once the plugin is loaded with srcPluginLoad() to initialize the plugin.  This must be 
+ * This API is called once the plugin is loaded with srcPluginLoad() to initialize the plugin.  This must be
  * called prior to any other calls to the plugin.
  *
- * @param pErr - Pointer to #srcPluginErr_t error structure if 
+ * @param pErr - Pointer to #srcPluginErr_t error structure if
  *             applicable.  May be NULL.
- *  
- * @pre 
- *       - plugin loaded via srcPluginLoad() 
- *  
- * @post 
- *       - plugin is initialized 
- *  
+ *
+ * @pre
+ *       - plugin loaded via srcPluginLoad()
+ *
+ * @post
+ *       - plugin is initialized
+ *
  * @return #srcStatus_t
  */
 srcStatus_t hlsPlugin_initialize(srcPluginErr_t* pErr)
-{   
+{
     srcStatus_t rval = SRC_SUCCESS;
 
     do
@@ -238,10 +240,10 @@ srcStatus_t hlsPlugin_initialize(srcPluginErr_t* pErr)
         DEBUG(DBG_INFO,"initializing HLS plugin");
 
         /* Check if we're already initialized */
-        if(thePlugin.bInitialized) 
+        if(thePlugin.bInitialized)
         {
             ERROR("HLS plugin already initialized");
-            if(pErr != NULL) 
+            if(pErr != NULL)
             {
                 pErr->errCode = SRC_PLUGIN_ERR_INITIALIZED;
                 snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("HLS plugin already initialized"));
@@ -261,19 +263,19 @@ srcStatus_t hlsPlugin_initialize(srcPluginErr_t* pErr)
 /**
  * Finalize function for the source plugin
  *
- * This API is called to shutdown the source plugin.  Once this 
- * is called no other calls to the plugin are allowed. 
+ * This API is called to shutdown the source plugin.  Once this
+ * is called no other calls to the plugin are allowed.
  *
- * @param pErr - Pointer to #srcPluginErr_t error structure if 
+ * @param pErr - Pointer to #srcPluginErr_t error structure if
  *             applicable.  May be NULL.
- *  
- * @pre 
+ *
+ * @pre
  *       - plugin initialized via hlsPlugin_initialize()
- *  
- * @post 
+ *
+ * @post
  *       - all plugin sessions terminated and all plugin
  *         resources freed
- *  
+ *
  * @return #srcStatus_t
  */
 srcStatus_t hlsPlugin_finalize(srcPluginErr_t* pErr)
@@ -289,7 +291,7 @@ srcStatus_t hlsPlugin_finalize(srcPluginErr_t* pErr)
         if(!(thePlugin.bInitialized))
         {
             ERROR("HLS plugin not initialized");
-            if(pErr != NULL) 
+            if(pErr != NULL)
             {
                 pErr->errCode = SRC_PLUGIN_ERR_NOT_INITIALIZED;
                 snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("HLS plugin not initialized"));
@@ -299,31 +301,31 @@ srcStatus_t hlsPlugin_finalize(srcPluginErr_t* pErr)
         }
 
         /* Close any active sessions */
-        for(i = 0; i < MAX_SESSIONS; i++) 
+        for(i = 0; i < MAX_SESSIONS; i++)
         {
-            if(thePlugin.hlsSessions[i] != NULL) 
+            if(thePlugin.hlsSessions[i] != NULL)
             {
                 rval = hlsPlugin_close(thePlugin.hlsSessions[i], pErr);
-                if(rval != SRC_SUCCESS) 
+                if(rval != SRC_SUCCESS)
                 {
                     break;
                 }
             }
         }
-        if(rval != SRC_SUCCESS) 
+        if(rval != SRC_SUCCESS)
         {
-            if(pErr != NULL) 
+            if(pErr != NULL)
             {
                 pErr->errCode = SRC_PLUGIN_ERR_FINALIZE_FAILED;
                 snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("failed to close all active sessions"));
             }
             break;
         }
-    
-        if(thePlugin.activeSessions != 0) 
+
+        if(thePlugin.activeSessions != 0)
         {
             ERROR("failed to close all active sessions");
-            if(pErr != NULL) 
+            if(pErr != NULL)
             {
                 pErr->errCode = SRC_PLUGIN_ERR_FINALIZE_FAILED;
                 snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("failed to close all active sessions"));
@@ -331,45 +333,45 @@ srcStatus_t hlsPlugin_finalize(srcPluginErr_t* pErr)
             rval = SRC_ERROR;
             break;
         }
-    
+
         thePlugin.activeSessions = 0;
         thePlugin.pluginErrCallback = NULL;
         thePlugin.pluginEvtCallback = NULL;
         thePlugin.bInitialized = 0;
-        
+
     } while(0);
 
     return rval;
 }
-   
+
 /**
  * Register callbacks with plugin
  *
  * This API is called by the player to register callbacks with the plugin for asynchronous events
  * and errors.
  *
- * @param evtCb - #pluginEvtCallback_t event callback function 
- * @param errCb - #pluginErrCallback_t error callback function 
- * @param pErr  - Pointer to #srcPluginErr_t error structure if 
+ * @param evtCb - #pluginEvtCallback_t event callback function
+ * @param errCb - #pluginErrCallback_t error callback function
+ * @param pErr  - Pointer to #srcPluginErr_t error structure if
  *              applicable.  May be NULL.
- *  
- * @pre 
- *       - plugin initialized via hlsPlugin_initialize() 
- *  
- * @post 
+ *
+ * @pre
+ *       - plugin initialized via hlsPlugin_initialize()
+ *
+ * @post
  *       - plugin sessions will use provided functions to signal
  *         asynchronous events and errors
  *
  * @return #srcStatus_t
  */
 srcStatus_t hlsPlugin_registerCB(pluginEvtCallback_t evtCb, pluginErrCallback_t errCb, srcPluginErr_t* pErr)
-{   
+{
     srcStatus_t rval = SRC_SUCCESS;
 
-    if((evtCb == NULL) || (errCb == NULL)) 
+    if((evtCb == NULL) || (errCb == NULL))
     {
         ERROR("invalid paramater");
-        if(pErr != NULL) 
+        if(pErr != NULL)
         {
             pErr->errCode = SRC_PLUGIN_ERR_INVALID_PARAM;
             snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("invalid parameter"));
@@ -385,7 +387,7 @@ srcStatus_t hlsPlugin_registerCB(pluginEvtCallback_t evtCb, pluginErrCallback_t 
         if(!(thePlugin.bInitialized))
         {
             ERROR("HLS plugin not initialized");
-            if(pErr != NULL) 
+            if(pErr != NULL)
             {
                 pErr->errCode = SRC_PLUGIN_ERR_NOT_INITIALIZED;
                 snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("HLS plugin not initialized"));
@@ -408,35 +410,35 @@ srcStatus_t hlsPlugin_registerCB(pluginEvtCallback_t evtCb, pluginErrCallback_t 
  *
  * This API is called by the player to create a new playback session with the plugin.
  *
- * @param pSessionId - Session Id created by plugin.  Used by 
+ * @param pSessionId - Session Id created by plugin.  Used by
  *                   player in all other API calls.
  * @param pHandle - Opaque handle returned by the player. Plugin
  *                must use this when calling player.
- * @param pErr - Pointer to #srcPluginErr_t error structure if 
+ * @param pErr - Pointer to #srcPluginErr_t error structure if
  *             applicable. May be NULL.
- *  
- * @pre 
- *       - plugin initialized via hlsPlugin_initialize() 
- *  
- * @post 
- *       - plugin session created 
+ *
+ * @pre
+ *       - plugin initialized via hlsPlugin_initialize()
+ *
+ * @post
+ *       - plugin session created
  *       - callback for player events registered via
  *         hlsPlayer_registerCB()
  *       - sessionId points to a unique session identfier
- *  
+ *
  * @return #srcStatus_t
  */
 srcStatus_t hlsPlugin_open(srcSessionId_t *pSessionId, void* pHandle, srcPluginErr_t* pErr)
-{   
+{
     srcStatus_t rval = SRC_SUCCESS;
     hlsStatus_t status = HLS_OK;
 
     int sessionIndex = 0;
 
-    if(pHandle == NULL) 
+    if(pHandle == NULL)
     {
         ERROR("invalid paramater");
-        if(pErr != NULL) 
+        if(pErr != NULL)
         {
             pErr->errCode = SRC_PLUGIN_ERR_INVALID_PARAM;
             snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("invalid parameter"));
@@ -450,7 +452,7 @@ srcStatus_t hlsPlugin_open(srcSessionId_t *pSessionId, void* pHandle, srcPluginE
         if(!(thePlugin.bInitialized))
         {
             ERROR("HLS plugin not initialized");
-            if(pErr != NULL) 
+            if(pErr != NULL)
             {
                 pErr->errCode = SRC_PLUGIN_ERR_NOT_INITIALIZED;
                 snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("HLS plugin not initialized"));
@@ -466,7 +468,7 @@ srcStatus_t hlsPlugin_open(srcSessionId_t *pSessionId, void* pHandle, srcPluginE
         if(sessionIndex == -1)
         {
             ERROR("no more HLS sessions available");
-            if(pErr != NULL) 
+            if(pErr != NULL)
             {
                 pErr->errCode = SRC_PLUGIN_ERR_NO_SESSION_AVAILABLE;
                 snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("no more HLS sessions available"));
@@ -474,12 +476,12 @@ srcStatus_t hlsPlugin_open(srcSessionId_t *pSessionId, void* pHandle, srcPluginE
             rval = SRC_ERROR;
             break;
         }
-        
+
         status = hlsSession_init(&(thePlugin.hlsSessions[sessionIndex]), pHandle);
-        if(status != HLS_OK) 
+        if(status != HLS_OK)
         {
             ERROR("hlsSession_init failed with status: %d", status);
-            if(pErr != NULL) 
+            if(pErr != NULL)
             {
                 pErr->errCode = SRC_PLUGIN_ERR_SESSION_RESOURCE_FAILED;
                 snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("hlsSession_init failed with status: %d", status));
@@ -487,17 +489,17 @@ srcStatus_t hlsPlugin_open(srcSessionId_t *pSessionId, void* pHandle, srcPluginE
             rval = SRC_ERROR;
             break;
         }
-        
+
         thePlugin.activeSessions++;
-        
+
         *pSessionId = (srcSessionId_t)(thePlugin.hlsSessions[sessionIndex]);
 
         /* Register session callback with player */
         status = hlsPlayer_registerCB(pHandle, hlsPlugin_playerEvtCallback);
-        if(status != HLS_OK) 
+        if(status != HLS_OK)
         {
             ERROR("registerCB failed with status: %d", status);
-            if(pErr != NULL) 
+            if(pErr != NULL)
             {
                 pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
                 snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("registerCB failed with status: %d", status));
@@ -519,17 +521,17 @@ srcStatus_t hlsPlugin_open(srcSessionId_t *pSessionId, void* pHandle, srcPluginE
  * This API is called by the player to destroy an existing session.
  *
  * @param sessionId - Session to release.
- * @param pErr - Pointer to #srcPluginErr_t error structure if 
+ * @param pErr - Pointer to #srcPluginErr_t error structure if
  *             applicable.  May be NULL.
- *  
- * @pre 
- *       - plugin initialized via hlsPlugin_initialize() 
+ *
+ * @pre
+ *       - plugin initialized via hlsPlugin_initialize()
  *       - session specified by sessionId has been created via
  *         hlsPlugin_open()
- *  
- * @post 
+ *
+ * @post
  *       - session closed and all session resources released
- *  
+ *
  * @return #srcStatus_t
  */
 srcStatus_t hlsPlugin_close(srcSessionId_t sessionId, srcPluginErr_t* pErr)
@@ -541,7 +543,7 @@ srcStatus_t hlsPlugin_close(srcSessionId_t sessionId, srcPluginErr_t* pErr)
     if(sessionId == NULL)
     {
         ERROR("invalid paramater");
-        if(pErr != NULL) 
+        if(pErr != NULL)
         {
             pErr->errCode = SRC_PLUGIN_ERR_INVALID_PARAM;
             snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("invalid parameter"));
@@ -555,7 +557,7 @@ srcStatus_t hlsPlugin_close(srcSessionId_t sessionId, srcPluginErr_t* pErr)
         if(!(thePlugin.bInitialized))
         {
             ERROR("HLS plugin not initialized");
-            if(pErr != NULL) 
+            if(pErr != NULL)
             {
                 pErr->errCode = SRC_PLUGIN_ERR_NOT_INITIALIZED;
                 snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("HLS plugin not initialized"));
@@ -570,7 +572,7 @@ srcStatus_t hlsPlugin_close(srcSessionId_t sessionId, srcPluginErr_t* pErr)
         if(sessionIndex == -1)
         {
             ERROR("invalid session: %p", (void*)sessionId);
-            if(pErr != NULL) 
+            if(pErr != NULL)
             {
                 pErr->errCode = SRC_PLUGIN_ERR_INVALID_SESSION;
                 snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("invalid session: %p", (void*)sessionId));
@@ -578,7 +580,7 @@ srcStatus_t hlsPlugin_close(srcSessionId_t sessionId, srcPluginErr_t* pErr)
             rval = SRC_ERROR;
             break;
         }
-        
+
         /* Terminate the session */
         hlsSession_term(thePlugin.hlsSessions[sessionIndex]);
 
@@ -599,19 +601,19 @@ srcStatus_t hlsPlugin_close(srcSessionId_t sessionId, srcPluginErr_t* pErr)
  * use this to perform any addition setup, pre-fetch content, etc.  Operation may also be a no-op depending on the plugin implementation.
  *
  * @param sessionId - Session to prepare
- * @param pErr - Pointer to #srcPluginErr_t error structure if 
+ * @param pErr - Pointer to #srcPluginErr_t error structure if
  *             applicable.  May be NULL.
- *  
- * @pre 
- *       - plugin initialized via hlsPlugin_initialize() 
+ *
+ * @pre
+ *       - plugin initialized via hlsPlugin_initialize()
  *       - session specified by sessionId has been created via
  *         hlsPlugin_open()
  *       - source URL set using SRC_PLUGIN_SET_DATA_SOURCE
  *         option of hlsPlugin_set() function
- *  
- * @post 
- *       - session is ready to begin playback 
- *  
+ *
+ * @post
+ *       - session is ready to begin playback
+ *
  * @return #srcStatus_t
  */
 srcStatus_t hlsPlugin_prepare( srcSessionId_t sessionId, srcPluginErr_t* pErr )
@@ -624,7 +626,7 @@ srcStatus_t hlsPlugin_prepare( srcSessionId_t sessionId, srcPluginErr_t* pErr )
     if(sessionId == NULL)
     {
         ERROR("invalid paramater");
-        if(pErr != NULL) 
+        if(pErr != NULL)
         {
             pErr->errCode = SRC_PLUGIN_ERR_INVALID_PARAM;
             snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("invalid parameter"));
@@ -638,7 +640,7 @@ srcStatus_t hlsPlugin_prepare( srcSessionId_t sessionId, srcPluginErr_t* pErr )
         if(!(thePlugin.bInitialized))
         {
             ERROR("HLS plugin not initialized");
-            if(pErr != NULL) 
+            if(pErr != NULL)
             {
                 pErr->errCode = SRC_PLUGIN_ERR_NOT_INITIALIZED;
                 snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("HLS plugin not initialized"));
@@ -653,7 +655,7 @@ srcStatus_t hlsPlugin_prepare( srcSessionId_t sessionId, srcPluginErr_t* pErr )
         if(sessionIndex == -1)
         {
             ERROR("invalid session: %p", (void*)sessionId);
-            if(pErr != NULL) 
+            if(pErr != NULL)
             {
                 pErr->errCode = SRC_PLUGIN_ERR_INVALID_SESSION;
                 snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("invalid session: %p", (void*)sessionId));
@@ -661,15 +663,15 @@ srcStatus_t hlsPlugin_prepare( srcSessionId_t sessionId, srcPluginErr_t* pErr )
             rval = SRC_ERROR;
             break;
         }
-        
+
         DEBUG(DBG_INFO,"%s on session %p", __FUNCTION__, (void*)sessionId);
 
         /* prepare on the session */
         status = hlsSession_prepare(thePlugin.hlsSessions[sessionIndex]);
-        if(status != HLS_OK) 
+        if(status != HLS_OK)
         {
             ERROR("hlsSession_prepare failed on session %p with status: %d", (void*)sessionId, status);
-            if(pErr != NULL) 
+            if(pErr != NULL)
             {
                 pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
                 snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("hlsSession_prepare failed on session %p with status: %d", (void*)sessionId, status));
@@ -686,17 +688,17 @@ srcStatus_t hlsPlugin_prepare( srcSessionId_t sessionId, srcPluginErr_t* pErr )
 /**
  * Set a desired value in the plugin
  *
- * This API is called by the player to set settings in the 
- * plugin. 
+ * This API is called by the player to set settings in the
+ * plugin.
  *
- * @param sessionId - Session to send the request to 
- * @param pSetData  - Pointer to #srcPluginSetData_t which 
+ * @param sessionId - Session to send the request to
+ * @param pSetData  - Pointer to #srcPluginSetData_t which
  *                  contains the data to set
- * @param pErr - Pointer to #srcPluginErr_t error structure if 
+ * @param pErr - Pointer to #srcPluginErr_t error structure if
  *             applicable.  May be NULL.
- *  
- * @pre 
- *       - plugin initialized via hlsPlugin_initialize() 
+ *
+ * @pre
+ *       - plugin initialized via hlsPlugin_initialize()
  *       - session specified by sessionId has been created via
  *         hlsPlugin_open()
  *       - SRC_PLUGIN_SET_DATA_SOURCE -- session has NOT been
@@ -707,8 +709,8 @@ srcStatus_t hlsPlugin_prepare( srcSessionId_t sessionId, srcPluginErr_t* pErr )
  *         prepared via hlsPlugin_prepare()
  *       - SRC_PLUGIN_SET_TARGET_BITRATE -- session has not
  *         started playback
- * 
- * @post 
+ *
+ * @post
  *       - SRC_PLUGIN_SET_DATA_SOURCE -- session will use
  *         provided URL as the data source
  *       - SRC_PLUGIN_SET_SPEED -- session will play content at
@@ -736,7 +738,7 @@ srcStatus_t hlsPlugin_set(srcSessionId_t sessionId, srcPluginSetData_t* pSetData
     if((sessionId == NULL) || (pSetData == NULL) || (pSetData->pData == NULL))
     {
         ERROR("invalid paramater");
-        if(pErr != NULL) 
+        if(pErr != NULL)
         {
             pErr->errCode = SRC_PLUGIN_ERR_INVALID_PARAM;
             snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("invalid parameter"));
@@ -750,7 +752,7 @@ srcStatus_t hlsPlugin_set(srcSessionId_t sessionId, srcPluginSetData_t* pSetData
         if(!(thePlugin.bInitialized))
         {
             ERROR("HLS plugin not initialized");
-            if(pErr != NULL) 
+            if(pErr != NULL)
             {
                 pErr->errCode = SRC_PLUGIN_ERR_NOT_INITIALIZED;
                 snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("HLS plugin not initialized"));
@@ -765,7 +767,7 @@ srcStatus_t hlsPlugin_set(srcSessionId_t sessionId, srcPluginSetData_t* pSetData
         if(sessionIndex == -1)
         {
             ERROR("invalid session: %p", (void*)sessionId);
-            if(pErr != NULL) 
+            if(pErr != NULL)
             {
                 pErr->errCode = SRC_PLUGIN_ERR_INVALID_SESSION;
                 snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("invalid session: %p", (void*)sessionId));
@@ -774,17 +776,17 @@ srcStatus_t hlsPlugin_set(srcSessionId_t sessionId, srcPluginSetData_t* pSetData
             break;
         }
 
-        switch(pSetData->setCode) 
+        switch(pSetData->setCode)
         {
             case SRC_PLUGIN_SET_DATA_SOURCE:
                 DEBUG(DBG_INFO,"setting URL = %s for session %p", (char*)(pSetData->pData), (void *)sessionId);
 
                 /* setDataSource on the session */
                 status = hlsSession_setDataSource(thePlugin.hlsSessions[sessionIndex], (char*)(pSetData->pData));
-                if(status != HLS_OK) 
+                if(status != HLS_OK)
                 {
                     ERROR("hlsSession_setDataSource failed on session %p with status: %d", (void*)sessionId, status);
-                    if(pErr != NULL) 
+                    if(pErr != NULL)
                     {
                         pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
                         snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("hlsSession_setDataSource failed on session %p with status: %d", (void*)sessionId, status));
@@ -795,13 +797,13 @@ srcStatus_t hlsPlugin_set(srcSessionId_t sessionId, srcPluginSetData_t* pSetData
                 break;
             case SRC_PLUGIN_SET_SPEED:
                 DEBUG(DBG_INFO,"setting speed = %f on session %p", *(float*)(pSetData->pData), (void*)sessionId);
-        
+
 		        /* Call the session setSpeed function */
         		status = hlsSession_setSpeed(thePlugin.hlsSessions[sessionIndex], *(float*)(pSetData->pData));
                 if(status == HLS_UNSUPPORTED)
                 {
                     ERROR("setting speed %f on session %p not supported by this stream at this time", *(float*)(pSetData->pData), (void*)sessionId);
-                    if(pErr != NULL) 
+                    if(pErr != NULL)
             		{
                 		pErr->errCode = SRC_PLUGIN_ERR_UNSUPPORTED;
                 		snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("setting speed %f on session %p not supported by this stream at this time", *(float*)(pSetData->pData), (void*)sessionId));
@@ -809,10 +811,10 @@ srcStatus_t hlsPlugin_set(srcSessionId_t sessionId, srcPluginSetData_t* pSetData
             		rval = SRC_ERROR;
             		break;
                 }
-                else if(status != HLS_OK) 
+                else if(status != HLS_OK)
         		{
             		ERROR("hlsSession_setSpeed failed on session %p with status: %d", (void*)sessionId, status);
-            		if(pErr != NULL) 
+            		if(pErr != NULL)
             		{
                 		pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
                 		snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("hlsSession_setSpeed failed on session %p with status: %d", (void*)sessionId, status));
@@ -856,13 +858,13 @@ srcStatus_t hlsPlugin_set(srcSessionId_t sessionId, srcPluginSetData_t* pSetData
                break;
             case SRC_PLUGIN_SET_MAX_BITRATE:
                 DEBUG(DBG_INFO,"setting max bitrate = %d on session %p", *(int*)(pSetData->pData), (void*)sessionId);
-        
+
                 /* setBitrateRange on the session */
                 status = hlsSession_setBitrateLimit(thePlugin.hlsSessions[sessionIndex], BR_LIMIT_MAX, *(int*)(pSetData->pData));
-                if(status != HLS_OK) 
+                if(status != HLS_OK)
                 {
                     ERROR("hlsSession_setBitrateLimit failed on session %p with status: %d", (void*)sessionId, status);
-                    if(pErr != NULL) 
+                    if(pErr != NULL)
                     {
                         pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
                         snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("hlsSession_setBitrateLimit failed on session %p with status: %d", (void*)sessionId, status));
@@ -873,13 +875,13 @@ srcStatus_t hlsPlugin_set(srcSessionId_t sessionId, srcPluginSetData_t* pSetData
                 break;
             case SRC_PLUGIN_SET_MIN_BITRATE:
                 DEBUG(DBG_INFO,"setting min bitrate = %d on session %p", *(int*)(pSetData->pData), (void*)sessionId);
-        
+
                 /* setBitrateRange on the session */
                 status = hlsSession_setBitrateLimit(thePlugin.hlsSessions[sessionIndex], BR_LIMIT_MIN, *(int*)(pSetData->pData));
-                if(status != HLS_OK) 
+                if(status != HLS_OK)
                 {
                     ERROR("hlsSession_setBitrateLimit failed on session %p with status: %d", (void*)sessionId, status);
-                    if(pErr != NULL) 
+                    if(pErr != NULL)
                     {
                         pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
                         snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("hlsSession_setBitrateLimit failed on session %p with status: %d", (void*)sessionId, status));
@@ -890,13 +892,13 @@ srcStatus_t hlsPlugin_set(srcSessionId_t sessionId, srcPluginSetData_t* pSetData
                 break;
             case SRC_PLUGIN_SET_TARGET_BITRATE:
                 DEBUG(DBG_INFO,"setting target bitrate = %d on session %p", *(int*)(pSetData->pData), (void*)sessionId);
-        
+
                 /* setBitrateRange on the session */
                 status = hlsSession_setBitrateLimit(thePlugin.hlsSessions[sessionIndex], BR_LIMIT_TARGET, *(int*)(pSetData->pData));
-                if(status != HLS_OK) 
+                if(status != HLS_OK)
                 {
                     ERROR("hlsSession_setBitrateLimit failed on session %p with status: %d", (void*)sessionId, status);
-                    if(pErr != NULL) 
+                    if(pErr != NULL)
                     {
                         pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
                         snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("hlsSession_setBitrateLimit failed on session %p with status: %d", (void*)sessionId, status));
@@ -907,13 +909,13 @@ srcStatus_t hlsPlugin_set(srcSessionId_t sessionId, srcPluginSetData_t* pSetData
                 break;
             case SRC_PLUGIN_SET_AUDIO_LANGUAGE:
                 DEBUG(DBG_INFO,"setting audio language: %s on session %p", (char*)(pSetData->pData), (void*)sessionId);
-        
+
                 /* setAudioLanguage on the session */
                 status = hlsSession_setAudioLanguage(thePlugin.hlsSessions[sessionIndex], (char*)(pSetData->pData));
-                if(status != HLS_OK) 
+                if(status != HLS_OK)
                 {
                     ERROR("hlsSession_setAudioLanguage failed on session %p with status: %d", (void*)sessionId, status);
-                    if(pErr != NULL) 
+                    if(pErr != NULL)
                     {
                         pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
                         snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("hlsSession_setAudioLanguage failed on session %p with status: %d", (void*)sessionId, status));
@@ -924,7 +926,7 @@ srcStatus_t hlsPlugin_set(srcSessionId_t sessionId, srcPluginSetData_t* pSetData
                 break;
             default:
                 ERROR("unknown srcPlayerSetCode_t value: %d", pSetData->setCode);
-                if(pErr != NULL) 
+                if(pErr != NULL)
                 {
                     pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
                     snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("unknown srcPlayerSetCode_t value: %d", pSetData->setCode));
@@ -932,7 +934,7 @@ srcStatus_t hlsPlugin_set(srcSessionId_t sessionId, srcPluginSetData_t* pSetData
                 rval = SRC_ERROR;
                 break;
         }
-        if(rval != SRC_SUCCESS) 
+        if(rval != SRC_SUCCESS)
         {
             break;
         }
@@ -945,24 +947,24 @@ srcStatus_t hlsPlugin_set(srcSessionId_t sessionId, srcPluginSetData_t* pSetData
 /**
  * Retrieve a desired value from the plugin
  *
- * This API is called by the player to get information from the 
- * plugin. 
+ * This API is called by the player to get information from the
+ * plugin.
  *
- * @param sessionId - Session to send the request to 
- * @param pGetData - Pointer to #srcPluginGetData_t which 
+ * @param sessionId - Session to send the request to
+ * @param pGetData - Pointer to #srcPluginGetData_t which
  *                 contains the data to get
- * @param pErr - Pointer to #srcPluginErr_t error structure if 
+ * @param pErr - Pointer to #srcPluginErr_t error structure if
  *             applicable.  May be NULL.
- *  
- * @pre 
- *       - plugin initialized via hlsPlugin_initialize() 
+ *
+ * @pre
+ *       - plugin initialized via hlsPlugin_initialize()
  *       - session specified by sessionId has been created via
  *         hlsPlugin_open()
  *       - session has been prepared via hlsPlugin_prepare()
  *       - pGetData->pData has been allocated to hold the
  *         requested data
- *  
- * @post 
+ *
+ * @post
  *       - on SRC_SUCCESS, pGetData->pData contains the desired
  *         information
  *
@@ -978,7 +980,7 @@ srcStatus_t hlsPlugin_get(srcSessionId_t sessionId, srcPluginGetData_t* pGetData
     if((sessionId == NULL) || (pGetData == NULL) || (pGetData->pData == NULL))
     {
         ERROR("invalid paramater");
-        if(pErr != NULL) 
+        if(pErr != NULL)
         {
             pErr->errCode = SRC_PLUGIN_ERR_INVALID_PARAM;
             snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("invalid parameter"));
@@ -992,7 +994,7 @@ srcStatus_t hlsPlugin_get(srcSessionId_t sessionId, srcPluginGetData_t* pGetData
         if(!(thePlugin.bInitialized))
         {
             ERROR("HLS plugin not initialized");
-            if(pErr != NULL) 
+            if(pErr != NULL)
             {
                 pErr->errCode = SRC_PLUGIN_ERR_NOT_INITIALIZED;
                 snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("HLS plugin not initialized"));
@@ -1007,7 +1009,7 @@ srcStatus_t hlsPlugin_get(srcSessionId_t sessionId, srcPluginGetData_t* pGetData
         if(sessionIndex == -1)
         {
             ERROR("invalid session: %p", (void*)sessionId);
-            if(pErr != NULL) 
+            if(pErr != NULL)
             {
                 pErr->errCode = SRC_PLUGIN_ERR_INVALID_SESSION;
                 snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("invalid session: %p", (void*)sessionId));
@@ -1016,17 +1018,17 @@ srcStatus_t hlsPlugin_get(srcSessionId_t sessionId, srcPluginGetData_t* pGetData
             break;
         }
 
-        switch(pGetData->getCode) 
+        switch(pGetData->getCode)
         {
             case SRC_PLUGIN_GET_NUM_BITRATES:
                 DEBUG(DBG_INFO,"getting number of bitrates for session %p", (void*)sessionId);
-        
+
                 /* getNumBitrates on the session */
                 status = hlsSession_getNumBitrates(thePlugin.hlsSessions[sessionIndex], (int*)(pGetData->pData));
-                if(status != HLS_OK) 
+                if(status != HLS_OK)
                 {
                     ERROR("hlsSession_getNumBitrates failed on session %p with status: %d", (void*)sessionId, status);
-                    if(pErr != NULL) 
+                    if(pErr != NULL)
                     {
                         pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
                         snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("hlsSession_getNumBitrates failed on session %p with status: %d", (void*)sessionId, status));
@@ -1037,13 +1039,13 @@ srcStatus_t hlsPlugin_get(srcSessionId_t sessionId, srcPluginGetData_t* pGetData
                 break;
             case SRC_PLUGIN_GET_BITRATES:
                 DEBUG(DBG_INFO,"getting bitrates for session %p", (void*)sessionId);
-        
+
                 /* getBitrates on the session */
                 status = hlsSession_getBitrates(thePlugin.hlsSessions[sessionIndex], *(int*)(pGetData->pData), (int*)(pGetData->pData));
-                if(status != HLS_OK) 
+                if(status != HLS_OK)
                 {
                     ERROR("hlsSession_getBitrates failed on session %p with status: %d", (void*)sessionId, status);
-                    if(pErr != NULL) 
+                    if(pErr != NULL)
                     {
                         pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
                         snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("hlsSession_getBitrates failed on session %p with status: %d", (void*)sessionId, status));
@@ -1057,10 +1059,10 @@ srcStatus_t hlsPlugin_get(srcSessionId_t sessionId, srcPluginGetData_t* pGetData
 
                 /* getBitrates on the session */
                 status = hlsSession_getCurrentBitrate(thePlugin.hlsSessions[sessionIndex], (int*)(pGetData->pData));
-                if(status != HLS_OK) 
+                if(status != HLS_OK)
                 {
                     ERROR("hlsSession_getCurrentBitrate failed on session %p with status: %d", (void*)sessionId, status);
-                    if(pErr != NULL) 
+                    if(pErr != NULL)
                     {
                         pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
                         snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("hlsSession_getCurrentBitrate failed on session %p with status: %d", (void*)sessionId, status));
@@ -1071,13 +1073,13 @@ srcStatus_t hlsPlugin_get(srcSessionId_t sessionId, srcPluginGetData_t* pGetData
                 break;
             case SRC_PLUGIN_GET_DURATION:
                 DEBUG(DBG_INFO,"getting duration for session %p", (void*)sessionId);
-        
+
                 /* getDuration on the session */
                 status = hlsSession_getDuration(thePlugin.hlsSessions[sessionIndex], (float*)(pGetData->pData));
-                if(status != HLS_OK) 
+                if(status != HLS_OK)
                 {
                     ERROR("hlsSession_getDuration failed on session %p with status: %d", (void*)sessionId, status);
-                    if(pErr != NULL) 
+                    if(pErr != NULL)
                     {
                         pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
                         snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("hlsSession_getDuration failed on session %p with status: %d", (void*)sessionId, status));
@@ -1088,13 +1090,13 @@ srcStatus_t hlsPlugin_get(srcSessionId_t sessionId, srcPluginGetData_t* pGetData
                 break;
             case SRC_PLUGIN_GET_POSITION:
                 DEBUG(DBG_INFO,"getting current position for session %p", (void*)sessionId);
-        
+
                 /* getCurrentPosition on the session */
                 status = hlsSession_getCurrentPosition(thePlugin.hlsSessions[sessionIndex], (float*)(pGetData->pData));
-                if(status != HLS_OK) 
+                if(status != HLS_OK)
                 {
                     ERROR("hlsSession_getCurrentPosition failed on session %p with status: %d", (void*)sessionId, status);
-                    if(pErr != NULL) 
+                    if(pErr != NULL)
                     {
                         pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
                         snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("hlsSession_getCurrentPosition failed on session %p with status: %d", (void*)sessionId, status));
@@ -1105,12 +1107,12 @@ srcStatus_t hlsPlugin_get(srcSessionId_t sessionId, srcPluginGetData_t* pGetData
                 break;
             case SRC_PLUGIN_GET_SPEED:
                 DEBUG(DBG_INFO,"getting current speed for session %p", (void*)sessionId);
-        
+
                 status = hlsSession_getSpeed(thePlugin.hlsSessions[sessionIndex], (float*)(pGetData->pData));
-                if(status != HLS_OK) 
+                if(status != HLS_OK)
                 {
                     ERROR("hlsSession_getSpeed failed on session %p with status: %d", (void*)sessionId, status);
-                    if(pErr != NULL) 
+                    if(pErr != NULL)
                     {
                         pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
                         snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("hlsSession_getSpeed failed on session %p with status: %d", (void*)sessionId, status));
@@ -1121,12 +1123,12 @@ srcStatus_t hlsPlugin_get(srcSessionId_t sessionId, srcPluginGetData_t* pGetData
                 break;
             case SRC_PLUGIN_GET_TRICK_SUPPORTED:
                 DEBUG(DBG_INFO,"getting trick supported for session %p", (void*)sessionId);
-        
+
                 status = hlsSession_getTrickSupported(thePlugin.hlsSessions[sessionIndex], (int*)(pGetData->pData));
-                if(status != HLS_OK) 
+                if(status != HLS_OK)
                 {
                     ERROR("hlsSession_getTrickSupported failed on session %p with status: %d", (void*)sessionId, status);
-                    if(pErr != NULL) 
+                    if(pErr != NULL)
                     {
                         pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
                         snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("hlsSession_getTrickSupported failed on session %p with status: %d", (void*)sessionId, status));
@@ -1141,14 +1143,14 @@ srcStatus_t hlsPlugin_get(srcSessionId_t sessionId, srcPluginGetData_t* pGetData
                    DEBUG(DBG_INFO,"getting content type for session %p", (void*)sessionId);
 
                    status = hlsSession_getContentType(thePlugin.hlsSessions[sessionIndex], &contentType);
-                   if(status != HLS_OK) 
+                   if(status != HLS_OK)
                    {
                       ERROR("hlsSession_getContentType failed on session %p with status: %d", (void*)sessionId, status);
-                      if(pErr != NULL) 
+                      if(pErr != NULL)
                       {
                          pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
-                         snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, 
-                                  DEBUG_MSG("hlsSession_getContentType failed on session %p with status: %d", 
+                         snprintf(pErr->errMsg, SRC_ERR_MSG_LEN,
+                                  DEBUG_MSG("hlsSession_getContentType failed on session %p with status: %d",
                                   (void*)sessionId, status));
                       }
                       rval = SRC_ERROR;
@@ -1172,14 +1174,14 @@ srcStatus_t hlsPlugin_get(srcSessionId_t sessionId, srcPluginGetData_t* pGetData
                    DEBUG(DBG_INFO,"getting numAudioLanguages for session %p", (void*)sessionId);
 
                    status = hlsSession_getNumAudioLanguages(thePlugin.hlsSessions[sessionIndex], (int *)pGetData->pData);
-                   if(status != HLS_OK) 
+                   if(status != HLS_OK)
                    {
                       ERROR("hlsSession_getNumAudioLanguages failed on session %p with status: %d", (void*)sessionId, status);
-                      if(pErr != NULL) 
+                      if(pErr != NULL)
                       {
                          pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
-                         snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, 
-                                  DEBUG_MSG("hlsSession_getNumAudioLanguages failed on session %p with status: %d", 
+                         snprintf(pErr->errMsg, SRC_ERR_MSG_LEN,
+                                  DEBUG_MSG("hlsSession_getNumAudioLanguages failed on session %p with status: %d",
                                   (void*)sessionId, status));
                       }
                       rval = SRC_ERROR;
@@ -1190,18 +1192,18 @@ srcStatus_t hlsPlugin_get(srcSessionId_t sessionId, srcPluginGetData_t* pGetData
             case SRC_PLUGIN_GET_AUDIO_LANGUAGES_INFO:
                 {
                    DEBUG(DBG_INFO,"getting audio languages info for session %p", (void*)sessionId);
-                   status = hlsSession_getAudioLanguagesInfo(thePlugin.hlsSessions[sessionIndex], 
+                   status = hlsSession_getAudioLanguagesInfo(thePlugin.hlsSessions[sessionIndex],
                                                              ((srcPluginAudioLanguages_t *)pGetData->pData)->audioLangInfoArr,
                                                              &((srcPluginAudioLanguages_t *)pGetData->pData)->numAudioLanguages);
 
-                   if(status != HLS_OK) 
+                   if(status != HLS_OK)
                    {
                       ERROR("hlsSession_getAudioLanguagesInfo failed on session %p with status: %d", (void*)sessionId, status);
-                      if(pErr != NULL) 
+                      if(pErr != NULL)
                       {
                          pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
-                         snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, 
-                                  DEBUG_MSG("hlsSession_getAudioLanguagesInfo failed on session %p with status: %d", 
+                         snprintf(pErr->errMsg, SRC_ERR_MSG_LEN,
+                                  DEBUG_MSG("hlsSession_getAudioLanguagesInfo failed on session %p with status: %d",
                                   (void*)sessionId, status));
                       }
                       rval = SRC_ERROR;
@@ -1232,7 +1234,7 @@ srcStatus_t hlsPlugin_get(srcSessionId_t sessionId, srcPluginGetData_t* pGetData
                 break;
             default:
                 ERROR("unknown srcPlayerGetCode_t value: %d", pGetData->getCode);
-                if(pErr != NULL) 
+                if(pErr != NULL)
                 {
                     pErr->errCode = SRC_PLUGIN_ERR_GENERAL;
                     snprintf(pErr->errMsg, SRC_ERR_MSG_LEN, DEBUG_MSG("unknown srcPlayerGetCode_t value: %d", pGetData->getCode));
@@ -1240,7 +1242,7 @@ srcStatus_t hlsPlugin_get(srcSessionId_t sessionId, srcPluginGetData_t* pGetData
                 rval = SRC_ERROR;
                 break;
         }
-        if(rval != SRC_SUCCESS) 
+        if(rval != SRC_SUCCESS)
         {
             break;
         }
@@ -1250,19 +1252,19 @@ srcStatus_t hlsPlugin_get(srcSessionId_t sessionId, srcPluginGetData_t* pGetData
     return rval;
 }
 
-/** 
+/**
  * Sends player events to the correct plugin session.
- * 
- * @param sessionId - Session to send the event to 
- * @param pEvt - pointer to #srcPlayerEvt_t containing the 
+ *
+ * @param sessionId - Session to send the event to
+ * @param pEvt - pointer to #srcPlayerEvt_t containing the
  *             player event
- *  
- * @pre 
- *       - plugin initialized via hlsPlugin_initialize() 
+ *
+ * @pre
+ *       - plugin initialized via hlsPlugin_initialize()
  *       - session specified by sessionId has been created via
  *         hlsPlugin_open()
- *  
- * @post 
+ *
+ * @post
  *       - none
  */
 void hlsPlugin_playerEvtCallback(srcSessionId_t sessionId, srcPlayerEvt_t* pEvt)
@@ -1282,14 +1284,14 @@ void hlsPlugin_playerEvtCallback(srcSessionId_t sessionId, srcPlayerEvt_t* pEvt)
     }
 }
 
-/** 
- * Helper function which translates a srcSessionId_t into an 
- * index in the plugin structure's hlsPlugin_t::hlsSessions 
- * array. 
- * 
+/**
+ * Helper function which translates a srcSessionId_t into an
+ * index in the plugin structure's hlsPlugin_t::hlsSessions
+ * array.
+ *
  * @param sessionId - the desired session Id
- * 
- * @return int - the index in the hlsPlugin_t::hlsSessions array 
+ *
+ * @return int - the index in the hlsPlugin_t::hlsSessions array
  *         that sessionId is located at; -1 on failure
  */
 int getSessionIndex(srcSessionId_t sessionId)
@@ -1297,12 +1299,12 @@ int getSessionIndex(srcSessionId_t sessionId)
     int rval = -1;
 
     int i = 0;
-    
-    for(i = 0; i < MAX_SESSIONS; i++) 
+
+    for(i = 0; i < MAX_SESSIONS; i++)
     {
         DEBUG(DBG_NOISE,"Looking for sessionId %p, found %p", (void *)sessionId, (void *)(thePlugin.hlsSessions[i]));
 
-        if(sessionId == (srcSessionId_t)(thePlugin.hlsSessions[i])) 
+        if(sessionId == (srcSessionId_t)(thePlugin.hlsSessions[i]))
         {
             rval = i;
             break;

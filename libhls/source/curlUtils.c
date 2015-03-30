@@ -1,29 +1,30 @@
-/* ****************************************************************************
-*
-*                   Copyright 2012 Cisco Systems, Inc.
-*
-*                              CHS Engineering
-*                           5030 Sugarloaf Parkway
-*                               P.O. Box 465447
-*                          Lawrenceville, GA 30042
-*
-*                        Proprietary and Confidential
-*              Unauthorized distribution or copying is prohibited
-*                            All rights reserved
-*
-* No part of this computer software may be reprinted, reproduced or utilized
-* in any form or by any electronic, mechanical, or other means, now known or
-* hereafter invented, including photocopying and recording, or using any
-* information storage and retrieval system, without permission in writing
-* from Cisco Systems, Inc.
-*
-******************************************************************************/
+/*
+    LIBBHLS
+    Copyright (C) {2015}  {Cisco System}
 
+    This library is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation; either
+    version 2.1 of the License, or (at your option) any later version.
+
+    This library is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
+    USA
+
+    Contributing Authors: Saravanakumar Periyaswamy, Patryk Prus, Tankut Akgul
+
+*/
 /**
  * @file curlUtils.c @date February 9, 2012
- *  
- * @author Patryk Prus (pprus@cisco.com) 
- *  
+ *
+ * @author Patryk Prus (pprus@cisco.com)
+ *
  */
 
 #ifdef __cplusplus
@@ -52,7 +53,7 @@ extern "C" {
  */
 #define CONNECTION_MIN_SPEED_BYTESPERSECOND 10000 // 10 kBps
 /**
- * Number of seconds that we require the connection to stay below 
+ * Number of seconds that we require the connection to stay below
  * CONNECTION_MIN_SPEED_BYTESPERSECOND before we consider it "dead"
  */
 #define CONNECTION_MIN_SPEED_SECS 3
@@ -60,12 +61,12 @@ extern "C" {
 /* Local function prototypes */
 static size_t customFwrite(char* pBuffer, size_t size, size_t nmemb, void* pData);
 
-/** 
+/**
  * Initialize and return a CURL handle.
- * 
- * @param ppCurl - pointer to CURL* which will be populated with 
+ *
+ * @param ppCurl - pointer to CURL* which will be populated with
  *               a CURL handle returned by curl_easy_init()
- * 
+ *
  * @return #hlsStatus_t
  */
 hlsStatus_t curlInit(CURL** ppCurl)
@@ -84,7 +85,7 @@ hlsStatus_t curlInit(CURL** ppCurl)
     {
         /* Get CURL handle */
         *ppCurl = curl_easy_init();
-        if(*ppCurl == NULL) 
+        if(*ppCurl == NULL)
         {
             ERROR("Failed to init libcurl object");
             rval = HLS_ERROR;
@@ -109,7 +110,7 @@ hlsStatus_t curlInit(CURL** ppCurl)
             ERROR("Failed to set curl_easy_setop() with CURLOPT_FOLLOWLOCATION; Error %s", curl_easy_strerror(curlResult) );
             break;
         }
-    
+
         /* Set the user agent */
         curlResult = curl_easy_setopt( *ppCurl, CURLOPT_USERAGENT, "libcurl-agent/1.0" );
         if(  CURLE_OK != curlResult )
@@ -160,11 +161,11 @@ hlsStatus_t curlInit(CURL** ppCurl)
     return rval;
 }
 
-/** 
+/**
  * Cleans up a CURL handle using curl_easy_cleanup()
- * 
+ *
  * @param pCurl - CURL handle
- * 
+ *
  * @return #hlsStatus_t
  */
 hlsStatus_t curlTerm(CURL* pCurl)
@@ -180,27 +181,27 @@ hlsStatus_t curlTerm(CURL* pCurl)
 }
 
 /**
- * Custom write function for use with cURL. 
- *  
- * pData is a downloadHandle_t* 
- *  
- * Uses pData->fpTarget must be non-NULL as it is the file 
- * descriptor passed to fwrite. 
- *  
- * If pData->pFileMutex is non-NULL, the function will lock the 
- * mutex before accessing pData->fpTarget. 
- *  
- * If pData->pbAbortDownload is non-NULL, the function will 
- * immediately return a -1 to stop the cURL transfer when 
+ * Custom write function for use with cURL.
+ *
+ * pData is a downloadHandle_t*
+ *
+ * Uses pData->fpTarget must be non-NULL as it is the file
+ * descriptor passed to fwrite.
+ *
+ * If pData->pFileMutex is non-NULL, the function will lock the
+ * mutex before accessing pData->fpTarget.
+ *
+ * If pData->pbAbortDownload is non-NULL, the function will
+ * immediately return a -1 to stop the cURL transfer when
  *  pbAbortDownload is TRUE.
- * 
- * @param pBuffer - data to write, should contain size*nmemb 
+ *
+ * @param pBuffer - data to write, should contain size*nmemb
  *                bytes
  * @param size - size of each item in pBuffer
  * @param nmemb - number of items in pBuffer
  * @param pData - pointer to a #downloadHandle_t
- * 
- * @return size_t - actual number of bytes written, or -1 on 
+ *
+ * @return size_t - actual number of bytes written, or -1 on
  *         error
  */
 static size_t customFwrite(char* pBuffer, size_t size, size_t nmemb, void* pData)
@@ -209,7 +210,7 @@ static size_t customFwrite(char* pBuffer, size_t size, size_t nmemb, void* pData
 
     downloadHandle_t* pHandle = (downloadHandle_t*)pData;
 
-    if((pBuffer == NULL) || (pHandle == NULL) || (pHandle->fpTarget == NULL)) 
+    if((pBuffer == NULL) || (pHandle == NULL) || (pHandle->fpTarget == NULL))
     {
         ERROR("invalid parameter");
         return -1;
@@ -219,7 +220,7 @@ static size_t customFwrite(char* pBuffer, size_t size, size_t nmemb, void* pData
        abort the download */
     if(pHandle->pbAbortDownload != NULL)
     {
-        if(*(pHandle->pbAbortDownload) != 0) 
+        if(*(pHandle->pbAbortDownload) != 0)
         {
             DEBUG(DBG_WARN, "download cancelled");
             return -1;
@@ -228,7 +229,7 @@ static size_t customFwrite(char* pBuffer, size_t size, size_t nmemb, void* pData
 
     /* If the download handle contains a mutex, lock it before attempting
        the write. */
-    if(pHandle->pFileMutex != NULL) 
+    if(pHandle->pFileMutex != NULL)
     {
         pthread_mutex_lock(pHandle->pFileMutex);
     }
@@ -238,7 +239,7 @@ static size_t customFwrite(char* pBuffer, size_t size, size_t nmemb, void* pData
     rval = fwrite(pBuffer, size, nmemb, pHandle->fpTarget);
 
     /* If the download handle contains a mutex, unlock it */
-    if(pHandle->pFileMutex != NULL) 
+    if(pHandle->pFileMutex != NULL)
     {
         pthread_mutex_unlock(pHandle->pFileMutex);
     }
@@ -248,17 +249,17 @@ static size_t customFwrite(char* pBuffer, size_t size, size_t nmemb, void* pData
 
 /**
  * Downloads a file using cURL.
- *  
- * Downloads from URL and stores data in pHandle->fpTarget. 
- *  
- * If the download is cancelled via pHandle->pbAbortDownload, 
- * this function returns HLS_CANCELLED. 
- *  
+ *
+ * Downloads from URL and stores data in pHandle->fpTarget.
+ *
+ * If the download is cancelled via pHandle->pbAbortDownload,
+ * this function returns HLS_CANCELLED.
+ *
  * @param pCurl - CURL handle to use
  * @param URL - URL of file to download
- * @param fpLocalFile - FILE* which has been opened for writing 
+ * @param fpLocalFile - FILE* which has been opened for writing
  *                    where the downloaded data will be written
- * @param byteOffset - integer specifying the byte offset at 
+ * @param byteOffset - integer specifying the byte offset at
  *                   which to begin the download
  * @param byteLength - integer specifying the byte length of the
  *                   download; if 0 will download the remainder
@@ -311,10 +312,10 @@ hlsStatus_t curlDownloadFile(CURL* pCurl, char* URL, downloadHandle_t* pHandle, 
         }
 
         /* Do we want the whole file or a byterange? */
-        if(byteLength > 0) 
+        if(byteLength > 0)
         {
             tempString = malloc(128);
-            if(tempString == NULL) 
+            if(tempString == NULL)
             {
                 ERROR("malloc error");
                 rval = HLS_MEMORY_ERROR;
@@ -385,13 +386,13 @@ hlsStatus_t curlDownloadFile(CURL* pCurl, char* URL, downloadHandle_t* pHandle, 
                 if (respondCode == 404)
                 {
                     rval = HLS_ERROR;
-                } 
+                }
                 else
                 {
                     rval = HLS_DL_ERROR;
                 }
                 ERROR("Failed to execute curl_easy_perform(); Error %d: '%s': HTTP respond code: %d", curlResult, curl_easy_strerror(curlResult), respondCode);
-		
+
                 break;
             }
         }
@@ -412,28 +413,28 @@ hlsStatus_t curlDownloadFile(CURL* pCurl, char* URL, downloadHandle_t* pHandle, 
     return rval;
 }
 
-/** 
- * Retrieves information about the last transfer performed by 
- * the cURL handle pCurl.  If ppRedirectURL is non-NULL, 
- * retrieves the redirect URL.  If pThroughput is non-NULL, 
- * retrieves the throughput of the last transfer, in bits per 
- * second.  If pDownloadSize is non-NULL, retrieves the number 
- * of bytes downloaded. 
- *  
- * If ppRedirectURL is non-NULL, *ppRedirectURL MUST be NULL, as 
- * it will be allocated by this function and needs to be freed 
- * by the caller. 
- * 
+/**
+ * Retrieves information about the last transfer performed by
+ * the cURL handle pCurl.  If ppRedirectURL is non-NULL,
+ * retrieves the redirect URL.  If pThroughput is non-NULL,
+ * retrieves the throughput of the last transfer, in bits per
+ * second.  If pDownloadSize is non-NULL, retrieves the number
+ * of bytes downloaded.
+ *
+ * If ppRedirectURL is non-NULL, *ppRedirectURL MUST be NULL, as
+ * it will be allocated by this function and needs to be freed
+ * by the caller.
+ *
  * @param pCurl - cURL handle to retireve information about
- * @param ppRedirectURL - NULL, or pointer to a NULL char* which 
+ * @param ppRedirectURL - NULL, or pointer to a NULL char* which
  *                      will receive the final URL of the last
  *                      transfer
- * @param pThroughput - NULL, or pointer to float which will 
+ * @param pThroughput - NULL, or pointer to float which will
  *                    receive the throughput of the last
  *                    transfer, in bits per second
- * @param pDownloadSize - NULL, or pointer to long which will 
+ * @param pDownloadSize - NULL, or pointer to long which will
  *                      receive the number of bytes downloaded
- * 
+ *
  * @return #hlsStatus_t
  */
 hlsStatus_t getCurlTransferInfo(CURL* pCurl, char** ppRedirectURL, float* pThroughput, long* pDownloadSize)
@@ -464,9 +465,9 @@ hlsStatus_t getCurlTransferInfo(CURL* pCurl, char** ppRedirectURL, float* pThrou
                 break;
             }
             DEBUG(DBG_NOISE,"curl_easy_getinfo(CURLINFO_EFFECTIVE_URL) pString: %s", tempString );
-    
+
             *ppRedirectURL = malloc(strlen(tempString)+1);
-            if(*ppRedirectURL == NULL) 
+            if(*ppRedirectURL == NULL)
             {
                 ERROR("malloc error");
                 rval = HLS_MEMORY_ERROR;
@@ -474,7 +475,7 @@ hlsStatus_t getCurlTransferInfo(CURL* pCurl, char** ppRedirectURL, float* pThrou
             }
             memset(*ppRedirectURL, 0, strlen(tempString)+1);
             strcpy(*ppRedirectURL, tempString);
-        }        
+        }
 
         /* Return the average download speed, if requested */
         if(pThroughput != NULL)
@@ -487,15 +488,15 @@ hlsStatus_t getCurlTransferInfo(CURL* pCurl, char** ppRedirectURL, float* pThrou
                 break;
             }
             DEBUG(DBG_NOISE,"curl_easy_getinfo(CURLINFO_SPEED_DOWNLOAD) throughput: %5.2f Bps", tempDouble);
-            
+
             *pThroughput = tempDouble;
 
             /* Convert from Bps to bps */
             *pThroughput *= 8;
 
             DEBUG(DBG_INFO,"throughput: %5.2f Bps = %5.2f bps", tempDouble, *pThroughput);
-        }                          
-        
+        }
+
         /* Return the download size, if requested */
         if(pDownloadSize != NULL)
         {
@@ -507,9 +508,9 @@ hlsStatus_t getCurlTransferInfo(CURL* pCurl, char** ppRedirectURL, float* pThrou
                 break;
             }
             DEBUG(DBG_NOISE,"curl_easy_getinfo(CURLINFO_SIZE_DOWNLOAD) download size: %5.2f bytes", tempDouble);
-            
+
             *pDownloadSize = tempDouble;
-        }                           
+        }
 
     } while (0);
 
@@ -519,23 +520,23 @@ hlsStatus_t getCurlTransferInfo(CURL* pCurl, char** ppRedirectURL, float* pThrou
 /**
  * Generates a base URL from a content URI
  * For example, it turns:
- *  
+ *
  * http://www.foo.com/bar/playlist.m3u
- *  
+ *
  * to
- *  
+ *
  * http://www.foo.com/bar/
- *  
- * If the URL has no base (e.g. "foo.bar"), returns HLS_OK and 
+ *
+ * If the URL has no base (e.g. "foo.bar"), returns HLS_OK and
  *  pBaseURL == NULL.
- *  
- * *pBaseURL MUST be NULL, as it will be allocated by this 
+ *
+ * *pBaseURL MUST be NULL, as it will be allocated by this
  *  function and needs to be freed by the caller.
- * 
+ *
  * @param URL - input content URI
- * @param pBaseURL - will point to buffer holding base URL at 
+ * @param pBaseURL - will point to buffer holding base URL at
  *                 return time. CALLER MUST FREE.
- * 
+ *
  * @return #hlsStatus_t
  */
 hlsStatus_t getBaseURL(char* URL, char** pBaseURL)
@@ -553,29 +554,29 @@ hlsStatus_t getBaseURL(char* URL, char** pBaseURL)
     do{
         /* Locate last occurance of '/' */
         pMatch = strrchr(URL, '/');
-        if(pMatch == NULL) 
+        if(pMatch == NULL)
         {
             /* String did not exist */
             baseLength = 0;
         }
         else
-        {      
+        {
             baseLength = (pMatch - URL) + 1;
         }
-    
+
         DEBUG(DBG_NOISE,"Length of base to '/' is %d", baseLength);
-    
-        if(baseLength > 0) 
+
+        if(baseLength > 0)
         {
             *pBaseURL = malloc(baseLength+1);
-            if(*pBaseURL == NULL) 
+            if(*pBaseURL == NULL)
             {
                 ERROR("malloc error");
                 rval = HLS_MEMORY_ERROR;
                 break;
             }
             strncpy(*pBaseURL, URL, baseLength);
-            (*pBaseURL)[baseLength] = '\0';    
+            (*pBaseURL)[baseLength] = '\0';
         }
 
     } while (0);
@@ -585,24 +586,24 @@ hlsStatus_t getBaseURL(char* URL, char** pBaseURL)
 
 /**
  * Generates a file name from a content URI
- *  
+ *
  * For example, it turns:
- *  
+ *
  * http://www.foo.com/bar/playlist.m3u?thing=thing#other
- *  
+ *
  * to
- *  
+ *
  * playlist.m3u
- *  
+ *
  * *pFileName MUST be NULL, as it will be allocated by this
  *  function and needs to be freed by the caller.
- *  
+ *
  * @param URL - input content URI
  * @param pFileName - will point to buffer holding file name at
  *                 return time. CALLER MUST FREE.
- * @param prefix - additional characters to prepend to the file 
+ * @param prefix - additional characters to prepend to the file
  *               name.  Can be NULL.
- * 
+ *
  * @return #hlsStatus_t
  */
 hlsStatus_t getFileName(char* URL, char** pFileName, char* prefix)
@@ -611,7 +612,7 @@ hlsStatus_t getFileName(char* URL, char** pFileName, char* prefix)
     char *pMatch = NULL;
     int nameLength = 0;
     int prefixLength = 0;
-    
+
     if((URL == NULL) || (pFileName == NULL) || (*pFileName != NULL))
     {
         ERROR("invalid parameter");
@@ -621,7 +622,7 @@ hlsStatus_t getFileName(char* URL, char** pFileName, char* prefix)
     do{
         /* Locate last occurance of '/' */
         pMatch = strrchr(URL, '/');
-        if(pMatch == NULL) 
+        if(pMatch == NULL)
         {
             /* String did not exist */
             pMatch = URL;
@@ -636,16 +637,16 @@ hlsStatus_t getFileName(char* URL, char** pFileName, char* prefix)
         nameLength = strcspn(pMatch, "?#");
 
         DEBUG(DBG_NOISE,"Length of file name is %d", nameLength);
-    
+
         /* Get the length of the prefix, if we were given one */
-        if(prefix != NULL) 
+        if(prefix != NULL)
         {
             prefixLength = strlen(prefix);
         }
 
         /* Allocate the new string */
         *pFileName = malloc(prefixLength+nameLength+1);
-        if(*pFileName == NULL) 
+        if(*pFileName == NULL)
         {
             ERROR("malloc error");
             rval = HLS_MEMORY_ERROR;
@@ -653,15 +654,15 @@ hlsStatus_t getFileName(char* URL, char** pFileName, char* prefix)
         }
 
         /* Copy the prefix, if it exists */
-        if(prefixLength > 0) 
+        if(prefixLength > 0)
         {
             strncpy(*pFileName, prefix, prefixLength);
         }
 
         /* Copy the file name and terminate the string */
         strncpy(*pFileName+prefixLength, pMatch, nameLength);
-        (*pFileName)[prefixLength+nameLength] = '\0';    
-       
+        (*pFileName)[prefixLength+nameLength] = '\0';
+
     } while (0);
 
     return rval;
@@ -670,16 +671,16 @@ hlsStatus_t getFileName(char* URL, char** pFileName, char* prefix)
 /**
  * Generates a local file path from a content
  * URI and the LOCAL_PATH define.
- *  
+ *
  * *pLocalPath MUST be NULL, as it will be allocated by this
  *  function and needs to be freed by the caller.
- *  
+ *
  * @param URL - input content URI
  * @param pLocalPath - will point to buffer holding the local
  *                 path at return time. CALLER MUST FREE.
- * @param prefix - additional character to prepend to file name. 
+ * @param prefix - additional character to prepend to file name.
  *                Can be NULL.
- * 
+ *
  * @return #hlsStatus_t
  */
 hlsStatus_t getLocalPath(char* URL, char** pLocalPath, char* prefix)
@@ -697,7 +698,7 @@ hlsStatus_t getLocalPath(char* URL, char** pLocalPath, char* prefix)
     do{
         /* Get the filename */
         rval = getFileName(URL, &fileName, prefix);
-        if(rval) 
+        if(rval)
         {
             ERROR("problem generating filename from URL");
             break;
@@ -710,7 +711,7 @@ hlsStatus_t getLocalPath(char* URL, char** pLocalPath, char* prefix)
         }
 
         *pLocalPath = malloc(strlen(LOCAL_PATH) + strlen(fileName) + 1);
-        if(*pLocalPath == NULL) 
+        if(*pLocalPath == NULL)
         {
             ERROR("malloc error");
             rval = HLS_MEMORY_ERROR;
@@ -719,7 +720,7 @@ hlsStatus_t getLocalPath(char* URL, char** pLocalPath, char* prefix)
         memset(*pLocalPath, 0, strlen(LOCAL_PATH) + strlen(fileName) + 1);
         strcpy(*pLocalPath, LOCAL_PATH);
         strcpy(*pLocalPath+strlen(LOCAL_PATH), fileName);
-            
+
     } while (0);
 
     free(fileName);
@@ -729,18 +730,18 @@ hlsStatus_t getLocalPath(char* URL, char** pLocalPath, char* prefix)
 }
 
 /**
- * Test if pUrl points to a complete URL.  If so, it leaves it 
- * unchanged.  If it is not a complete URL, it reallocates the 
- * memory *pUrl points to and prepends baseURL. 
- *  
- * In the event of an error, *pUrl and pUrl are unchanged  
- * 
+ * Test if pUrl points to a complete URL.  If so, it leaves it
+ * unchanged.  If it is not a complete URL, it reallocates the
+ * memory *pUrl points to and prepends baseURL.
+ *
+ * In the event of an error, *pUrl and pUrl are unchanged
+ *
  * @param pUrl - pointer to the input URL.  On successful return
  *             will point to either the original URL or to a new
  *             memory location containing the concatenated
  *             baseURL and original URL
- * @param baseURL - the base URL which may be prepended to pUrl 
- * 
+ * @param baseURL - the base URL which may be prepended to pUrl
+ *
  * @return #hlsStatus_t
  */
 hlsStatus_t createFullURL(char** pUrl, char* baseURL)
@@ -761,7 +762,7 @@ hlsStatus_t createFullURL(char** pUrl, char* baseURL)
            (strncmp(*pUrl, "https://", strlen("https://")) != 0))
         {
             tempURL = (char*)malloc(strlen(baseURL)+strlen(*pUrl)+1);
-            if(tempURL == NULL) 
+            if(tempURL == NULL)
             {
                 ERROR("malloc error");
                 rval = HLS_MEMORY_ERROR;

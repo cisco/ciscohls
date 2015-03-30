@@ -1,29 +1,30 @@
-/* ****************************************************************************
-*
-*                   Copyright 2012 Cisco Systems, Inc.
-*
-*                              CHS Engineering
-*                           5030 Sugarloaf Parkway
-*                               P.O. Box 465447
-*                          Lawrenceville, GA 30042
-*
-*                        Proprietary and Confidential
-*              Unauthorized distribution or copying is prohibited
-*                            All rights reserved
-*
-* No part of this computer software may be reprinted, reproduced or utilized
-* in any form or by any electronic, mechanical, or other means, now known or
-* hereafter invented, including photocopying and recording, or using any
-* information storage and retrieval system, without permission in writing
-* from Cisco Systems, Inc.
-*
-******************************************************************************/
+/*
+    LIBBHLS
+    Copyright (C) {2015}  {Cisco System}
 
+    This library is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation; either
+    version 2.1 of the License, or (at your option) any later version.
+
+    This library is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
+    USA
+
+    Contributing Authors: Saravanakumar Periyaswamy, Patryk Prus, Tankut Akgul
+
+*/
 /**
  * @file hlsSession.c @date February 9, 2012
- *  
- * @author Patryk Prus (pprus@cisco.com) 
- *  
+ *
+ * @author Patryk Prus (pprus@cisco.com)
+ *
  */
 
 #ifdef __cplusplus
@@ -51,19 +52,19 @@ extern "C" {
 
 #include "debug.h"
 
-/* 
+/*
  *  TODO: Add commentary about call flow...
- * 
- * 
- * 
- */ 
+ *
+ *
+ *
+ */
 
 /**
- * Initializes hls streaming module.  *ppSession MUST be NULL, 
+ * Initializes hls streaming module.  *ppSession MUST be NULL,
  * as it will be allocated and needs to be freed by the caller.
- * 
+ *
  * @param ppSession
- * 
+ *
  * @return #hlsStatus_t
  */
 hlsStatus_t hlsSession_init(hlsSession_t** ppSession, void* pHandle)
@@ -87,7 +88,7 @@ hlsStatus_t hlsSession_init(hlsSession_t** ppSession, void* pHandle)
     {
         /* Allocate new hlsSession */
         *ppSession = malloc(sizeof(hlsSession_t));
-        if(*ppSession == NULL) 
+        if(*ppSession == NULL)
         {
             ERROR("malloc error");
             rval = HLS_MEMORY_ERROR;
@@ -101,7 +102,7 @@ hlsStatus_t hlsSession_init(hlsSession_t** ppSession, void* pHandle)
         (*ppSession)->lastPTS = -1ll;
 
         (*ppSession)->playbackControllerMsgQueue = newMsgQueue();
-        if((*ppSession)->playbackControllerMsgQueue == NULL) 
+        if((*ppSession)->playbackControllerMsgQueue == NULL)
         {
             ERROR("failed to allocate message queue");
             rval = HLS_MEMORY_ERROR;
@@ -112,7 +113,7 @@ hlsStatus_t hlsSession_init(hlsSession_t** ppSession, void* pHandle)
            hlsSession_t we allocated above.  Since pointers are longs,
            we need 2 bytes to display each byte of a long, plus 1 byte for '\0' */
         (*ppSession)->sessionName = malloc((2*sizeof(long))+1);
-        if((*ppSession)->sessionName == NULL) 
+        if((*ppSession)->sessionName == NULL)
         {
             ERROR("malloc error");
             rval = HLS_MEMORY_ERROR;
@@ -139,14 +140,14 @@ hlsStatus_t hlsSession_init(hlsSession_t** ppSession, void* pHandle)
             rval = HLS_ERROR;
             break;
         }
-        
+
         if(pthread_mutex_init(&((*ppSession)->dldRateMutex), NULL) != 0)
         {
             ERROR("failed to initialize download rate mutex");
             rval = HLS_ERROR;
             break;
         }
-       
+
         rval = HLS_OK;
         for(ii = 0; ii < MAX_NUM_MEDIA_GROUPS; ii++)
         {
@@ -215,7 +216,7 @@ hlsStatus_t hlsSession_init(hlsSession_t** ppSession, void* pHandle)
 #endif
 
         /* Initialize pthread condition attribute */
-        if(pthread_condattr_init(&condAttr) != 0) 
+        if(pthread_condattr_init(&condAttr) != 0)
         {
             ERROR("failed to initialize condition attribute");
             rval = HLS_ERROR;
@@ -226,7 +227,7 @@ hlsStatus_t hlsSession_init(hlsSession_t** ppSession, void* pHandle)
    PTHREAD_COND_TIMEDWAIT in hlsTypes.h for more info */
 #ifndef ANDROID
         /* Set the clock to use for pthread conditions to CLOCK_MONOTONIC */
-        if(pthread_condattr_setclock(&condAttr, CLOCK_MONOTONIC) != 0) 
+        if(pthread_condattr_setclock(&condAttr, CLOCK_MONOTONIC) != 0)
         {
             ERROR("failed to set clock on condition attribute");
             rval = HLS_ERROR;
@@ -241,7 +242,7 @@ hlsStatus_t hlsSession_init(hlsSession_t** ppSession, void* pHandle)
             rval = HLS_ERROR;
             break;
         }
-        if(pthread_cond_init(&((*ppSession)->parserWakeCond), &condAttr) != 0) 
+        if(pthread_cond_init(&((*ppSession)->parserWakeCond), &condAttr) != 0)
         {
             ERROR("failed to initialize parser wake condition");
             rval = HLS_ERROR;
@@ -255,7 +256,7 @@ hlsStatus_t hlsSession_init(hlsSession_t** ppSession, void* pHandle)
             rval = HLS_ERROR;
             break;
         }
-        if(pthread_cond_init(&((*ppSession)->downloaderWakeCond), &condAttr) != 0) 
+        if(pthread_cond_init(&((*ppSession)->downloaderWakeCond), &condAttr) != 0)
         {
             ERROR("failed to initialize downloader wake condition");
             rval = HLS_ERROR;
@@ -269,7 +270,7 @@ hlsStatus_t hlsSession_init(hlsSession_t** ppSession, void* pHandle)
             rval = HLS_ERROR;
             break;
         }
-        if(pthread_cond_init(&((*ppSession)->playbackControllerWakeCond), &condAttr) != 0) 
+        if(pthread_cond_init(&((*ppSession)->playbackControllerWakeCond), &condAttr) != 0)
         {
             ERROR("failed to initialize playback controller wake condition");
             rval = HLS_ERROR;
@@ -278,17 +279,17 @@ hlsStatus_t hlsSession_init(hlsSession_t** ppSession, void* pHandle)
 
         /* Initialize our CURL handle */
         rval = curlInit(&((*ppSession)->pCurl));
-        if(rval != HLS_OK) 
+        if(rval != HLS_OK)
         {
             ERROR("failed to initialize CURL handle");
             break;
         }
-        
+
         rval = HLS_OK;
         for(ii = 0; ii < MAX_NUM_MEDIA_GROUPS; ii++)
         {
            rval = curlInit(&((*ppSession)->pMediaGroupCurl[ii]));
-           if(rval != HLS_OK) 
+           if(rval != HLS_OK)
            {
               ERROR("failed to initialize CURL handle for media group: %d", ii);
               rval = HLS_ERROR;
@@ -304,7 +305,7 @@ hlsStatus_t hlsSession_init(hlsSession_t** ppSession, void* pHandle)
 
     pthread_condattr_destroy(&condAttr);
 
-    if(!rval) 
+    if(!rval)
     {
         (*ppSession)->state = HLS_INITIALIZED;
     }
@@ -319,18 +320,18 @@ hlsStatus_t hlsSession_init(hlsSession_t** ppSession, void* pHandle)
 
 /**
  * Terminates and cleans up after hls streaming module.
- * 
+ *
  * @param pSession - handle to hlsSession object to terminate
  */
 void hlsSession_term(hlsSession_t* pSession)
 {
     int ii = 0;
     DEBUG(DBG_INFO,"%s", __FUNCTION__);
-    
-    // TODO: enable for debugging via env var/ compile time flag??? 
+
+    // TODO: enable for debugging via env var/ compile time flag???
     //hlsSession_printInfo(pSession);
 
-    if(pSession != NULL) 
+    if(pSession != NULL)
     {
         /* Kill all our threads */
         pSession->bKillDownloader = 1;
@@ -354,7 +355,7 @@ void hlsSession_term(hlsSession_t* pSession)
                 pthread_mutex_unlock(&(pSession->playbackControllerWakeMutex));
             }
         }
-        
+
         /* Wake up parser thread if it is sleeping */
         if(pthread_mutex_lock(&(pSession->parserWakeMutex)) == 0)
         {
@@ -363,13 +364,13 @@ void hlsSession_term(hlsSession_t* pSession)
                 pthread_mutex_unlock(&(pSession->parserWakeMutex));
             }
         }
-                
-        if(pSession->downloader != 0) 
+
+        if(pSession->downloader != 0)
         {
             pthread_join(pSession->downloader, NULL);
             pSession->downloader = 0;
         }
-        
+
         for(ii = 0; ii < pSession->currentGroupCount; ii++)
         {
            if(0 != pSession->groupDownloader[ii])
@@ -380,21 +381,21 @@ void hlsSession_term(hlsSession_t* pSession)
            }
         }
 
-        if(pSession->playbackController != 0) 
+        if(pSession->playbackController != 0)
         {
             pthread_join(pSession->playbackController, NULL);
             pSession->playbackController= 0;
         }
 
-        if(pSession->parser != 0) 
+        if(pSession->parser != 0)
         {
             pthread_join(pSession->parser, NULL);
             pSession->parser= 0;
         }
-       
+
         pthread_cond_destroy(&(pSession->parserWakeCond));
         pthread_mutex_destroy(&(pSession->parserWakeMutex));
-        
+
         pthread_cond_destroy(&(pSession->playbackControllerWakeCond));
         pthread_mutex_destroy(&(pSession->playbackControllerWakeMutex));
 
@@ -422,13 +423,13 @@ void hlsSession_term(hlsSession_t* pSession)
         pSession->pCurrentPlaylist = NULL;
         pSession->pCurrentProgram = NULL;
 
-        if(pSession->playbackControllerMsgQueue != NULL) 
+        if(pSession->playbackControllerMsgQueue != NULL)
         {
             int msgCount = 0;
             void* pMessage = NULL;
 
-            while((getMsgCount(pSession->playbackControllerMsgQueue, &msgCount) == LL_OK) && 
-                  (msgCount > 0)) 
+            while((getMsgCount(pSession->playbackControllerMsgQueue, &msgCount) == LL_OK) &&
+                  (msgCount > 0))
             {
                 popMsg(pSession->playbackControllerMsgQueue, &pMessage);
                 free(pMessage);
@@ -453,7 +454,7 @@ void hlsSession_term(hlsSession_t* pSession)
             curlTerm(pSession->pCurl);
             pSession->pCurl = NULL;
         }
-   
+
         for(ii = 0; ii < MAX_NUM_MEDIA_GROUPS; ii++)
         {
            if(pSession->pMediaGroupCurl[ii] != NULL)
@@ -467,14 +468,14 @@ void hlsSession_term(hlsSession_t* pSession)
     }
 }
 
-/** 
+/**
  * Sets the top level playlist URL.
  *
  * playlistRWLock MUST NOT be held by the calling thread
- * 
+ *
  * @param pSession - handle to streamer object
  * @param playlistURL - text string of playlist URL
- * 
+ *
  * @return #hlsStatus_t
  */
 hlsStatus_t hlsSession_setDataSource(hlsSession_t* pSession, char* playlistURL)
@@ -495,7 +496,7 @@ hlsStatus_t hlsSession_setDataSource(hlsSession_t* pSession, char* playlistURL)
     do
     {
         /* Check for valid state */
-        if(pSession->state != HLS_INITIALIZED) 
+        if(pSession->state != HLS_INITIALIZED)
         {
             ERROR("%s invalid in state %d", __FUNCTION__, pSession->state);
             rval = HLS_STATE_ERROR;
@@ -503,10 +504,10 @@ hlsStatus_t hlsSession_setDataSource(hlsSession_t* pSession, char* playlistURL)
         }
 
         /* Allocate a structure to hold our playlist, if we haven't yet done so */
-        if(pSession->pPlaylist == NULL) 
+        if(pSession->pPlaylist == NULL)
         {
             pSession->pPlaylist = newHlsPlaylist();
-            if(pSession->pPlaylist == NULL) 
+            if(pSession->pPlaylist == NULL)
             {
                 ERROR("newHlsPlaylist() failed");
                 rval = HLS_MEMORY_ERROR;
@@ -520,10 +521,10 @@ hlsStatus_t hlsSession_setDataSource(hlsSession_t* pSession, char* playlistURL)
             free(pSession->pPlaylist->playlistURL);
             pSession->pPlaylist->playlistURL = NULL;
         }
-            
+
         /* Copy URL into our structure */
         pSession->pPlaylist->playlistURL = (char*)malloc(strlen(playlistURL)+1);
-        if(pSession->pPlaylist->playlistURL == NULL) 
+        if(pSession->pPlaylist->playlistURL == NULL)
         {
             ERROR("malloc error");
             rval = HLS_MEMORY_ERROR;
@@ -533,7 +534,7 @@ hlsStatus_t hlsSession_setDataSource(hlsSession_t* pSession, char* playlistURL)
         strcpy(pSession->pPlaylist->playlistURL, playlistURL);
 
     } while(0);
-    
+
     /* Clean up if we errored */
     if(rval && (pSession->pPlaylist != NULL))
     {
@@ -552,12 +553,12 @@ hlsStatus_t hlsSession_setDataSource(hlsSession_t* pSession, char* playlistURL)
 /**
  * Prepares initialized streamer for playback.  This will kick
  * off the parser thread and return once the parser has parsed
- * the top level manifest. 
- *  
- * playlistRWLock MUST NOT be held by the calling thread 
- * 
+ * the top level manifest.
+ *
+ * playlistRWLock MUST NOT be held by the calling thread
+ *
  * @param pSession - handle to streamer to prepare for playback
- * 
+ *
  * @return #hlsStatus_t
  */
 hlsStatus_t hlsSession_prepare(hlsSession_t* pSession)
@@ -586,7 +587,7 @@ hlsStatus_t hlsSession_prepare(hlsSession_t* pSession)
         }
 
         /* Check for valid state */
-        if(pSession->state != HLS_INITIALIZED) 
+        if(pSession->state != HLS_INITIALIZED)
         {
             ERROR("%s invalid in state %d", __FUNCTION__, pSession->state);
             rval = HLS_STATE_ERROR;
@@ -616,9 +617,9 @@ hlsStatus_t hlsSession_prepare(hlsSession_t* pSession)
             rval = HLS_ERROR;
             break;
         }
-    
+
         /* Get current time */
-        if(clock_gettime(CLOCK_MONOTONIC, &timeoutTime) != 0) 
+        if(clock_gettime(CLOCK_MONOTONIC, &timeoutTime) != 0)
         {
             ERROR("failed to get current time");
             rval = HLS_ERROR;
@@ -627,12 +628,12 @@ hlsStatus_t hlsSession_prepare(hlsSession_t* pSession)
 
         /* Calculate the timeout time for moving to HLS_PREPARED */
         timeoutTime.tv_sec += HLS_PREPARED_TIMEOUT_SECS;
-                    
+
         /* Wait for state change */
         while(pSession->state != HLS_PREPARED)
         {
             /* Get current time */
-            if(clock_gettime(CLOCK_MONOTONIC, &currTime) != 0) 
+            if(clock_gettime(CLOCK_MONOTONIC, &currTime) != 0)
             {
                 ERROR("failed to get current time");
                 rval = HLS_ERROR;
@@ -648,36 +649,36 @@ hlsStatus_t hlsSession_prepare(hlsSession_t* pSession)
             }
 
             /* If parser was told to stop, return error (since we never went to HLS_PREPARED) */
-            if(pSession->bKillParser) 
+            if(pSession->bKillParser)
             {
                 ERROR("parser thread was killed");
                 rval = HLS_ERROR;
                 break;
             }
-            
+
             /* If parser encountered an error, return the error to caller */
-            if(pSession->parserStatus) 
+            if(pSession->parserStatus)
             {
                 ERROR("parser error");
                 rval = pSession->parserStatus;
                 break;
-            }                        
+            }
         }
-    
+
     } while(0);
 
     /* Leave critical section */
     pthread_mutex_unlock(&(pSession->stateMutex));
 
     /* If we failed to become prepared, kill the threads, if they were started */
-    if(rval != HLS_OK) 
+    if(rval != HLS_OK)
     {
         /* Kill the parser */
         pSession->bKillParser = 1;
 
         /* Kill the playback controller */
         pSession->bKillPlaybackController = 1;
-        
+
         /* Wake up parser thread if it is sleeping */
         if(pthread_mutex_lock(&(pSession->parserWakeMutex)) == 0)
         {
@@ -695,41 +696,41 @@ hlsStatus_t hlsSession_prepare(hlsSession_t* pSession)
                 pthread_mutex_unlock(&(pSession->playbackControllerWakeMutex));
             }
         }
-                
+
         /* Wait for parser thread to exit */
-        if(pSession->parser != 0) 
+        if(pSession->parser != 0)
         {
             pthread_join(pSession->parser, NULL);
             pSession->parser = 0;
         }
-                        
+
         /* Wait for playback controller thread to exit */
-        if(pSession->playbackController != 0) 
+        if(pSession->playbackController != 0)
         {
             pthread_join(pSession->playbackController, NULL);
             pSession->playbackController= 0;
         }
-                    
+
         /* Make sure we end up back in INITIALIZED state if we didn't
            make it to PREPARED */
 
         /* Block state changes */
         pthread_mutex_lock(&(pSession->stateMutex));
-    
+
         pSession->state = HLS_INITIALIZED;
 
         /* Leave critical section */
         pthread_mutex_unlock(&(pSession->stateMutex));
     }
-    
+
     return rval;
 }
 
 /**
- * playlistRWLock MUST NOT be held by the calling thread 
- * 
+ * playlistRWLock MUST NOT be held by the calling thread
+ *
  * @param pSession - handle to streamer to prepare for playback
- * 
+ *
  * @return #hlsStatus_t
  */
 hlsStatus_t hlsSession_play(hlsSession_t* pSession)
@@ -743,7 +744,7 @@ hlsStatus_t hlsSession_play(hlsSession_t* pSession)
     struct timespec timeoutTime, currTime;
 
     int ii = 0;
-    
+
     if(pSession == NULL)
     {
         ERROR("invalid parameter");
@@ -764,7 +765,7 @@ hlsStatus_t hlsSession_play(hlsSession_t* pSession)
         }
 
         /* Check for valid state */
-        if(pSession->state != HLS_PREPARED) 
+        if(pSession->state != HLS_PREPARED)
         {
             ERROR("%s invalid in state %d", __FUNCTION__, pSession->state);
             rval = HLS_STATE_ERROR;
@@ -791,7 +792,7 @@ hlsStatus_t hlsSession_play(hlsSession_t* pSession)
               pSession->groupDownloaderStatus[ii] = HLS_OK;
               pSession->grpThreadData[ii].pSession = (void *)pSession;
               pSession->grpThreadData[ii].mediaGrpIdx = ii;
-              if(pthread_create(&(pSession->groupDownloader[ii]), NULL, 
+              if(pthread_create(&(pSession->groupDownloader[ii]), NULL,
                                 (void*)hlsGrpDownloaderThread, &pSession->grpThreadData[ii]))
               {
                  ERROR("failed to create group downloader thread %d", ii);
@@ -805,7 +806,7 @@ hlsStatus_t hlsSession_play(hlsSession_t* pSession)
 
         /* Allocate a new playback controller signal */
         pSignal = malloc(sizeof(playbackControllerSignal_t));
-        if(pSignal == NULL) 
+        if(pSignal == NULL)
         {
             ERROR("malloc error");
             rval = HLS_ERROR;
@@ -816,19 +817,19 @@ hlsStatus_t hlsSession_play(hlsSession_t* pSession)
 
         /* Push the message to the playback controller message queue */
         llerror = pushMsg(pSession->playbackControllerMsgQueue, (void*)pSignal);
-        if(llerror != LL_OK) 
+        if(llerror != LL_OK)
         {
             ERROR("failed to signal the playback controller");
             free(pSignal);
             rval = HLS_ERROR;
             break;
         }
-                    
+
         /* Release reference to signal -- playback controller will free */
         pSignal = NULL;
 
         /* Get current time */
-        if(clock_gettime(CLOCK_MONOTONIC, &timeoutTime) != 0) 
+        if(clock_gettime(CLOCK_MONOTONIC, &timeoutTime) != 0)
         {
             ERROR("failed to get current time");
             rval = HLS_ERROR;
@@ -837,18 +838,18 @@ hlsStatus_t hlsSession_play(hlsSession_t* pSession)
 
         /* Calculate the timeout time for moving to HLS_PREPARED */
         timeoutTime.tv_sec += HLS_PLAYING_TIMEOUT_SECS;
-                    
+
         /* Wait for state change */
         while(pSession->state != HLS_PLAYING)
         {
             /* Get current time */
-            if(clock_gettime(CLOCK_MONOTONIC, &currTime) != 0) 
+            if(clock_gettime(CLOCK_MONOTONIC, &currTime) != 0)
             {
                 ERROR("failed to get current time");
                 rval = HLS_ERROR;
                 break;
             }
-            // 
+            //
             // The original code would do some form of timeout if it wasn't notified to play
             // This really isn't useful and alot of systems will not report back that it is playing
             // So I removed this.
@@ -862,35 +863,35 @@ hlsStatus_t hlsSession_play(hlsSession_t* pSession)
                 rval = HLS_ERROR;
                 break;
             }
-#endif        
+#endif
             /* If downloader was told to stop, return error (since we never went to HLS_PLAYING) */
-            if(pSession->bKillDownloader) 
+            if(pSession->bKillDownloader)
             {
                 ERROR("downloader thread was killed");
                 rval = HLS_ERROR;
                 break;
-            }            
+            }
 
             /* If downloader encountered an error, return the error to caller */
-            if(pSession->downloaderStatus) 
+            if(pSession->downloaderStatus)
             {
                 ERROR("downloader error");
                 rval = pSession->downloaderStatus;
                 break;
-            }                        
+            }
         }
-    
+
     } while(0);
 
     /* Leave critical section */
     pthread_mutex_unlock(&(pSession->stateMutex));
 
     /* If we failed to start playing, kill the downloader thread, if it was started */
-    if(rval != HLS_OK) 
+    if(rval != HLS_OK)
     {
         /* Kill the downloader */
         pSession->bKillDownloader = 1;
-        
+
         /* Wake up downloader thread if it is sleeping */
         if(pthread_mutex_lock(&(pSession->downloaderWakeMutex)) == 0)
         {
@@ -899,14 +900,14 @@ hlsStatus_t hlsSession_play(hlsSession_t* pSession)
                 pthread_mutex_unlock(&(pSession->downloaderWakeMutex));
             }
         }
-                    
+
         /* Wait for downloader thread to exit */
-        if(pSession->downloader != 0) 
+        if(pSession->downloader != 0)
         {
             pthread_join(pSession->downloader, NULL);
             pSession->downloader = 0;
         }
-        
+
         for(ii = 0; ii < pSession->currentGroupCount; ii++)
         {
            if(0 != pSession->groupDownloader[ii])
@@ -922,7 +923,7 @@ hlsStatus_t hlsSession_play(hlsSession_t* pSession)
 
         /* Block state changes */
         pthread_mutex_lock(&(pSession->stateMutex));
-    
+
         pSession->state = HLS_PREPARED;
 
         /* Leave critical section */
@@ -932,12 +933,12 @@ hlsStatus_t hlsSession_play(hlsSession_t* pSession)
     return rval;
 }
 
-/** 
- * 
- * 
+/**
+ *
+ *
  * @param pSession
  * @param numBitrates
- * 
+ *
  * @return #hlsStatus_t
  */
 hlsStatus_t hlsSession_getNumBitrates(hlsSession_t* pSession, int* numBitrates)
@@ -956,26 +957,26 @@ hlsStatus_t hlsSession_getNumBitrates(hlsSession_t* pSession, int* numBitrates)
     do
     {
         /* Check for valid state */
-        if(pSession->state < HLS_PREPARED) 
+        if(pSession->state < HLS_PREPARED)
         {
             ERROR("%s invalid in state %d", __FUNCTION__, pSession->state);
             rval = HLS_STATE_ERROR;
             break;
         }
 
-        if(pSession->pPlaylist == NULL) 
+        if(pSession->pPlaylist == NULL)
         {
             ERROR("invalid playlist");
             rval = HLS_ERROR;
             break;
         }
 
-        if(pSession->pPlaylist->type == PL_MEDIA) 
+        if(pSession->pPlaylist->type == PL_MEDIA)
         {
             /* If we only have a media playlist, we only have 1 bitrate */
             *numBitrates = 1;
         }
-        else if(pSession->pPlaylist->type == PL_VARIANT) 
+        else if(pSession->pPlaylist->type == PL_VARIANT)
         {
             /* If we have a variant playlist, return the number of streams */
             if((pSession->pCurrentProgram == NULL) ||
@@ -996,20 +997,20 @@ hlsStatus_t hlsSession_getNumBitrates(hlsSession_t* pSession, int* numBitrates)
         }
 
     } while(0);
-    
+
     /* Release playlist lock */
     pthread_rwlock_unlock(&(pSession->playlistRWLock));
 
     return rval;
 }
 
-/** 
- * 
- * 
+/**
+ *
+ *
  * @param pSession
  * @param numBitrates
  * @param bitrates
- * 
+ *
  * @return #hlsStatus_t
  */
 hlsStatus_t hlsSession_getBitrates(hlsSession_t* pSession, int numBitrates, int* bitrates)
@@ -1030,23 +1031,23 @@ hlsStatus_t hlsSession_getBitrates(hlsSession_t* pSession, int numBitrates, int*
     do
     {
         /* Check for valid state */
-        if(pSession->state < HLS_PREPARED) 
+        if(pSession->state < HLS_PREPARED)
         {
             ERROR("%s invalid in state %d", __FUNCTION__, pSession->state);
             rval = HLS_STATE_ERROR;
             break;
         }
 
-        if(pSession->pPlaylist == NULL) 
+        if(pSession->pPlaylist == NULL)
         {
             ERROR("invalid playlist");
             rval = HLS_ERROR;
             break;
         }
 
-        if(pSession->pPlaylist->type == PL_MEDIA) 
+        if(pSession->pPlaylist->type == PL_MEDIA)
         {
-            if(pSession->pPlaylist->pMediaData == NULL) 
+            if(pSession->pPlaylist->pMediaData == NULL)
             {
                 ERROR("media playlist data is NULL");
                 rval = HLS_ERROR;
@@ -1056,7 +1057,7 @@ hlsStatus_t hlsSession_getBitrates(hlsSession_t* pSession, int numBitrates, int*
             /* If we only have a media playlist, return its bitrate */
             bitrates[0] = pSession->pPlaylist->pMediaData->bitrate;
         }
-        else if(pSession->pPlaylist->type == PL_VARIANT) 
+        else if(pSession->pPlaylist->type == PL_VARIANT)
         {
             /* If we have a variant playlist, return the stream bitrates */
             if((pSession->pCurrentProgram == NULL) ||
@@ -1067,10 +1068,10 @@ hlsStatus_t hlsSession_getBitrates(hlsSession_t* pSession, int numBitrates, int*
                 rval = HLS_ERROR;
                 break;
             }
-    
+
             numAvailableBitrates = pSession->pCurrentProgram->pStreams->numElements;
-    
-            for(i = 0; i < numBitrates && i < numAvailableBitrates; i++) 
+
+            for(i = 0; i < numBitrates && i < numAvailableBitrates; i++)
             {
                 bitrates[i] = pSession->pCurrentProgram->pAvailableBitrates[i];
             }
@@ -1086,13 +1087,13 @@ hlsStatus_t hlsSession_getBitrates(hlsSession_t* pSession, int numBitrates, int*
 
     /* Release playlist lock */
     pthread_rwlock_unlock(&(pSession->playlistRWLock));
-    
+
     return rval;
 }
 
 /**
- * 
- * 
+ *
+ *
  * @param pSession
  * @param bitrate
  * @return #hlsStatus_t
@@ -1113,16 +1114,16 @@ hlsStatus_t hlsSession_getCurrentBitrate(hlsSession_t* pSession, int* pBitrate)
     do
     {
         /* Check for valid state */
-        if(pSession->state < HLS_PREPARED) 
+        if(pSession->state < HLS_PREPARED)
         {
             ERROR("%s invalid in state %d", __FUNCTION__, pSession->state);
             rval = HLS_STATE_ERROR;
             break;
         }
 
-        if((pSession->pCurrentPlaylist == NULL) || 
-           (pSession->pCurrentPlaylist->type != PL_MEDIA) || 
-           (pSession->pCurrentPlaylist->pMediaData == NULL)) 
+        if((pSession->pCurrentPlaylist == NULL) ||
+           (pSession->pCurrentPlaylist->type != PL_MEDIA) ||
+           (pSession->pCurrentPlaylist->pMediaData == NULL))
         {
             ERROR("invalid current playlist");
             rval = HLS_ERROR;
@@ -1135,14 +1136,14 @@ hlsStatus_t hlsSession_getCurrentBitrate(hlsSession_t* pSession, int* pBitrate)
 
     /* Release playlist lock */
     pthread_rwlock_unlock(&(pSession->playlistRWLock));
-    
+
     return rval;
 }
 
 /**
- * 
- * playlistRWLock MUST NOT be held by the calling thread 
- * 
+ *
+ * playlistRWLock MUST NOT be held by the calling thread
+ *
  * @param pSession
  * @param limitType
  * @param bitrate
@@ -1166,7 +1167,7 @@ hlsStatus_t hlsSession_setBitrateLimit(hlsSession_t* pSession, hlsBitrateLimit_t
     do
     {
         /* Check for valid state */
-        if(pSession->state < HLS_INITIALIZED) 
+        if(pSession->state < HLS_INITIALIZED)
         {
             ERROR("%s invalid in state %d", __FUNCTION__, pSession->state);
             rval = HLS_STATE_ERROR;
@@ -1189,7 +1190,7 @@ hlsStatus_t hlsSession_setBitrateLimit(hlsSession_t* pSession, hlsBitrateLimit_t
                 rval = HLS_ERROR;
                 break;
         }
-        if(rval != HLS_OK) 
+        if(rval != HLS_OK)
         {
             break;
         }
@@ -1197,14 +1198,14 @@ hlsStatus_t hlsSession_setBitrateLimit(hlsSession_t* pSession, hlsBitrateLimit_t
         /* If we are prepared but haven't started playback yet,
            we can go ahead and change the starting bitrate based
            on the new range/target */
-        if(pSession->state == HLS_PREPARED) 
+        if(pSession->state == HLS_PREPARED)
         {
             /* Get playlist WRITE lock */
             pthread_rwlock_wrlock(&(pSession->playlistRWLock));
 
-            if((pSession->pCurrentPlaylist == NULL) || 
-               (pSession->pCurrentPlaylist->type != PL_MEDIA) || 
-               (pSession->pCurrentPlaylist->pMediaData == NULL)) 
+            if((pSession->pCurrentPlaylist == NULL) ||
+               (pSession->pCurrentPlaylist->type != PL_MEDIA) ||
+               (pSession->pCurrentPlaylist->pMediaData == NULL))
             {
                 ERROR("invalid current playlist");
                 rval = HLS_ERROR;
@@ -1215,7 +1216,7 @@ hlsStatus_t hlsSession_setBitrateLimit(hlsSession_t* pSession, hlsBitrateLimit_t
 
             /* Find the best bitrate based on range/target*/
             rval = getBestBitrate(pSession, &bitrate);
-            if(rval != HLS_OK)    
+            if(rval != HLS_OK)
             {
                 ERROR("problem getting initial bitrate");
                 /* Release playlist lock */
@@ -1224,10 +1225,10 @@ hlsStatus_t hlsSession_setBitrateLimit(hlsSession_t* pSession, hlsBitrateLimit_t
             }
 
             /* If we got a different 'best' bitrate, change to it */
-            if(bitrate != pSession->pCurrentPlaylist->pMediaData->bitrate) 
+            if(bitrate != pSession->pCurrentPlaylist->pMediaData->bitrate)
             {
                 rval = changeBitrate(pSession, bitrate);
-                if(rval != HLS_OK) 
+                if(rval != HLS_OK)
                 {
                     ERROR("problem changing bitrate");
                     /* Release playlist lock */
@@ -1241,22 +1242,22 @@ hlsStatus_t hlsSession_setBitrateLimit(hlsSession_t* pSession, hlsBitrateLimit_t
         }
 
     } while(0);
-    
+
     /* Leave critical section */
     pthread_mutex_unlock(&(pSession->setMutex));
 
     return rval;
 }
 
-/** 
- * playlistRWLock MUST NOT be held by the calling thread 
- *  
- * On return, session will be in HLS_PLAYING state 
- * 
+/**
+ * playlistRWLock MUST NOT be held by the calling thread
+ *
+ * On return, session will be in HLS_PLAYING state
+ *
  * @param pSession
  * @param speed
- * 
- * @return #hlsStatus_t -- HLS_UNSUPPORTED if speed is an 
+ *
+ * @return #hlsStatus_t -- HLS_UNSUPPORTED if speed is an
  *         unsupported value for this stream
  */
 hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
@@ -1287,7 +1288,7 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
     do
     {
         /* Check for valid state */
-        if(pSession->state < HLS_INITIALIZED) 
+        if(pSession->state < HLS_INITIALIZED)
         {
             ERROR("%s invalid in state %d", __FUNCTION__, pSession->state);
             rval = HLS_STATE_ERROR;
@@ -1295,10 +1296,10 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
         }
 
         /* If for some reason prepare() has not yet been called, have the session prepare itself */
-        if(pSession->state == HLS_INITIALIZED) 
+        if(pSession->state == HLS_INITIALIZED)
         {
             rval = hlsSession_prepare(pSession);
-            if(rval != HLS_OK) 
+            if(rval != HLS_OK)
             {
                 ERROR("hlsSession_prepare failed");
                 break;
@@ -1311,9 +1312,9 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
         pthread_rwlock_rdlock(&(pSession->playlistRWLock));
 
         /* Validate current playlist */
-        if((pSession->pCurrentPlaylist == NULL) || 
-           (pSession->pCurrentPlaylist->type != PL_MEDIA) || 
-           (pSession->pCurrentPlaylist->pMediaData == NULL)) 
+        if((pSession->pCurrentPlaylist == NULL) ||
+           (pSession->pCurrentPlaylist->type != PL_MEDIA) ||
+           (pSession->pCurrentPlaylist->pMediaData == NULL))
         {
             ERROR("invalid current playlist");
             rval = HLS_ERROR;
@@ -1323,7 +1324,7 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
         }
 
         /* Make sure trickmodes are possible at this time */
-        if((speed < 0) || (speed > 1)) 
+        if((speed < 0) || (speed > 1))
         {
             /* If we don't have any I-frame playlists, we can't do trickmodes */
             if((pSession->pCurrentProgram == NULL) ||
@@ -1336,10 +1337,10 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
                 pthread_rwlock_unlock(&(pSession->playlistRWLock));
                 break;
             }
-            
+
             /* Get the current position */
             rval = getExternalPosition(pSession->pCurrentPlaylist, &currentPosition);
-            if(rval != HLS_OK) 
+            if(rval != HLS_OK)
             {
                 ERROR("failed to get exernal position");
                 /* Release playlist lock */
@@ -1348,11 +1349,11 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
             }
 
             /* If we're already at the end of playlist, speeds > 1x aren't supported */
-            if(speed > 1) 
+            if(speed > 1)
             {
                 /* Get the current duration */
                 rval = getExternalDuration(pSession->pCurrentPlaylist, &currentDuration);
-                if(rval != HLS_OK) 
+                if(rval != HLS_OK)
                 {
                     ERROR("failed to get exernal duration");
                     /* Release playlist lock */
@@ -1360,7 +1361,7 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
                     break;
                 }
 
-                if(currentPosition == currentDuration) 
+                if(currentPosition == currentDuration)
                 {
                     ERROR("cannot FF -- already at end of playlist");
                     rval = HLS_UNSUPPORTED;
@@ -1369,11 +1370,11 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
                     break;
                 }
             }
-    
+
             /* If we're already at the beginning of the playlist, speeds < 0 aren't supported */
-            if(speed < 0) 
+            if(speed < 0)
             {
-                if(currentPosition == 0) 
+                if(currentPosition == 0)
                 {
                     ERROR("cannot REW -- already at start of playlist");
                     rval = HLS_UNSUPPORTED;
@@ -1394,7 +1395,7 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
         }
 
         /* Are we changing the speed? */
-        if(speed == pSession->speed) 
+        if(speed == pSession->speed)
         {
             DEBUG(DBG_INFO,"session %p speed %f -> %f: no change", pSession, pSession->speed, speed);
         }
@@ -1403,20 +1404,20 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
             // TODO: right now, going from 2x -> PAUSE -> 2x will cause two playlist switches and two thread kills
             //       because it is assumed that the only valid transition is from PAUSE -> 1X play
             //       is this OK??
-    
+
             /* What are we switching from/to? */
             if((pSession->speed == 0) && (speed == 1)) /* PAUSE -> 1x PLAY */
             {
                 DEBUG(DBG_INFO,"session %p speed %f -> %f: start player playback", pSession, pSession->speed, speed);
-    
+
                 /* If we are already in HLS_PLAYING state, tell the player to PLAY */
-                if(pSession->state == HLS_PLAYING) 
+                if(pSession->state == HLS_PLAYING)
                 {
                     playerSetData.setCode = SRC_PLAYER_SET_MODE;
                     playerMode = SRC_PLAYER_MODE_NORMAL;
                     playerSetData.pData = &playerMode;
                     status = hlsPlayer_set(pSession->pHandle, &playerSetData);
-                    if(status != SRC_SUCCESS) 
+                    if(status != SRC_SUCCESS)
                     {
                         ERROR("failed to set player mode SRC_PLAYER_MODE_NORMAL");
                         rval = HLS_ERROR;
@@ -1424,15 +1425,15 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
                     }
                 }
             }
-            else if((pSession->speed == 1) && (speed == 0)) /* 1x PLAY -> PAUSE */ 
+            else if((pSession->speed == 1) && (speed == 0)) /* 1x PLAY -> PAUSE */
             {
                 DEBUG(DBG_INFO,"session %p speed %f -> %f: pause player", pSession, pSession->speed, speed);
-                
+
                 playerSetData.setCode = SRC_PLAYER_SET_MODE;
                 playerMode = SRC_PLAYER_MODE_PAUSE;
                 playerSetData.pData = &playerMode;
                 status = hlsPlayer_set(pSession->pHandle, &playerSetData);
-                if(status != SRC_SUCCESS) 
+                if(status != SRC_SUCCESS)
                 {
                     ERROR("failed to set player mode SRC_PLAYER_MODE_PAUSE");
                     rval = HLS_ERROR;
@@ -1447,7 +1448,7 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
                 playerSetData.setCode = SRC_PLAYER_SET_BUFFER_FLUSH;
                 playerSetData.pData = NULL;
                 status = hlsPlayer_set(pSession->pHandle, &playerSetData);
-                if(status != SRC_SUCCESS) 
+                if(status != SRC_SUCCESS)
                 {
                    ERROR("failed to flush player buffers");
                    rval = HLS_ERROR;
@@ -1457,15 +1458,15 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
             else /* ((1x PLAY || PAUSE) -> TRICKPLAY) || (TRICKPLAY -> (1x PLAY || PAUSE)) */
             {
                 DEBUG(DBG_INFO,"session %p speed %f -> %f: stop playback and switch playlists", pSession, pSession->speed, speed);
-    
+
                 /* Stop playback */
                 rval = hlsSession_stop(pSession, 1);
-                if(rval != HLS_OK) 
+                if(rval != HLS_OK)
                 {
                     ERROR("failed to stop playback");
                     break;
                 }
-    
+
                 if((pSession->speed == 1) || (pSession->speed == 0)) /* ((1x PLAY || PAUSE) -> TRICKPLAY) */
                 {
                     /* Get playlist WRITE lock */
@@ -1473,7 +1474,7 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
 
                     /* Flush current playlist */
                     rval = flushPlaylist(pSession->pCurrentPlaylist);
-                    if(rval != HLS_OK) 
+                    if(rval != HLS_OK)
                     {
                         ERROR("problem flushing playlist");
                         /* Release playlist lock */
@@ -1483,7 +1484,7 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
 
                     /* Switch playlists */
                     rval = switchToIFramePlaylists(pSession);
-                    if(rval != HLS_OK) 
+                    if(rval != HLS_OK)
                     {
                         ERROR("problem switching to I-frame playlists");
                         /* Release playlist lock */
@@ -1501,7 +1502,7 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
 
                     /* Flush current playlist */
                     rval = flushPlaylist(pSession->pCurrentPlaylist);
-                    if(rval != HLS_OK) 
+                    if(rval != HLS_OK)
                     {
                         ERROR("problem flushing playlist");
                         /* Release playlist lock */
@@ -1511,7 +1512,7 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
 
                     /* Switch playlists */
                     rval = switchToNormalPlaylists(pSession);
-                    if(rval != HLS_OK) 
+                    if(rval != HLS_OK)
                     {
                         ERROR("problem switching to normal playlists");
                         /* Release playlist lock */
@@ -1531,7 +1532,7 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
                           break;
                        }
                     }
-                    if(HLS_OK != rval) 
+                    if(HLS_OK != rval)
                     {
                         /* Release playlist lock */
                         pthread_rwlock_unlock(&(pSession->playlistRWLock));
@@ -1542,7 +1543,7 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
                     pthread_rwlock_unlock(&(pSession->playlistRWLock));
                 }
             }
-            
+
             /* Set the new speed */
             pSession->speed = speed;
         }
@@ -1550,11 +1551,11 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
         /* Start playback to get back into HLS_PLAYING state
            We do this even if we are NOT changing speed, since the expectation
            is that when this function returns we are in HLS_PLAYING state */
-        if(pSession->state != HLS_PLAYING) 
+        if(pSession->state != HLS_PLAYING)
         {
             /* Restart the downloader -- this will kick the player back into PLAY mode */
             rval = hlsSession_play(pSession);
-            if(rval != HLS_OK) 
+            if(rval != HLS_OK)
             {
                 ERROR("hlsSession_play failed");
                 break;
@@ -1573,13 +1574,13 @@ hlsStatus_t hlsSession_setSpeed(hlsSession_t* pSession, float speed)
 }
 
 /**
- * Stops playback.  Will kill the downloader thread and flush 
- * the decoder buffer.  On return, the session will be in 
- * HLS_PREPARED state. 
- *  
+ * Stops playback.  Will kill the downloader thread and flush
+ * the decoder buffer.  On return, the session will be in
+ * HLS_PREPARED state.
+ *
  * @param pSession
  * @param bFlush - 1->flush, 0->don't flush
- * 
+ *
  * @return #hlsStatus_t
  */
 hlsStatus_t hlsSession_stop(hlsSession_t* pSession, int bFlush)
@@ -1593,7 +1594,7 @@ hlsStatus_t hlsSession_stop(hlsSession_t* pSession, int bFlush)
     playbackControllerSignal_t* pSignal = NULL;
 
     llStatus_t llerror = LL_OK;
-        
+
     int ii = 0;
 
     if(pSession == NULL)
@@ -1610,7 +1611,7 @@ hlsStatus_t hlsSession_stop(hlsSession_t* pSession, int bFlush)
     do
     {
         /* Check for valid state */
-        if(pSession->state < HLS_PREPARED) 
+        if(pSession->state < HLS_PREPARED)
         {
             ERROR("%s invalid in state %d", __FUNCTION__, pSession->state);
             rval = HLS_STATE_ERROR;
@@ -1618,7 +1619,7 @@ hlsStatus_t hlsSession_stop(hlsSession_t* pSession, int bFlush)
         }
 
         /* If we're already prepared, do nothing */
-        if(pSession->state == HLS_PREPARED) 
+        if(pSession->state == HLS_PREPARED)
         {
            /* Flush to reset the media pipeline */
            if(1 == bFlush)
@@ -1627,7 +1628,7 @@ hlsStatus_t hlsSession_stop(hlsSession_t* pSession, int bFlush)
               playerSetData.setCode = SRC_PLAYER_SET_BUFFER_FLUSH;
               playerSetData.pData = NULL;
               status = hlsPlayer_set(pSession->pHandle, &playerSetData);
-              if(status != SRC_SUCCESS) 
+              if(status != SRC_SUCCESS)
               {
                  ERROR("failed to flush player buffers");
                  rval = HLS_ERROR;
@@ -1641,7 +1642,7 @@ hlsStatus_t hlsSession_stop(hlsSession_t* pSession, int bFlush)
 
         /* Allocate a new playback controller signal */
         pSignal = malloc(sizeof(playbackControllerSignal_t));
-        if(pSignal == NULL) 
+        if(pSignal == NULL)
         {
             ERROR("malloc error");
             rval = HLS_ERROR;
@@ -1652,14 +1653,14 @@ hlsStatus_t hlsSession_stop(hlsSession_t* pSession, int bFlush)
 
         /* Push the message to the playback controller message queue */
         llerror = pushMsg(pSession->playbackControllerMsgQueue, (void*)pSignal);
-        if(llerror != LL_OK) 
+        if(llerror != LL_OK)
         {
             ERROR("failed to signal the playback controller");
             free(pSignal);
             rval = HLS_ERROR;
             break;
         }
-                    
+
         /* Release reference to signal -- playback controller will free */
         pSignal = NULL;
 
@@ -1668,7 +1669,7 @@ hlsStatus_t hlsSession_stop(hlsSession_t* pSession, int bFlush)
         playerMode = SRC_PLAYER_MODE_PAUSE;
         playerSetData.pData = &playerMode;
         status = hlsPlayer_set(pSession->pHandle, &playerSetData);
-        if(status != SRC_SUCCESS) 
+        if(status != SRC_SUCCESS)
         {
             ERROR("failed to set player mode SRC_PLAYER_MODE_PAUSE");
             rval = HLS_ERROR;
@@ -1677,7 +1678,7 @@ hlsStatus_t hlsSession_stop(hlsSession_t* pSession, int bFlush)
 
         /* Kill the downloader */
         pSession->bKillDownloader = 1;
-        
+
         DEBUG(DBG_INFO, "Stopping download thread");
 
         /* Wake up downloader thread if it is sleeping */
@@ -1688,14 +1689,14 @@ hlsStatus_t hlsSession_stop(hlsSession_t* pSession, int bFlush)
                 pthread_mutex_unlock(&(pSession->downloaderWakeMutex));
             }
         }
-                                
-        if(pSession->downloader != 0) 
+
+        if(pSession->downloader != 0)
         {
             /* Wait for the downloader to quit */
             pthread_join(pSession->downloader, NULL);
             pSession->downloader = 0;
         }
-        
+
         for(ii = 0; ii < pSession->currentGroupCount; ii++)
         {
            if(0 != pSession->groupDownloader[ii])
@@ -1705,7 +1706,7 @@ hlsStatus_t hlsSession_stop(hlsSession_t* pSession, int bFlush)
               pSession->groupDownloader[ii] = 0;
            }
         }
-        
+
         pSession->bKillDownloader = 0;
 
         /* Check if downloader exited cleanly */
@@ -1715,7 +1716,7 @@ hlsStatus_t hlsSession_stop(hlsSession_t* pSession, int bFlush)
             rval = pSession->downloaderStatus;
             break;
         }
-        
+
         for(ii = 0; ii < pSession->currentGroupCount; ii++)
         {
            if((pSession->groupDownloaderStatus[ii] != HLS_OK) && (pSession->groupDownloaderStatus[ii] != HLS_CANCELLED))
@@ -1732,7 +1733,7 @@ hlsStatus_t hlsSession_stop(hlsSession_t* pSession, int bFlush)
            playerSetData.setCode = SRC_PLAYER_SET_BUFFER_FLUSH;
            playerSetData.pData = NULL;
            status = hlsPlayer_set(pSession->pHandle, &playerSetData);
-           if(status != SRC_SUCCESS) 
+           if(status != SRC_SUCCESS)
            {
               ERROR("failed to flush player buffers");
               rval = HLS_ERROR;
@@ -1749,7 +1750,7 @@ hlsStatus_t hlsSession_stop(hlsSession_t* pSession, int bFlush)
         /* Reset our buffer length and lastPTS */
         pSession->timeBuffered = 0;
         pSession->lastPTS = -1ll;
-        
+
         /* Unblock player events */
         pthread_mutex_unlock(&(pSession->playerEvtMutex));
 
@@ -1757,16 +1758,16 @@ hlsStatus_t hlsSession_stop(hlsSession_t* pSession, int bFlush)
 
     /* Leave critical section */
     pthread_mutex_unlock(&(pSession->stateMutex));
-   
+
     return rval;
 }
 
-/** 
- * 
- * 
+/**
+ *
+ *
  * @param pSession
  * @param position
- * 
+ *
  * @return #hlsStatus_t
  */
 hlsStatus_t hlsSession_seek(hlsSession_t* pSession, float position)
@@ -1778,7 +1779,7 @@ hlsStatus_t hlsSession_seek(hlsSession_t* pSession, float position)
     hlsPlaylist_t* pMediaPlaylist = NULL;
 
     hlsSegment_t* pSegment = NULL;
- 
+
     int ii = 0;
 
     int seqNum = -1;
@@ -1798,7 +1799,7 @@ hlsStatus_t hlsSession_seek(hlsSession_t* pSession, float position)
     do
     {
         /* Check for valid state */
-        if(pSession->state < HLS_PREPARED) 
+        if(pSession->state < HLS_PREPARED)
         {
             ERROR("%s invalid in state %d", __FUNCTION__, pSession->state);
             rval = HLS_STATE_ERROR;
@@ -1807,7 +1808,7 @@ hlsStatus_t hlsSession_seek(hlsSession_t* pSession, float position)
 
         /* Get asset duration */
         rval = hlsSession_getDuration(pSession, &duration);
-        if(rval != HLS_OK) 
+        if(rval != HLS_OK)
         {
             ERROR("failed to get duration");
             break;
@@ -1825,7 +1826,7 @@ hlsStatus_t hlsSession_seek(hlsSession_t* pSession, float position)
 
         /* Stop downloading and flush decoder cache */
         rval = hlsSession_stop(pSession, 1);
-        if(rval != HLS_OK) 
+        if(rval != HLS_OK)
         {
            ERROR("failed to stop playback");
            break;
@@ -1833,9 +1834,9 @@ hlsStatus_t hlsSession_seek(hlsSession_t* pSession, float position)
 
         /* Get playlist WRITE lock */
         pthread_rwlock_wrlock(&(pSession->playlistRWLock));
-        
+
         rval = playlistSeek(pSession->pCurrentPlaylist, position, &seqNum);
-        if(rval != HLS_OK) 
+        if(rval != HLS_OK)
         {
             ERROR("failed to seek in playlist");
             /* Release playlist lock */
@@ -1843,18 +1844,18 @@ hlsStatus_t hlsSession_seek(hlsSession_t* pSession, float position)
             break;
         }
 
-        DEBUG(DBG_INFO,"Main playlist - playback will resume at segment with seqNum: %d", 
+        DEBUG(DBG_INFO,"Main playlist - playback will resume at segment with seqNum: %d",
               seqNum);
-        
+
         for(ii = 0; ii < pSession->currentGroupCount; ii++)
         {
            rval = playlistSeek(pSession->pCurrentGroup[ii]->pPlaylist, position, &seqNum);
-           if(rval != HLS_OK) 
+           if(rval != HLS_OK)
            {
               ERROR("failed to seek in playlist");
               break;
            }
-           DEBUG(DBG_INFO,"Group playlist(%d) - playback will resume at segment with seqNum: %d", 
+           DEBUG(DBG_INFO,"Group playlist(%d) - playback will resume at segment with seqNum: %d",
                  ii, seqNum);
         }
 
@@ -1869,12 +1870,12 @@ hlsStatus_t hlsSession_seek(hlsSession_t* pSession, float position)
 
         /* Restart playback */
         rval = hlsSession_play(pSession);
-        if(rval != HLS_OK) 
+        if(rval != HLS_OK)
         {
             ERROR("failed to restart playback");
             break;
         }
-        
+
     } while(0);
 
     /* Leave critical section */
@@ -2016,12 +2017,12 @@ hlsStatus_t hlsSession_setAudioLanguage(hlsSession_t* pSession, char audioLangIS
    return rval;
 }
 
-/** 
- * 
- * 
+/**
+ *
+ *
  * @param pSession
  * @param pDuration
- * 
+ *
  * @return #hlsStatus_t
  */
 hlsStatus_t hlsSession_getDuration(hlsSession_t* pSession, float* pDuration)
@@ -2042,7 +2043,7 @@ hlsStatus_t hlsSession_getDuration(hlsSession_t* pSession, float* pDuration)
     do
     {
         /* Check for valid state */
-        if(pSession->state < HLS_PREPARED) 
+        if(pSession->state < HLS_PREPARED)
         {
             ERROR("%s invalid in state %d", __FUNCTION__, pSession->state);
             rval = HLS_STATE_ERROR;
@@ -2060,7 +2061,7 @@ hlsStatus_t hlsSession_getDuration(hlsSession_t* pSession, float* pDuration)
 
         /* Get the externally visible playlist duration */
         rval = getExternalDuration(pSession->pCurrentPlaylist, &duration);
-        if(rval != HLS_OK) 
+        if(rval != HLS_OK)
         {
             ERROR("failed to get exernal duration");
             break;
@@ -2072,19 +2073,19 @@ hlsStatus_t hlsSession_getDuration(hlsSession_t* pSession, float* pDuration)
         DEBUG(DBG_INFO,"current duration = %5.2f milliseconds", *pDuration);
 
     } while(0);
-    
+
     /* Release playlist lock */
     pthread_rwlock_unlock(&(pSession->playlistRWLock));
 
     return rval;
 }
 
-/** 
- * 
- * 
+/**
+ *
+ *
  * @param pSession
  * @param pPosition
- * 
+ *
  * @return #hlsStatus_t
  */
 hlsStatus_t hlsSession_getCurrentPosition(hlsSession_t* pSession, float* pPosition)
@@ -2105,7 +2106,7 @@ hlsStatus_t hlsSession_getCurrentPosition(hlsSession_t* pSession, float* pPositi
     do
     {
         /* Check for valid state */
-        if(pSession->state < HLS_PREPARED) 
+        if(pSession->state < HLS_PREPARED)
         {
             ERROR("%s invalid in state %d", __FUNCTION__, pSession->state);
             rval = HLS_STATE_ERROR;
@@ -2129,7 +2130,7 @@ hlsStatus_t hlsSession_getCurrentPosition(hlsSession_t* pSession, float* pPositi
         if((pSession->state == HLS_PREPARED) && (pSession->pCurrentPlaylist->pMediaData->startOffset > 0))
         {
             rval = getExternalDuration(pSession->pCurrentPlaylist, &position);
-            if(rval != HLS_OK) 
+            if(rval != HLS_OK)
             {
                 ERROR("failed to get exernal duration");
                 break;
@@ -2139,7 +2140,7 @@ hlsStatus_t hlsSession_getCurrentPosition(hlsSession_t* pSession, float* pPositi
         {
             /* Else, get the externally visible playlist position */
             rval = getExternalPosition(pSession->pCurrentPlaylist, &position);
-            if(rval != HLS_OK) 
+            if(rval != HLS_OK)
             {
                 ERROR("failed to get exernal position");
                 break;
@@ -2152,26 +2153,26 @@ hlsStatus_t hlsSession_getCurrentPosition(hlsSession_t* pSession, float* pPositi
         DEBUG(DBG_INFO,"current position = %5.2f milliseconds", *pPosition);
 
     } while(0);
-    
+
     /* Release playlist lock */
     pthread_rwlock_unlock(&(pSession->playlistRWLock));
 
     return rval;
 }
 
-/** 
- * 
- * 
+/**
+ *
+ *
  * @param pSession
  * @param pSpeed
- * 
+ *
  * @return #hlsStatus_t
  */
 hlsStatus_t hlsSession_getSpeed(hlsSession_t* pSession, float* pSpeed)
 {
    hlsStatus_t rval = HLS_OK;
 
-   do 
+   do
    {
       if((pSession == NULL) || (pSpeed == NULL))
       {
@@ -2179,7 +2180,7 @@ hlsStatus_t hlsSession_getSpeed(hlsSession_t* pSession, float* pSpeed)
          rval = HLS_INVALID_PARAMETER;
          break;
       }
-        
+
       *pSpeed = pSession->speed;
 
       DEBUG(DBG_INFO,"current speed = %5.2f\n", *pSpeed);
@@ -2188,12 +2189,12 @@ hlsStatus_t hlsSession_getSpeed(hlsSession_t* pSession, float* pSpeed)
    return rval;
 }
 
-/** 
- * 
- * 
+/**
+ *
+ *
  * @param pSession
  * @param bTrickSupported
- * 
+ *
  * @return #hlsStatus_t
  */
 hlsStatus_t hlsSession_getTrickSupported(hlsSession_t* pSession, int *bTrickSupported)
@@ -2212,7 +2213,7 @@ hlsStatus_t hlsSession_getTrickSupported(hlsSession_t* pSession, int *bTrickSupp
       *bTrickSupported = 1;
 
       /* Check for valid state */
-      if(pSession->state < HLS_PREPARED) 
+      if(pSession->state < HLS_PREPARED)
       {
          ERROR("%s invalid in state %d", __FUNCTION__, pSession->state);
          rval = HLS_STATE_ERROR;
@@ -2241,12 +2242,12 @@ hlsStatus_t hlsSession_getTrickSupported(hlsSession_t* pSession, int *bTrickSupp
    return rval;
 }
 
-/** 
- * 
- * 
+/**
+ *
+ *
  * @param pSession
- * @param contentType 
- * 
+ * @param contentType
+ *
  * @return #hlsStatus_t
  */
 hlsStatus_t hlsSession_getContentType(hlsSession_t* pSession, hlsContentType_t *contentType)
@@ -2263,7 +2264,7 @@ hlsStatus_t hlsSession_getContentType(hlsSession_t* pSession, hlsContentType_t *
       }
 
       /* Check for valid state */
-      if(pSession->state < HLS_PREPARED) 
+      if(pSession->state < HLS_PREPARED)
       {
          ERROR("%s invalid in state %d", __FUNCTION__, pSession->state);
          rval = HLS_STATE_ERROR;
@@ -2272,7 +2273,7 @@ hlsStatus_t hlsSession_getContentType(hlsSession_t* pSession, hlsContentType_t *
 
       /* Get playlist READ lock */
       pthread_rwlock_rdlock(&(pSession->playlistRWLock));
-               
+
       /* TODO - check mutability? */
       if(0 == pSession->pCurrentPlaylist->pMediaData->bHaveCompletePlaylist)
       {
@@ -2293,12 +2294,12 @@ hlsStatus_t hlsSession_getContentType(hlsSession_t* pSession, hlsContentType_t *
    return rval;
 }
 
-/** 
- * 
- * 
+/**
+ *
+ *
  * @param pSession
  * @param pNumAudioLanguages
- * 
+ *
  * @return #hlsStatus_t
  */
 hlsStatus_t hlsSession_getNumAudioLanguages(hlsSession_t* pSession, int *pNumAudioLanguages)
@@ -2319,7 +2320,7 @@ hlsStatus_t hlsSession_getNumAudioLanguages(hlsSession_t* pSession, int *pNumAud
       *pNumAudioLanguages = 0;
 
       /* Check for valid state */
-      if(pSession->state < HLS_PREPARED) 
+      if(pSession->state < HLS_PREPARED)
       {
          ERROR("%s invalid in state %d", __FUNCTION__, pSession->state);
          rval = HLS_STATE_ERROR;
@@ -2356,7 +2357,7 @@ hlsStatus_t hlsSession_getNumAudioLanguages(hlsSession_t* pSession, int *pNumAud
 
       /* Release playlist lock */
       pthread_rwlock_unlock(&(pSession->playlistRWLock));
-   
+
       DEBUG(DBG_INFO,"numAudioLanguages = %d\n", *pNumAudioLanguages);
    }while(0);
 
@@ -2494,9 +2495,9 @@ hlsStatus_t hlsSession_getAudioLanguage(hlsSession_t* pSession,
    return rval;
 }
 
-/** 
- * 
- * 
+/**
+ *
+ *
  * @param pSession
  * @param pEvt
  */
@@ -2525,7 +2526,7 @@ void hlsSession_playerEvtCallback(hlsSession_t* pSession, srcPlayerEvt_t* pEvt)
     /* Block player events until this one is processed */
     pthread_mutex_lock(&(pSession->playerEvtMutex));
 
-    switch(pEvt->evtCode) 
+    switch(pEvt->evtCode)
     {
         case SRC_PLAYER_LAST_PTS:
             tempPTS = *((long long*)(pEvt->pData));
@@ -2534,7 +2535,7 @@ void hlsSession_playerEvtCallback(hlsSession_t* pSession, srcPlayerEvt_t* pEvt)
             if((pSession->state == HLS_PLAYING) && (pSession->speed >= 0) && (pSession->speed <=1))
             {
                /* If we haven't gotten a PTS yet, set the initial values */
-               if(pSession->lastPTS == -1ll) 
+               if(pSession->lastPTS == -1ll)
                {
                   pSession->lastPTS = tempPTS;
 
@@ -2619,7 +2620,7 @@ void hlsSession_playerEvtCallback(hlsSession_t* pSession, srcPlayerEvt_t* pEvt)
 
                   /* Update our position */
                   pSession->pCurrentPlaylist->pMediaData->positionFromEnd -= ptsToSeconds(tempPTS) - ptsToSeconds(pSession->lastPTS);
-                 
+
                   for(ii = 0; ii < pSession->currentGroupCount; ii++)
                   {
                      pSession->pCurrentGroup[ii]->pPlaylist->pMediaData->positionFromEnd -= ptsToSeconds(tempPTS) - ptsToSeconds(pSession->lastPTS);
@@ -2628,7 +2629,7 @@ void hlsSession_playerEvtCallback(hlsSession_t* pSession, srcPlayerEvt_t* pEvt)
                   /* Save the new PTS */
                   pSession->lastPTS = tempPTS;
 
-                  DEBUG(DBG_INFO,"got PTS %lld -- current position: %5.2f seconds", pSession->lastPTS, 
+                  DEBUG(DBG_INFO,"got PTS %lld -- current position: %5.2f seconds", pSession->lastPTS,
                         pSession->pCurrentPlaylist->pMediaData->duration - pSession->pCurrentPlaylist->pMediaData->positionFromEnd - pSession->pCurrentPlaylist->pMediaData->startOffset);
 
                   /* Release playlist lock */
@@ -2660,10 +2661,10 @@ void hlsSession_playerEvtCallback(hlsSession_t* pSession, srcPlayerEvt_t* pEvt)
                /* Get the current aboslute playlist position (duration - positionFromEnd) */
               time = pSession->pCurrentPlaylist->pMediaData->duration;
                 time -= pSession->pCurrentPlaylist->pMediaData->positionFromEnd;
-    
+
                /* Find the segment the media player is currently playing */
                status = getSegmentXSecFromStart(pSession->pCurrentPlaylist, time, &pSegment);
-              if(status != HLS_OK) 
+              if(status != HLS_OK)
              {
                    // TODO: do something more drastic??
                   ERROR("failed to find segment in playlist");
@@ -2671,9 +2672,9 @@ void hlsSession_playerEvtCallback(hlsSession_t* pSession, srcPlayerEvt_t* pEvt)
                   pthread_rwlock_unlock(&(pSession->playlistRWLock));
                  break;
                }
-            
+
                 /* Get the segment's node */
-                if(pSegment->pParentNode != NULL) 
+                if(pSegment->pParentNode != NULL)
                 {
                     pSegmentNode = pSegment->pParentNode;
                 }
@@ -2689,7 +2690,7 @@ void hlsSession_playerEvtCallback(hlsSession_t* pSession, srcPlayerEvt_t* pEvt)
                // TODO: If we don't find a discontinuity, do we want to kill playback??
 
               /* Find the next node that has a discontinuity */
-             while(status == HLS_OK) 
+             while(status == HLS_OK)
                {
                   /* Did we run out of segments or hit an empty one? */
                    if((pSegmentNode == NULL) || (pSegmentNode->pData == NULL))
@@ -2698,40 +2699,40 @@ void hlsSession_playerEvtCallback(hlsSession_t* pSession, srcPlayerEvt_t* pEvt)
                        status = HLS_ERROR;
                       break;
                    }
-    
+
                   pSegment = (hlsSegment_t*)(pSegmentNode->pData);
-                
+
                  /* Does this segment have a discontinuity signalled? */
-                   if(pSegment->bDiscontinuity) 
+                   if(pSegment->bDiscontinuity)
                   {
                      /* Get the current position from end of this segment */
                        status = getPositionFromEnd(pSession->pCurrentPlaylist, pSegment, &time);
-                      if(status != HLS_OK) 
+                      if(status != HLS_OK)
                      {
                            ERROR("failed to get segment position");
                           break;
                      }
-    
+
                        /* We're done searching -- break */
                       break;
                  }
-    
+
                    pSegmentNode = pSegmentNode->pNext;
                }
-              if(status != HLS_OK) 
+              if(status != HLS_OK)
              {
                    // TODO: do something more drastic??
                   /* Release playlist lock */
                    pthread_rwlock_unlock(&(pSession->playlistRWLock));
                   break;
                }
-    
+
                /* Update our startingOffsetFromEnd to be the current offset from end of the discontinuous segment */
               pSession->pCurrentPlaylist->pMediaData->positionFromEnd = time;
-   
+
              /* Release playlist lock */
               pthread_rwlock_unlock(&(pSession->playlistRWLock));
-            
+
                // TODO: need to update buffer length...how? -- above: positionFromEnd - time???
 
                /* Reset the PTS value */
@@ -2745,7 +2746,7 @@ void hlsSession_playerEvtCallback(hlsSession_t* pSession, srcPlayerEvt_t* pEvt)
 
             /* Allocate a new playback controller signal */
             pSignal = malloc(sizeof(playbackControllerSignal_t));
-            if(pSignal == NULL) 
+            if(pSignal == NULL)
             {
                 ERROR("malloc error");
                 break;
@@ -2755,13 +2756,13 @@ void hlsSession_playerEvtCallback(hlsSession_t* pSession, srcPlayerEvt_t* pEvt)
 
             /* Push the message to the playback controller message queue */
             llerror = pushMsg(pSession->playbackControllerMsgQueue, (void*)pSignal);
-            if(llerror != LL_OK) 
+            if(llerror != LL_OK)
             {
                 ERROR("failed to signal the playback controller");
                 free(pSignal);
                 break;
             }
-                    
+
             /* Release reference to signal -- playback controller will free */
             pSignal = NULL;
             break;
@@ -2776,15 +2777,15 @@ void hlsSession_playerEvtCallback(hlsSession_t* pSession, srcPlayerEvt_t* pEvt)
 
 /**
  * Prints information about hlsSession object.
- * 
- * @param pSession - pointer to hlsSession to display 
+ *
+ * @param pSession - pointer to hlsSession to display
  *                  information about
  */
 void hlsSession_printInfo(hlsSession_t* pSession)
 {
     int i = 0;
 
-    if(pSession != NULL) 
+    if(pSession != NULL)
     {
         /* Get playlist READ lock */
         pthread_rwlock_rdlock(&(pSession->playlistRWLock));
@@ -2796,7 +2797,7 @@ void hlsSession_printInfo(hlsSession_t* pSession)
         printf("last PTS of current playback: %lld\n", pSession->lastPTS);
 
         if(pSession->pCurrentPlaylist != NULL &&
-           pSession->pCurrentPlaylist->type == PL_MEDIA) 
+           pSession->pCurrentPlaylist->type == PL_MEDIA)
         {
             printf("position in current playlist: %5.2f seconds\n", pSession->pCurrentPlaylist->pMediaData->duration -
                    pSession->pCurrentPlaylist->pMediaData->positionFromEnd);
@@ -2806,21 +2807,21 @@ void hlsSession_printInfo(hlsSession_t* pSession)
         printf("bitrate of last download: %f\n", pSession->lastSegmentDldRate);
         printf("avg download bitrate: %f\n", pSession->avgSegmentDldRate);
 
-        if(pSession->pCurrentProgram != NULL) 
+        if(pSession->pCurrentProgram != NULL)
         {
             printf("Current programID: %d\n", pSession->pCurrentProgram->programID);
-            if(pSession->pCurrentProgram->pStreams != NULL) 
+            if(pSession->pCurrentProgram->pStreams != NULL)
             {
                 printf("%d available bitrates (bps): ", pSession->pCurrentProgram->pStreams->numElements);
-                for(i = 0; i < pSession->pCurrentProgram->pStreams->numElements; i++) 
+                for(i = 0; i < pSession->pCurrentProgram->pStreams->numElements; i++)
                 {
                     printf("%d ", pSession->pCurrentProgram->pAvailableBitrates[i]);
                 }
             }
             printf("\n");
         }
-                
-        if(pSession->pCurrentPlaylist != NULL) 
+
+        if(pSession->pCurrentPlaylist != NULL)
         {
             printf("------------------------\n");
             printf("*** Current Playlist ***\n");
@@ -2831,12 +2832,12 @@ void hlsSession_printInfo(hlsSession_t* pSession)
         printf("------------------------\n");
         printf("** Full Playlist Info **\n");
         printf("------------------------\n");
-        
+
         printPlaylist(pSession->pPlaylist);
-        
+
         /* Release playlist lock */
         pthread_rwlock_unlock(&(pSession->playlistRWLock));
-    }   
+    }
 }
 
 #ifdef __cplusplus

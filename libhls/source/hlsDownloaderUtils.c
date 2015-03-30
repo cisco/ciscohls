@@ -1,29 +1,31 @@
-/* ****************************************************************************
-*
-*                   Copyright 2012 Cisco Systems, Inc.
-*
-*                              CHS Engineering
-*                           5030 Sugarloaf Parkway
-*                               P.O. Box 465447
-*                          Lawrenceville, GA 30042
-*
-*                        Proprietary and Confidential
-*              Unauthorized distribution or copying is prohibited
-*                            All rights reserved
-*
-* No part of this computer software may be reprinted, reproduced or utilized
-* in any form or by any electronic, mechanical, or other means, now known or
-* hereafter invented, including photocopying and recording, or using any
-* information storage and retrieval system, without permission in writing
-* from Cisco Systems, Inc.
-*
-******************************************************************************/
+/*
+    LIBBHLS
+    Copyright (C) {2015}  {Cisco System}
+
+    This library is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation; either
+    version 2.1 of the License, or (at your option) any later version.
+
+    This library is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
+    USA
+
+    Contributing Authors: Saravanakumar Periyaswamy, Patryk Prus, Tankut Akgul
+
+*/
 
 /**
  * @file hlsDownloaderUtils.c @date February 9, 2012
- *  
- * @author Patryk Prus (pprus@cisco.com) 
- *  
+ *
+ * @author Patryk Prus (pprus@cisco.com)
+ *
  */
 
 #ifdef __cplusplus
@@ -59,7 +61,7 @@ extern "C" {
 /*! \struct asyncDlDesc_t
  * Structure for asyncSegmentDownloadThread() function
  */
-typedef struct 
+typedef struct
 {
     hlsSession_t* pSession;         /*!< The session handle to operate on */
     hlsSegment_t* pSegment;         /*!< Pointer to the segment we want to download */
@@ -67,52 +69,52 @@ typedef struct
     long* pBytesDownloaded;         /*!< Pointer to integer into which to write the number of bytes downloaded */
     int* pbKillThread;              /*!< Pointer to flag which will signal the thread to terminate when it is TRUE */
     hlsStatus_t* pDownloadStatus;   /*!< Pointer to #hlsStatus_t which will contain the thread's exit status */
-    CURL* pCurl;                    /*!< Curl handle to use to download */ 
+    CURL* pCurl;                    /*!< Curl handle to use to download */
     pthread_mutex_t *curlMutex;     /*!< mutex to protect the curl handle */
 } asyncDlDesc_t;
 
 /* Local function prototypes */
 void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc);
 
-/** 
- * Assumes calling thread has AT LEAST playlist READ lock 
- *  
- * (Actually, this function does write 
- * pLastDownloadedSegmentNode.  However, since this function is 
- * only ever called from the DL thread, and the only other place 
- * pLastDownloadedSegmentNode is used is changeBitrate, which 
- * requires a WRITE lock, we shouldn't ever be stepping on 
+/**
+ * Assumes calling thread has AT LEAST playlist READ lock
+ *
+ * (Actually, this function does write
+ * pLastDownloadedSegmentNode.  However, since this function is
+ * only ever called from the DL thread, and the only other place
+ * pLastDownloadedSegmentNode is used is changeBitrate, which
+ * requires a WRITE lock, we shouldn't ever be stepping on
  * anyone's toes... )
- *  
- * TODO: may want to split out the get functionality separate 
- * from the setting of the pLastDownloadedSegmentNode... 
- *  
- * This function returns the next segment given the 
- * pLastDownloadedSegmentNode of *pMediaPlaylist.  If 
- * pLastDownloadedSegmentNode is NULL, returns either the first 
- * segment (VoD) or the segment 3*TARGET_DURATION from the end 
- * of the playlist (live). 
- *  
- * On return the pLastDownloadedSegmentNode and positionFromEnd 
+ *
+ * TODO: may want to split out the get functionality separate
+ * from the setting of the pLastDownloadedSegmentNode...
+ *
+ * This function returns the next segment given the
+ * pLastDownloadedSegmentNode of *pMediaPlaylist.  If
+ * pLastDownloadedSegmentNode is NULL, returns either the first
+ * segment (VoD) or the segment 3*TARGET_DURATION from the end
+ * of the playlist (live).
+ *
+ * On return the pLastDownloadedSegmentNode and positionFromEnd
  * for *pMediaPlaylist will be updated to new values.
- *  
- * If a new segment can't be found, the function assumes we are 
- * at EOF and returns HLS_OK and sets *ppSegment = NULL to 
- * signify. 
- *  
- * @param pMediaPlaylist - pointer to media playlist to pick 
+ *
+ * If a new segment can't be found, the function assumes we are
+ * at EOF and returns HLS_OK and sets *ppSegment = NULL to
+ * signify.
+ *
+ * @param pMediaPlaylist - pointer to media playlist to pick
  *                       segments from
- * @param ppSegment - on return will be either NULL (EOF or 
+ * @param ppSegment - on return will be either NULL (EOF or
  *                  error) or point to the next segment to
  *                  download
- * 
- * @return #hlsStatus_t - HLS_OK on success or EOF, standard 
+ *
+ * @return #hlsStatus_t - HLS_OK on success or EOF, standard
  *         error codes otherwise
  */
 hlsStatus_t getNextSegment(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegment)
 {
     hlsStatus_t rval = HLS_OK;
-   
+
     llNode_t* pNode = NULL;
     double targetTime = 0;
     hlsSegment_t *pSeg = NULL;
@@ -125,14 +127,14 @@ hlsStatus_t getNextSegment(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegme
 
     do
     {
-        if(pMediaPlaylist->type != PL_MEDIA) 
+        if(pMediaPlaylist->type != PL_MEDIA)
         {
             ERROR("not a media playlist");
             rval = HLS_ERROR;
             break;
         }
 
-        if(pMediaPlaylist->pMediaData == NULL) 
+        if(pMediaPlaylist->pMediaData == NULL)
         {
             ERROR("media playlist data is NULL");
             rval = HLS_ERROR;
@@ -152,7 +154,7 @@ hlsStatus_t getNextSegment(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegme
            For VoD content this is the first segment in the playlist.
            For live content this is the segment that contains the last valid
            play position for the playlist (endOffset from the end). */
-        if(pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode == NULL) 
+        if(pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode == NULL)
         {
             if(pMediaPlaylist->pMediaData->bHaveCompletePlaylist)
             {
@@ -182,14 +184,14 @@ hlsStatus_t getNextSegment(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegme
                 targetTime = pMediaPlaylist->pMediaData->endOffset;
 
                 rval = getSegmentXSecFromEnd(pMediaPlaylist, targetTime, ppSegment, NULL);
-                if(rval) 
+                if(rval)
                 {
                     ERROR("problem getting initial segment");
                     break;
                 }
 
-                /* Update the pLastDownloadedSegmentNode */  
-                if((*ppSegment)->pParentNode != NULL) 
+                /* Update the pLastDownloadedSegmentNode */
+                if((*ppSegment)->pParentNode != NULL)
                 {
                     pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode = (*ppSegment)->pParentNode;
                 }
@@ -203,7 +205,7 @@ hlsStatus_t getNextSegment(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegme
 
             /* Initialize the position from the end of the playlist */
             rval = getPositionFromEnd(pMediaPlaylist, *ppSegment, &(pMediaPlaylist->pMediaData->positionFromEnd));
-            if(rval != HLS_OK) 
+            if(rval != HLS_OK)
             {
                 ERROR("problem setting initial playlist position");
                 break;
@@ -212,7 +214,7 @@ hlsStatus_t getNextSegment(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegme
         else
         {
             // TODO: do we need this check?
-            if(pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode->pData == NULL) 
+            if(pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode->pData == NULL)
             {
                 ERROR("empty segment node");
                 rval = HLS_ERROR;
@@ -235,7 +237,7 @@ hlsStatus_t getNextSegment(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegme
                 *ppSegment = (hlsSegment_t*)(pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode->pNext->pData);
 
                 /* Ensure validity */
-                if(*ppSegment == NULL) 
+                if(*ppSegment == NULL)
                 {
                     ERROR("empty segment node");
                     rval = HLS_ERROR;
@@ -249,7 +251,7 @@ hlsStatus_t getNextSegment(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegme
 
     } while (0);
 
-    if(*ppSegment != NULL) 
+    if(*ppSegment != NULL)
     {
         // TODO: should probably be noise...
         DEBUG(DBG_INFO,"got segment: %d",(*ppSegment)->seqNum);
@@ -258,39 +260,39 @@ hlsStatus_t getNextSegment(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegme
     return rval;
 }
 
-/** 
- * This function calculates the duration of time that an I-frame 
- * should be displayed on the screen given the duration of the 
- * I-frame and the current playback speed.  The return value is 
- * limited to a minimum of 1/MAX_TRICK_FPS. 
- *  
- * If given a negative speed the return will still be a positive 
- * value. 
- * 
+/**
+ * This function calculates the duration of time that an I-frame
+ * should be displayed on the screen given the duration of the
+ * I-frame and the current playback speed.  The return value is
+ * limited to a minimum of 1/MAX_TRICK_FPS.
+ *
+ * If given a negative speed the return will still be a positive
+ * value.
+ *
  * @param duration - original I-frame duration
  * @param speed - playback speed
- * 
- * @return double - I-frame duration at current speed -- always 
+ *
+ * @return double - I-frame duration at current speed -- always
  *         positive
  */
 double iFrameTrickDuration(double duration, float speed)
 {
     double result = -1;
 
-    if(duration < 0) 
+    if(duration < 0)
     {
         ERROR("negative duration");
         return result;
     }
 
-    if(speed < 0) 
+    if(speed < 0)
     {
         speed *= -1;
     }
 
     result = duration/speed;
 
-    if(result < (1.0/MAX_TRICK_FPS)) 
+    if(result < (1.0/MAX_TRICK_FPS))
     {
         DEBUG(DBG_INFO,"limiting I-frame duration to 1/FPS");
         result = (1.0/MAX_TRICK_FPS);
@@ -303,45 +305,45 @@ double iFrameTrickDuration(double duration, float speed)
 
 /**
  * Assumes calling thread has AT LEAST playlist READ lock
- *  
+ *
  * (Actually, this function does write
  * pLastDownloadedSegmentNode.  However, since this function is
  * only ever called from the DL thread, and the only other place
  * pLastDownloadedSegmentNode is used is changeBitrate, which
  * requires a WRITE lock, we shouldn't ever be stepping on
  * anyone's toes... )
- *  
+ *
  * TODO: may want to split out the get functionality separate
- * from the setting of the pLastDownloadedSegmentNode... 
- *  
- * This function returns the next I-frame which should be 
- * displayed given the pLastDownloadedSegmentNode of 
- * pMediaPlaylist and the current playback speed. If 
- * pLastDownloadedSegmentNode is NULL, returns either the fist 
- * I-frame (VoD) or the I-frame 3*TARGET_DURATION from the end 
- * of the playlist (live). 
- *  
- * On return the pLastDownloadedSegmentNode and positionFromEnd 
+ * from the setting of the pLastDownloadedSegmentNode...
+ *
+ * This function returns the next I-frame which should be
+ * displayed given the pLastDownloadedSegmentNode of
+ * pMediaPlaylist and the current playback speed. If
+ * pLastDownloadedSegmentNode is NULL, returns either the fist
+ * I-frame (VoD) or the I-frame 3*TARGET_DURATION from the end
+ * of the playlist (live).
+ *
+ * On return the pLastDownloadedSegmentNode and positionFromEnd
  * for *pMediaPlaylist will be updated to new values.
- *  
- * If a new I-frame can't be found, the function assumes we are 
- * at EOF or BOF (depending on playback direction) and returns 
+ *
+ * If a new I-frame can't be found, the function assumes we are
+ * at EOF or BOF (depending on playback direction) and returns
  * HLS_OK and sets *ppSegment = NULL to signify.
- *  
- * @param pMediaPlaylist - pointer to media playlist to pick 
+ *
+ * @param pMediaPlaylist - pointer to media playlist to pick
  *                       I-frames from
- * @param ppSegment - on return will be either NULL (error or 
+ * @param ppSegment - on return will be either NULL (error or
  *                  EOF/BOF) or point to the hlsSegment_t for
  *                  the next I-frame
  * @param speed - playback speed
- * 
+ *
  * @return #hlsStatus_t - HLS_OK on success or EOF/BOF, standard
  *         error codes otherwise
  */
 hlsStatus_t getNextIFrame(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegment, float speed)
 {
     hlsStatus_t rval = HLS_OK;
-   
+
     llNode_t* pNode = NULL;
     double targetPositionFromEnd = 0;
     double prevDuration = 0;
@@ -354,21 +356,21 @@ hlsStatus_t getNextIFrame(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegmen
 
     do
     {
-        if(pMediaPlaylist->type != PL_MEDIA) 
+        if(pMediaPlaylist->type != PL_MEDIA)
         {
             ERROR("not a media playlist");
             rval = HLS_ERROR;
             break;
         }
 
-        if(pMediaPlaylist->pMediaData == NULL) 
+        if(pMediaPlaylist->pMediaData == NULL)
         {
             ERROR("media playlist data is NULL");
             rval = HLS_ERROR;
             break;
         }
 
-        if(!(pMediaPlaylist->pMediaData->bIframesOnly)) 
+        if(!(pMediaPlaylist->pMediaData->bIframesOnly))
         {
             ERROR("media playlist is not an I-frame playlist");
             rval = HLS_ERROR;
@@ -388,7 +390,7 @@ hlsStatus_t getNextIFrame(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegmen
            For VoD content this is the first I-frame in the playlist.
            For live content this is the I-frame that contains the last valid
            play position for the playlist (endOffset from the end). */
-        if(pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode == NULL) 
+        if(pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode == NULL)
         {
             if(pMediaPlaylist->pMediaData->bHaveCompletePlaylist)
             {
@@ -412,14 +414,14 @@ hlsStatus_t getNextIFrame(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegmen
                 targetPositionFromEnd = pMediaPlaylist->pMediaData->endOffset;
 
                 rval = getSegmentXSecFromEnd(pMediaPlaylist, targetPositionFromEnd, ppSegment, NULL);
-                if(rval) 
+                if(rval)
                 {
                     ERROR("problem getting initial I-frame");
                     break;
                 }
 
-                /* Update the pLastDownloadedSegmentNode */  
-                if((*ppSegment)->pParentNode != NULL) 
+                /* Update the pLastDownloadedSegmentNode */
+                if((*ppSegment)->pParentNode != NULL)
                 {
                     pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode = (*ppSegment)->pParentNode;
                 }
@@ -433,7 +435,7 @@ hlsStatus_t getNextIFrame(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegmen
 
             /* Initialize the position from the end of the playlist */
             rval = getPositionFromEnd(pMediaPlaylist, *ppSegment, &(pMediaPlaylist->pMediaData->positionFromEnd));
-            if(rval != HLS_OK) 
+            if(rval != HLS_OK)
             {
                 ERROR("problem setting initial playlist position");
                 break;
@@ -448,7 +450,7 @@ hlsStatus_t getNextIFrame(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegmen
             if(speed > 0) /* FF */
             {
                 /* Check node validity */
-                if(pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode->pData == NULL) 
+                if(pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode->pData == NULL)
                 {
                     ERROR("empty segment node");
                     rval = HLS_ERROR;
@@ -459,7 +461,7 @@ hlsStatus_t getNextIFrame(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegmen
 
                 /* If we're on the last I-Frame, signal EOF. Return *ppSegment = NULL
                    and HLS_OK and assume the caller will handle it. */
-                if(pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode->pNext == NULL) 
+                if(pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode->pNext == NULL)
                 {
                     *ppSegment = NULL;
                     DEBUG(DBG_INFO,"EOF!");
@@ -469,7 +471,7 @@ hlsStatus_t getNextIFrame(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegmen
                 /* Figure out how far we want to jump in the playlist */
                 targetPositionFromEnd = iFrameTrickDuration((*ppSegment)->duration, speed);
 
-                if(targetPositionFromEnd < 0) 
+                if(targetPositionFromEnd < 0)
                 {
                     ERROR("got negative i-frame duration");
                     rval = HLS_ERROR;
@@ -484,9 +486,9 @@ hlsStatus_t getNextIFrame(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegmen
                 DEBUG(DBG_INFO, "current PFE: %f -- target PFE: %f", pMediaPlaylist->pMediaData->positionFromEnd, targetPositionFromEnd);
 
                 /* If the positionFromEnd that we want is less than the playlist's endOffset, return
-                 * the "last viable" I-frame. 
+                 * the "last viable" I-frame.
                  */
-                if(targetPositionFromEnd < pMediaPlaylist->pMediaData->endOffset) 
+                if(targetPositionFromEnd < pMediaPlaylist->pMediaData->endOffset)
                 {
                     //TODO: noise...
                     DEBUG(DBG_INFO,"Target out of bounds, returning last I-frame within bounds");
@@ -495,7 +497,7 @@ hlsStatus_t getNextIFrame(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegmen
 
                 /* Find the I-frame at our desired position */
                 rval = getSegmentXSecFromEnd(pMediaPlaylist, targetPositionFromEnd, ppSegment, NULL);
-                if(rval) 
+                if(rval)
                 {
                     ERROR("problem getting I-frame");
                     break;
@@ -504,15 +506,15 @@ hlsStatus_t getNextIFrame(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegmen
                 /* If our current segment is already the "last valid" I-frame,
                    signal EOS. Return *ppSegment = NULL and HLS_OK and assume the
                    caller will handle it. */
-                if(pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode->pData == *ppSegment) 
+                if(pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode->pData == *ppSegment)
                 {
                     *ppSegment = NULL;
                     DEBUG(DBG_INFO,"EOS!");
                     break;
                 }
 
-                /* Update the pLastDownloadedSegmentNode */  
-                if((*ppSegment)->pParentNode != NULL) 
+                /* Update the pLastDownloadedSegmentNode */
+                if((*ppSegment)->pParentNode != NULL)
                 {
                     pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode = (*ppSegment)->pParentNode;
                 }
@@ -526,7 +528,7 @@ hlsStatus_t getNextIFrame(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegmen
             else /* REW */
             {
                 /* Check node validity */
-                if(pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode->pData == NULL) 
+                if(pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode->pData == NULL)
                 {
                     ERROR("empty segment node");
                     rval = HLS_ERROR;
@@ -537,7 +539,7 @@ hlsStatus_t getNextIFrame(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegmen
 
                 /* If we're on the first I-Frame, signal BOF. Return *ppSegment = NULL and
                    HLS_OK and assume the caller will handle it.*/
-                if(pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode->pPrev == NULL) 
+                if(pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode->pPrev == NULL)
                 {
                     *ppSegment = NULL;
                     DEBUG(DBG_INFO,"BOF!");
@@ -548,7 +550,7 @@ hlsStatus_t getNextIFrame(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegmen
                    is actually the duration of the previous I-frame */
 
                 /* Check previous node validity */
-                if(pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode->pPrev->pData == NULL) 
+                if(pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode->pPrev->pData == NULL)
                 {
                     ERROR("empty segment node");
                     rval = HLS_ERROR;
@@ -560,7 +562,7 @@ hlsStatus_t getNextIFrame(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegmen
                 /* Figure out how far we want to jump in the playlist */
                 targetPositionFromEnd = iFrameTrickDuration(prevDuration, speed);
 
-                if(targetPositionFromEnd < 0) 
+                if(targetPositionFromEnd < 0)
                 {
                     ERROR("got negative i-frame duration");
                     rval = HLS_ERROR;
@@ -575,9 +577,9 @@ hlsStatus_t getNextIFrame(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegmen
                 DEBUG(DBG_INFO, "current PFE: %f -- target PFE: %f", pMediaPlaylist->pMediaData->positionFromEnd, targetPositionFromEnd);
 
                 /* If the positionFromEnd that we want is greater than the playlist's (duration - startOffset), return
-                 * the "last viable" I-frame. 
+                 * the "last viable" I-frame.
                  */
-                if(targetPositionFromEnd > (pMediaPlaylist->pMediaData->duration - pMediaPlaylist->pMediaData->startOffset)) 
+                if(targetPositionFromEnd > (pMediaPlaylist->pMediaData->duration - pMediaPlaylist->pMediaData->startOffset))
                 {
                     //TODO: noise...
                     DEBUG(DBG_INFO,"Target out of bounds, returning last I-frame within bounds");
@@ -586,7 +588,7 @@ hlsStatus_t getNextIFrame(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegmen
 
                 /* Find the I-frame at our desired position */
                 rval = getSegmentXSecFromEnd(pMediaPlaylist, targetPositionFromEnd, ppSegment, NULL);
-                if(rval) 
+                if(rval)
                 {
                     ERROR("problem getting I-frame");
                     break;
@@ -599,16 +601,16 @@ hlsStatus_t getNextIFrame(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegmen
                 /* If our current segment is already the "last valid" I-frame,
                    signal BOS. Return *ppSegment = NULL and HLS_OK and assume the
                    caller will handle it. */
-                if(pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode->pData == *ppSegment) 
+                if(pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode->pData == *ppSegment)
                 {
                     *ppSegment = NULL;
                     DEBUG(DBG_INFO,"BOS!");
                     break;
                 }
 #endif
-                
-                /* Update the pLastDownloadedSegmentNode */  
-                if((*ppSegment)->pParentNode != NULL) 
+
+                /* Update the pLastDownloadedSegmentNode */
+                if((*ppSegment)->pParentNode != NULL)
                 {
                     pMediaPlaylist->pMediaData->pLastDownloadedSegmentNode = (*ppSegment)->pParentNode;
                 }
@@ -623,7 +625,7 @@ hlsStatus_t getNextIFrame(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegmen
 
     } while (0);
 
-    if(*ppSegment != NULL) 
+    if(*ppSegment != NULL)
     {
         // TODO: should probably be noise...
         DEBUG(DBG_INFO,"got I-frame: %d",(*ppSegment)->seqNum);
@@ -633,24 +635,24 @@ hlsStatus_t getNextIFrame(hlsPlaylist_t* pMediaPlaylist, hlsSegment_t** ppSegmen
 }
 
 /**
- * This function updates the download/play position in playlist2 
- * to match playlist1 
- *  
+ * This function updates the download/play position in playlist2
+ * to match playlist1
+ *
  * @param pSession   - session we are operating on
  * @param pPlaylist1 - source playlist
  * @param pPlaylist2 - destination playlist
- * 
- * @return #hlsStatus_t 
+ *
+ * @return #hlsStatus_t
  */
 hlsStatus_t matchPlaylistPosition(hlsSession_t *pSession,
-                                  hlsPlaylist_t *pPlaylist1, 
+                                  hlsPlaylist_t *pPlaylist1,
                                   hlsPlaylist_t *pPlaylist2)
 {
    hlsStatus_t rval = HLS_OK;
    hlsSegment_t* pSegment = NULL;
    double targetPosition = 0;
 
-   do 
+   do
    {
       if(pSession == NULL)
       {
@@ -660,8 +662,8 @@ hlsStatus_t matchPlaylistPosition(hlsSession_t *pSession,
       }
       /* Validate playlist1 */
       if((pPlaylist1 == NULL) ||
-         (pPlaylist1->type != PL_MEDIA) || 
-         (pPlaylist1->pMediaData == NULL)) 
+         (pPlaylist1->type != PL_MEDIA) ||
+         (pPlaylist1->pMediaData == NULL))
       {
          ERROR("invalid media playlist1");
          rval = HLS_ERROR;
@@ -669,39 +671,39 @@ hlsStatus_t matchPlaylistPosition(hlsSession_t *pSession,
       }
 
       /* Validate playlist2 */
-      if((pPlaylist2 == NULL) || 
-         (pPlaylist2->type != PL_MEDIA) || 
-         (pPlaylist2->pMediaData == NULL)) 
+      if((pPlaylist2 == NULL) ||
+         (pPlaylist2->type != PL_MEDIA) ||
+         (pPlaylist2->pMediaData == NULL))
       {
          ERROR("invalid media playlist2");
          rval = HLS_ERROR;
          break;
       }
 
-      /* If this is live, we need to update both playlists */ 
+      /* If this is live, we need to update both playlists */
       if(!(pPlaylist1->pMediaData->bHaveCompletePlaylist))
       {
          rval = m3u8ParsePlaylist(pPlaylist1, pSession);
-         if(rval != HLS_OK) 
+         if(rval != HLS_OK)
          {
             ERROR("problem updating playlist1");
             break;
          }
 
          rval = m3u8ParsePlaylist(pPlaylist2, pSession);
-         if(rval != HLS_OK) 
+         if(rval != HLS_OK)
          {
             ERROR("problem updating playlist2");
             break;
          }
       }
-      else if(!(pPlaylist2->pMediaData->bHaveCompletePlaylist)) 
+      else if(!(pPlaylist2->pMediaData->bHaveCompletePlaylist))
       {
          /* If for some reason we have have all of playlist1
             but not all of the playlist2, update playlist2
             to synchronize them */
          rval = m3u8ParsePlaylist(pPlaylist2, pSession);
-         if(rval != HLS_OK) 
+         if(rval != HLS_OK)
          {
             ERROR("problem updating new playlist");
             break;
@@ -709,7 +711,7 @@ hlsStatus_t matchPlaylistPosition(hlsSession_t *pSession,
       }
 
       /* If one playlist is rotating but the other isn't, we don't have any way of matching them up */
-      if(pPlaylist1->pMediaData->bHaveCompletePlaylist != pPlaylist2->pMediaData->bHaveCompletePlaylist) 
+      if(pPlaylist1->pMediaData->bHaveCompletePlaylist != pPlaylist2->pMediaData->bHaveCompletePlaylist)
       {
          ERROR("one playlist is VoD and one is Live -- can't sync");
          rval = HLS_ERROR;
@@ -723,11 +725,11 @@ hlsStatus_t matchPlaylistPosition(hlsSession_t *pSession,
             i.e. the first data we fetch from the new playlist should directly follow the last piece of data we
             fetched from the playlist1.  So, we match on the positionFromEnd of playlist1's
             pLastDownloadedSegmentNode->next. */
-         if(pSession->state == HLS_PLAYING) 
+         if(pSession->state == HLS_PLAYING)
          {
             pSegment = (hlsSegment_t*)(pPlaylist1->pMediaData->pLastDownloadedSegmentNode->pData);
 
-            if(pSegment == NULL) 
+            if(pSegment == NULL)
             {
                ERROR("invalid segment");
                rval = HLS_ERROR;
@@ -739,7 +741,7 @@ hlsStatus_t matchPlaylistPosition(hlsSession_t *pSession,
 
             /* Get position from end of the last downloaded segment */
             rval = getPositionFromEnd(pPlaylist1, pSegment, &targetPosition);
-            if(rval != HLS_OK) 
+            if(rval != HLS_OK)
             {
                ERROR("problem getting position in old playlist");
                break;
@@ -765,20 +767,20 @@ hlsStatus_t matchPlaylistPosition(hlsSession_t *pSession,
          /* Find the next segment we would download from playlist2 (if targetPosition == 0
             this will return the last node in playlist2). */
          rval = getSegmentXSecFromEnd(pPlaylist2, targetPosition, &pSegment, pPlaylist1);
-         if(rval != HLS_OK) 
+         if(rval != HLS_OK)
          {
             ERROR("problem finding segment in new playlist");
             break;
          }
 
-         if(pSegment == NULL) 
+         if(pSegment == NULL)
          {
             ERROR("invalid segment");
             rval = HLS_ERROR;
             break;
          }
 
-         /* Update the pLastDownloadedSegmentNode */  
+         /* Update the pLastDownloadedSegmentNode */
          if(pSegment->pParentNode != NULL)
          {
             /* There is a special case if the next segment we would download hasn't been
@@ -825,18 +827,18 @@ hlsStatus_t matchPlaylistPosition(hlsSession_t *pSession,
 }
 
 /**
- * Assumes calling thread has playlist WRITE lock 
- *  
- * This function changes the pCurrentPlaylist for pSession to 
- * pNewMediaPlaylist.  The position in the new playlist is 
- * matched to the current position in the old playlist.  If this 
- * is a live asset, both playlist are updated prior to 
- * attempting to match them. 
- * 
+ * Assumes calling thread has playlist WRITE lock
+ *
+ * This function changes the pCurrentPlaylist for pSession to
+ * pNewMediaPlaylist.  The position in the new playlist is
+ * matched to the current position in the old playlist.  If this
+ * is a live asset, both playlist are updated prior to
+ * attempting to match them.
+ *
  * @param pSession - session to operate on
- * @param pNewMediaPlaylist - playlist to change 
- *                          pCurrentPlaylist to 
- * 
+ * @param pNewMediaPlaylist - playlist to change
+ *                          pCurrentPlaylist to
+ *
  * @return #hls_status - HLS_OK on success, error code otherwise
  */
 hlsStatus_t changeCurrentPlaylist(hlsSession_t* pSession, hlsPlaylist_t* pNewMediaPlaylist)
@@ -844,7 +846,7 @@ hlsStatus_t changeCurrentPlaylist(hlsSession_t* pSession, hlsPlaylist_t* pNewMed
     hlsStatus_t rval = HLS_OK;
 
     srcPluginEvt_t event;
-   
+
     if((pSession == NULL) || (pNewMediaPlaylist == NULL))
     {
         ERROR("invalid parameter");
@@ -859,7 +861,7 @@ hlsStatus_t changeCurrentPlaylist(hlsSession_t* pSession, hlsPlaylist_t* pNewMed
            ERROR("Failed to match old and new playlist position\n");
            break;
         }
-                        
+
         /* Update pCurrentPlaylist */
         pSession->pCurrentPlaylist = pNewMediaPlaylist;
 
@@ -873,18 +875,18 @@ hlsStatus_t changeCurrentPlaylist(hlsSession_t* pSession, hlsPlaylist_t* pNewMed
     return rval;
 }
 
-/** 
+/**
  * Assumes calling thread has playlist WRITE lock
- * 
+ *
  * @param pSession
  * @param newBitrate
- * 
+ *
  * @return #hls_status
  */
 hlsStatus_t changeBitrate(hlsSession_t* pSession, int newBitrate)
 {
     hlsStatus_t rval = HLS_OK;
-   
+
     hlsPlaylist_t* pNewMediaPlaylist = NULL;
 
     if(pSession == NULL)
@@ -895,7 +897,7 @@ hlsStatus_t changeBitrate(hlsSession_t* pSession, int newBitrate)
 
     do
     {
-        if(pSession->pPlaylist == NULL) 
+        if(pSession->pPlaylist == NULL)
         {
             ERROR("root playlist is NULL");
             rval = HLS_ERROR;
@@ -903,29 +905,29 @@ hlsStatus_t changeBitrate(hlsSession_t* pSession, int newBitrate)
         }
 
         /* If there is only one bitrate, we are already "switched" */
-        if(pSession->pPlaylist->type == PL_MEDIA) 
+        if(pSession->pPlaylist->type == PL_MEDIA)
         {
             break;
         }
 
         /* Validate current playlist */
-        if((pSession->pCurrentPlaylist == NULL) || 
-           (pSession->pCurrentPlaylist->type != PL_MEDIA) || 
-           (pSession->pCurrentPlaylist->pMediaData == NULL)) 
+        if((pSession->pCurrentPlaylist == NULL) ||
+           (pSession->pCurrentPlaylist->type != PL_MEDIA) ||
+           (pSession->pCurrentPlaylist->pMediaData == NULL))
         {
             ERROR("invalid media playlist");
             rval = HLS_ERROR;
             break;
         }
-     
+
         /* If we're already at the target bitrate, quit */
-        if(newBitrate == pSession->pCurrentPlaylist->pMediaData->bitrate) 
+        if(newBitrate == pSession->pCurrentPlaylist->pMediaData->bitrate)
         {
             break;
         }
-        
+
         /* Validate current program */
-        if(pSession->pCurrentProgram == NULL) 
+        if(pSession->pCurrentProgram == NULL)
         {
             ERROR("current program invalid");
             rval = HLS_ERROR;
@@ -934,14 +936,14 @@ hlsStatus_t changeBitrate(hlsSession_t* pSession, int newBitrate)
 
         /* Get playlist that matches newBitrate */
         rval = getPlaylistByBitrate(pSession->pCurrentProgram->pStreams, newBitrate, &pNewMediaPlaylist);
-        if(rval != HLS_OK) 
+        if(rval != HLS_OK)
         {
             ERROR("problem getting playlist with new bitrate");
             break;
         }
 
         rval = changeCurrentPlaylist(pSession, pNewMediaPlaylist);
-        if(rval != HLS_OK) 
+        if(rval != HLS_OK)
         {
             ERROR("problem switching playlists");
             break;
@@ -953,27 +955,27 @@ hlsStatus_t changeBitrate(hlsSession_t* pSession, int newBitrate)
 }
 
 /**
- * This function downloads a segment and pushed the downloaded 
- * data to the player as it becomes available. 
- *  
- * If the download is interrupted by pSession->bKillDownloader 
- * == TRUE, the function returns HLS_CANCELLED. 
- * 
+ * This function downloads a segment and pushed the downloaded
+ * data to the player as it becomes available.
+ *
+ * If the download is interrupted by pSession->bKillDownloader
+ * == TRUE, the function returns HLS_CANCELLED.
+ *
  * @param pSession - session we are operating on
  * @param pSegment - pointer to the #hlsSegment_t to download
- * @param waitTime - struct timespec specifying the delay (if 
+ * @param waitTime - struct timespec specifying the delay (if
  *                 any) before sending any data to the player
- * @param playerMode - #srcPlayerMode_t specifying what mode to 
+ * @param playerMode - #srcPlayerMode_t specifying what mode to
  *                   put the player into once we have sent it
  *                   some data
  * @param streamNum - stream Number( main, media group streams...)
- * 
- * @return #hlsStatus_t 
+ *
+ * @return #hlsStatus_t
  */
-hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession, 
-                                   hlsSegment_t* pSegment, 
-                                   struct timespec waitTime, 
-                                   srcPlayerMode_t playerMode, 
+hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession,
+                                   hlsSegment_t* pSegment,
+                                   struct timespec waitTime,
+                                   srcPlayerMode_t playerMode,
                                    int streamNum)
 {
     hlsStatus_t rval = HLS_OK;
@@ -1020,7 +1022,7 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession,
     {
         /* Generate the local download path */
         rval = getLocalPath(pSegment->URL, &(filePath), pSession->sessionName);
-        if(rval != HLS_OK) 
+        if(rval != HLS_OK)
         {
             ERROR("error generating local path");
             break;
@@ -1031,7 +1033,7 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession,
         /* Though this thread will only read from the file, we open it for writing
            and reading so that the file is created on the disk. */
         fpRead = fopen(filePath,"w+b");
-        if(fpRead == NULL) 
+        if(fpRead == NULL)
         {
             ERROR("fopen() failed on file %s -- %s", filePath, strerror(errno));
             rval = HLS_FILE_ERROR;
@@ -1062,7 +1064,7 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession,
             ERROR("failed to create file download thread");
             rval = HLS_ERROR;
             break;
-        }      
+        }
 
         /* Wait until waitTime to start pushing the data to the player */
 
@@ -1073,12 +1075,12 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession,
             rval = HLS_ERROR;
             break;
         }
-                    
+
         DEBUG(DBG_NOISE,"waiting until: %f", ((waitTime.tv_sec)*1.0) + (waitTime.tv_nsec/1000000000.0));
-    
+
         /* Wait until waitTime */
         pthread_status = PTHREAD_COND_TIMEDWAIT(&(pSession->downloaderWakeCond), &(pSession->downloaderWakeMutex), &waitTime);
-    
+
         /* Unlock the downloader wake mutex */
         if(pthread_mutex_unlock(&(pSession->downloaderWakeMutex)) != 0)
         {
@@ -1086,7 +1088,7 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession,
             rval = HLS_ERROR;
             break;
         }
-    
+
         /* If the timedwait call failed we need to bail */
         if((pthread_status != ETIMEDOUT) && (pthread_status != 0))
         {
@@ -1104,12 +1106,12 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession,
         /* Alternate streams + one main stream */
         bufferMeta.totalNumStreams = pSession->currentGroupCount + 1;
         bufferMeta.pts = INVALID_PTS;
-        
+
         /* Keep going as long as we don't hit an error */
-        while(rval == HLS_OK) 
+        while(rval == HLS_OK)
         {
             /* If we were told to stop downloading, return HLS_CANCELLED */
-            if(pSession->bKillDownloader) 
+            if(pSession->bKillDownloader)
             {
                 DEBUG(DBG_WARN, "download signalled to stop");
                 rval = HLS_CANCELLED;
@@ -1117,7 +1119,7 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession,
             }
 
             /* Check the download thread status */
-            if(dlStatus != HLS_OK) 
+            if(dlStatus != HLS_OK)
             {
                 ERROR("download thread reports error %d", dlStatus);
                 rval = dlStatus;
@@ -1125,7 +1127,7 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession,
             }
 
             /* Get current time */
-            if(clock_gettime(CLOCK_MONOTONIC, &wakeTime) != 0) 
+            if(clock_gettime(CLOCK_MONOTONIC, &wakeTime) != 0)
             {
                 ERROR("failed to get current time");
                 rval = HLS_ERROR;
@@ -1133,7 +1135,7 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession,
             }
 
             /* Get a new buffer if we're not currently operating on one */
-            if(buffer == NULL) 
+            if(buffer == NULL)
             {
                 bufferSize = 0;
 
@@ -1150,7 +1152,7 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession,
             }
 
             /* Did we get a buffer? */
-            if(bufferSize != 0) 
+            if(bufferSize != 0)
             {
                 /* If this is encrypted content, we need to send down 16-byte aligned blocks. */
                 if((bufferMeta.encType != SRC_ENC_NONE) && (bufferSize % 16 != 0))
@@ -1173,7 +1175,7 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession,
                 else
                 {
                     /* If the download is complete, the fileSize is the number of bytes downloaded */
-                    if(bDownloadComplete) 
+                    if(bDownloadComplete)
                     {
                         fileSize = bytesDownloaded;
                     }
@@ -1181,13 +1183,13 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession,
                     {
                         /* If the download is currently in progress, we need to find out the current size
                            of the file. */
-                        
+
                         /* Move the pointer to the end of the file */
-                        if(fseek(fpRead, 0, SEEK_END) == 0) 
+                        if(fseek(fpRead, 0, SEEK_END) == 0)
                         {
                             /* Get the current byte offset */
                             fileSize = ftell(fpRead);
-                            if(fileSize == -1) 
+                            if(fileSize == -1)
                             {
                                 ERROR("ftell() failed on file %s -- %s", filePath, strerror(errno));
                                 rval = HLS_FILE_ERROR;
@@ -1197,10 +1199,10 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession,
                             DEBUG(DBG_NOISE, "file size: %ld -- %ld new bytes available", fileSize, fileSize-bytesRead);
 
                             /* Is there enough new data to fill the buffer? */
-                            if((fileSize - bytesRead) < bufferSize) 
+                            if((fileSize - bytesRead) < bufferSize)
                             {
                                 /* If not, has the download completed? */
-                                if(bDownloadComplete) 
+                                if(bDownloadComplete)
                                 {
                                     /* Adjust the amount to be read to match what is available */
                                     bufferSize = fileSize - bytesRead;
@@ -1222,7 +1224,7 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession,
                                    pthread_mutex_lock(&(pSession->downloaderWakeMutex));
 
                                    PTHREAD_COND_TIMEDWAIT(&(pSession->downloaderWakeCond), &(pSession->downloaderWakeMutex), &wakeTime);
-                                   
+
                                    pthread_mutex_unlock(&(pSession->downloaderWakeMutex));
 
                                    continue;
@@ -1236,10 +1238,10 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession,
                             break;
                         }
 
-                    } 
+                    }
 
                     /* Seek to current read posiiton */
-                    if(fseek(fpRead, bytesRead, SEEK_SET) != 0) 
+                    if(fseek(fpRead, bytesRead, SEEK_SET) != 0)
                     {
                         ERROR("fseek() failed on file %s -- %s", filePath, strerror(errno));
                         rval = HLS_FILE_ERROR;
@@ -1248,7 +1250,7 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession,
 
                     /* Read from our input file */
                     readSize = fread(buffer, 1, bufferSize, fpRead);
-        
+
                     DEBUG(DBG_NOISE,"read %d bytes -- wanted %d", readSize, bufferSize);
 
                     // incase the user does trick modes, we need to store
@@ -1292,7 +1294,7 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession,
                         rval = HLS_ERROR;
                         break;
                     }
-                        
+
                     /* Check for file read error or EOF*/
                     if(readSize != bufferSize)
                     {
@@ -1303,9 +1305,9 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession,
                             break;
                         }
                     }
-                    
+
                     /* Move to PLAYING state */
-                    if(pSession->state == HLS_PREPARED) 
+                    if(pSession->state == HLS_PREPARED)
                     {
                        playerSetData.setCode = SRC_PLAYER_SET_MODE;
                        playerSetData.pData = &playerMode;
@@ -1321,7 +1323,7 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession,
 
                        TIMESTAMP(DBG_INFO, "PLAYING");
                     }
-            
+
                     /* Set playbackStart timestamp */
                     if(((float)(pSession->playbackStart.tv_sec)) == 0)
                     {
@@ -1333,12 +1335,12 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession,
                     buffer = NULL;
 
                     /* Increment the total bytes read */
-                    bytesRead += readSize;         
+                    bytesRead += readSize;
 
                     DEBUG(DBG_NOISE, "%ld bytes read so far", bytesRead);
-                    
+
                     /* Are we done? */
-                    if(bDownloadComplete && (bytesRead == bytesDownloaded)) 
+                    if(bDownloadComplete && (bytesRead == bytesDownloaded))
                     {
                         DEBUG(DBG_INFO, "download complete");
                         break;
@@ -1368,15 +1370,15 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession,
                     rval = HLS_ERROR;
                     break;
                 }
-                    
+
                 /* Wait for LOOP_SECS before going again */
                 wakeTime.tv_sec += BUFFER_WAIT_SECS;
-    
+
                 DEBUG(DBG_NOISE,"sleeping %d seconds until %d", (int)BUFFER_WAIT_SECS, (int)wakeTime.tv_sec);
-    
+
                 /* Wait until wakeTime */
                 pthread_status = PTHREAD_COND_TIMEDWAIT(&(pSession->downloaderWakeCond), &(pSession->downloaderWakeMutex), &wakeTime);
-    
+
                 /* Unlock the downloader wake mutex */
                 if(pthread_mutex_unlock(&(pSession->downloaderWakeMutex)) != 0)
                 {
@@ -1384,7 +1386,7 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession,
                     rval = HLS_ERROR;
                     break;
                 }
-    
+
                 /* If the timedwait call failed we need to bail */
                 if((pthread_status != ETIMEDOUT) && (pthread_status != 0))
                 {
@@ -1400,20 +1402,20 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession,
         }
 
     } while(0);
-    
+
     /* Tell async thread to stop, if it hasn't already. */
     bKillThread = 1;
 
     /* Swallow the async thread */
-    if(asyncDlThread != 0) 
+    if(asyncDlThread != 0)
     {
         pthread_join(asyncDlThread, NULL);
         asyncDlThread = 0;
     }
-        
+
     /* If for some reason we are still holding a buffer (say we errored in the main loop)
        then send it back empty to make sure we don't leak memory. */
-    if(buffer != NULL) 
+    if(buffer != NULL)
     {
         status = hlsPlayer_sendBuffer(pSession->pHandle, buffer, 0, &bufferMeta, pPrivate);
         if(status != SRC_SUCCESS)
@@ -1426,11 +1428,11 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession,
     }
 
     /* Close file */
-    if(fpRead != NULL) 
+    if(fpRead != NULL)
     {
-        DEBUG(DBG_NOISE, "closing %s", filePath);                
+        DEBUG(DBG_NOISE, "closing %s", filePath);
 
-        if(fclose(fpRead) != 0) 
+        if(fclose(fpRead) != 0)
         {
             ERROR("fclose() failed on file %s -- %s", filePath, strerror(errno));
             rval = HLS_FILE_ERROR;
@@ -1450,12 +1452,12 @@ hlsStatus_t downloadAndPushSegment(hlsSession_t* pSession,
 }
 
 /**
- * Thread body which downloads a given segment using cURL. 
- *  
- * If the download is stopped via pDesc->pbKillThread, the 
- * thread will exit with pDesc->pDownloadStatus HLS_CANCELLED. 
- * 
- * @param pDesc - pointer to an #asyncDlDesc_t which gives all 
+ * Thread body which downloads a given segment using cURL.
+ *
+ * If the download is stopped via pDesc->pbKillThread, the
+ * thread will exit with pDesc->pDownloadStatus HLS_CANCELLED.
+ *
+ * @param pDesc - pointer to an #asyncDlDesc_t which gives all
  *              the parameters used for the download
  */
 void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc)
@@ -1468,7 +1470,7 @@ void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc)
 
     char* filePath = NULL;
     FILE* fpWrite = NULL;
-    float lastSegmentDldRate = 0.0f;   
+    float lastSegmentDldRate = 0.0f;
 
     downloadHandle_t dlHandle;
     srcPluginErr_t error;
@@ -1489,20 +1491,20 @@ void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc)
     {
         /* Clear download complete flag */
         *(pDesc->pbDownloadComplete) = 0;
-      
+
         /* Generate the local download path */
         status = getLocalPath(pDesc->pSegment->URL, &(filePath), pDesc->pSession->sessionName);
-        if(status != HLS_OK) 
+        if(status != HLS_OK)
         {
             ERROR("error generating local path");
             break;
         }
-        
+
         DEBUG(DBG_NOISE, "opening %s for writing", filePath);
 
         /* Open file pointer to write downloaded file */
         fpWrite = fopen(filePath,"wb");
-        if(fpWrite == NULL) 
+        if(fpWrite == NULL)
         {
             ERROR("fopen() failed on file %s -- %s", filePath, strerror(errno));
             status = HLS_FILE_ERROR;
@@ -1515,9 +1517,9 @@ void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc)
         dlHandle.pbAbortDownload = pDesc->pbKillThread;
 
         /* Retry the download indefinitely */
-        while(status == HLS_OK) 
+        while(status == HLS_OK)
         {
-            if(*(pDesc->pbKillThread)) 
+            if(*(pDesc->pbKillThread))
             {
                 DEBUG(DBG_WARN, "segment download thread signalled to stop");
                 status = HLS_CANCELLED;
@@ -1529,7 +1531,7 @@ void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc)
             dlLength = pDesc->pSegment->byteLength;
 
             /* If this was supposed to be a byterange download, calculate the new range length */
-            if(dlLength > 0) 
+            if(dlLength > 0)
             {
                 dlLength -= skipBytes;
             }
@@ -1541,14 +1543,14 @@ void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc)
             status = curlDownloadFile(pDesc->pCurl, pDesc->pSegment->URL, &dlHandle, dlOffset, dlLength);
             if(status)
             {
-                if(status == HLS_CANCELLED) 
+                if(status == HLS_CANCELLED)
                 {
                     DEBUG(DBG_WARN, "download stopped");
                     /* Unlock cURL mutex */
                     pthread_mutex_unlock(pDesc->curlMutex);
                     break;
                 }
-                else if(status == HLS_DL_ERROR) 
+                else if(status == HLS_DL_ERROR)
                 {
                     /* If we ran into a network error, attempt to recover the download by resuming from where the failure took place.
                        To do that, we need to figure out how much data we have downloaded. */
@@ -1557,9 +1559,9 @@ void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc)
 
                     /* Unlock cURL mutex */
                     pthread_mutex_unlock(pDesc->curlMutex);
-                
+
                     /* Flush all data to disk */
-                    if(fflush(fpWrite) != 0) 
+                    if(fflush(fpWrite) != 0)
                     {
                         ERROR("fflush() failed on file %s -- %s", filePath, strerror(errno));
                         status = HLS_FILE_ERROR;
@@ -1569,7 +1571,7 @@ void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc)
 
                     /* Get the total number of bytes written to disk */
                     *(pDesc->pBytesDownloaded) = ftell(fpWrite);
-                    if(*(pDesc->pBytesDownloaded) == -1) 
+                    if(*(pDesc->pBytesDownloaded) == -1)
                     {
                         ERROR("ftell() failed on file %s -- %s", filePath, strerror(errno));
                         status = HLS_FILE_ERROR;
@@ -1602,7 +1604,7 @@ void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc)
             /* Sleep for a bit, then try again */
             usleep(DOWNLOAD_RETRY_WAIT_NSECS/1000);
         }
-        if(status != HLS_OK) 
+        if(status != HLS_OK)
         {
             break;
         }
@@ -1616,12 +1618,12 @@ void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc)
             pthread_mutex_unlock(pDesc->curlMutex);
             break;
         }
-        
+
         /* Unlock cURL mutex */
         pthread_mutex_unlock(pDesc->curlMutex);
-                
+
         /* Flush all data to disk */
-        if(fflush(fpWrite) != 0) 
+        if(fflush(fpWrite) != 0)
         {
             ERROR("fflush() failed on file %s -- %s", filePath, strerror(errno));
             status = HLS_FILE_ERROR;
@@ -1630,7 +1632,7 @@ void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc)
 
         /* Get the total number of bytes downloaded */
         *(pDesc->pBytesDownloaded) = ftell(fpWrite);
-        if(*(pDesc->pBytesDownloaded) == -1) 
+        if(*(pDesc->pBytesDownloaded) == -1)
         {
             ERROR("ftell() failed on file %s -- %s", filePath, strerror(errno));
             status = HLS_FILE_ERROR;
@@ -1638,11 +1640,11 @@ void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc)
         }
 
         DEBUG(DBG_INFO, "%ld bytes downloaded", *(pDesc->pBytesDownloaded));
-        
-        DEBUG(DBG_NOISE, "closing %s", filePath);                
+
+        DEBUG(DBG_NOISE, "closing %s", filePath);
 
         /* Close file */
-        if(fclose(fpWrite) != 0) 
+        if(fclose(fpWrite) != 0)
         {
             ERROR("fclose() failed on file %s -- %s", filePath, strerror(errno));
             status = HLS_FILE_ERROR;
@@ -1669,11 +1671,11 @@ void asyncSegmentDownloadThread(asyncDlDesc_t* pDesc)
         *(pDesc->pbDownloadComplete) = 1;
 
     } while(0);
-    
+
     /* Close file if it happens to still be open */
-    if(fpWrite != NULL) 
+    if(fpWrite != NULL)
     {
-        DEBUG(DBG_NOISE, "closing %s", filePath);                
+        DEBUG(DBG_NOISE, "closing %s", filePath);
 
         fclose(fpWrite);
         fpWrite = NULL;

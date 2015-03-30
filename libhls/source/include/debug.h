@@ -1,31 +1,32 @@
 #ifndef DEBUG_H
 #define DEBUG_H
+/*
+    LIBBHLS
+    Copyright (C) {2015}  {Cisco System}
 
-/* ****************************************************************************
-*
-*                   Copyright 2012 Cisco Systems, Inc.
-*
-*                              CHS Engineering
-*                           5030 Sugarloaf Parkway
-*                               P.O. Box 465447
-*                          Lawrenceville, GA 30042
-*
-*                        Proprietary and Confidential
-*              Unauthorized distribution or copying is prohibited
-*                            All rights reserved
-*
-* No part of this computer software may be reprinted, reproduced or utilized
-* in any form or by any electronic, mechanical, or other means, now known or
-* hereafter invented, including photocopying and recording, or using any
-* information storage and retrieval system, without permission in writing
-* from Cisco Systems, Inc.
-*
-******************************************************************************/
+    This library is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation; either
+    version 2.1 of the License, or (at your option) any later version.
+
+    This library is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
+    USA
+
+    Contributing Authors: Saravanakumar Periyaswamy, Patryk Prus, Tankut Akgul
+
+*/
 
 /**
  * @file debug.h @date February 9, 2012
- * 
- * @author Patryk Prus (pprus@cisco.com) 
+ *
+ * @author Patryk Prus (pprus@cisco.com)
  *
  * Defines new types used by HLS plugin
  */
@@ -79,7 +80,7 @@ extern "C" {
             }                                                                   \
         }                                                                       \
     } while (0)
-   
+
 #if GLOBAL_TIMESTAMPS
 #define DEBUG(lvl, x, ...) TIMESTAMP(lvl, x, ##__VA_ARGS__)
 #else
@@ -90,13 +91,13 @@ extern "C" {
             __android_log_print(lvl, "hls", DEBUG_MSG(x, ##__VA_ARGS__));       \
     } while (0)
 #endif
-  
+
 #elif defined(OPT_USE_SYSLOG)
 #include <syslog.h>
 
-/* There is no matching level for DBG_OFF in syslog. So assigning a value outside of 
+/* There is no matching level for DBG_OFF in syslog. So assigning a value outside of
  * LOG_EMERG(0) - LOG_DEBUG(7)*/
-#define DBG_OFF (LOG_EMERG -1) 
+#define DBG_OFF (LOG_EMERG -1)
 #define DBG_WARN LOG_WARNING
 #define DBG_INFO LOG_INFO
 #define DBG_NOISE LOG_DEBUG
@@ -135,7 +136,7 @@ extern "C" {
             }                                                                   \
         }                                                                       \
     } while (0)
-   
+
 #if GLOBAL_TIMESTAMPS
 #define DEBUG(lvl, x, ...) TIMESTAMP(lvl, x, ##__VA_ARGS__)
 #else
@@ -146,7 +147,7 @@ extern "C" {
             syslog(lvl, DEBUG_MSG(x, ##__VA_ARGS__));                           \
     } while (0)
 #endif
-  
+
 
 #else // LINUX
 #define DBG_OFF 0

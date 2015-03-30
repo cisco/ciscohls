@@ -1,29 +1,31 @@
-/* ****************************************************************************
-*
-*                   Copyright 2012 Cisco Systems, Inc.
-*
-*                              CHS Engineering
-*                           5030 Sugarloaf Parkway
-*                               P.O. Box 465447
-*                          Lawrenceville, GA 30042
-*
-*                        Proprietary and Confidential
-*              Unauthorized distribution or copying is prohibited
-*                            All rights reserved
-*
-* No part of this computer software may be reprinted, reproduced or utilized
-* in any form or by any electronic, mechanical, or other means, now known or
-* hereafter invented, including photocopying and recording, or using any
-* information storage and retrieval system, without permission in writing
-* from Cisco Systems, Inc.
-*
-******************************************************************************/
+/*
+    LIBBHLS
+    Copyright (C) {2015}  {Cisco System}
 
+    This library is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation; either
+    version 2.1 of the License, or (at your option) any later version.
+
+    This library is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
+    USA
+
+    Contributing Authors: Matt Snoby, Kris Kersey, Zack Wine, Chris Foster,
+                          Tankut Akgul, Saravanakumar Periyaswamy
+
+*/
 /**
  * @file adaptech.c @date February 9, 2012
- *  
+ *
  * @author Jake Nunn (janunn@cisco.com)
- *  
+ *
  */
 
 #ifdef __cplusplus
@@ -46,7 +48,7 @@ extern "C" {
                                    // player does not start playback until theta1 of A/V had been buffered; whereas for our
                                    // fast channel change we start playback as soon as we start downloading the first segment.
                                    // As a result, we need our theta1 to be smaller than a segment size so that when we run the
-                                   // algorithm after we've downloaded a segment we won't always be starving. For example, if 
+                                   // algorithm after we've downloaded a segment we won't always be starving. For example, if
                                    // theta1 is 5 seconds and we've downloaded 1 segment whose size minus the amount of the segment
                                    // played so far is still greater than 5 seconds then we won't be starving and we'll have the
                                    // opportunity to bitrate switch up and get to our our optimal bitrate as quickly as possible.)
@@ -54,7 +56,7 @@ extern "C" {
 #define NORMAL_BUFF_LVL 20         // "theta2" in Adaptech Algorithm (The paper used a value of 20 with 3 sec segments)
 #define CAN_SWITCH_UP_THRESHOLD 15 // "T" in Adaptech Algorithm (How long you have to wait to switch up to the next bitrate in the steady state.)
 #define AVG_WEIGHT 0.5             // The "delta" in Adaptech Algorithm is the weight on the average segment D/L rate.
-                                   // the Adaptec research paper used 0.8; however we adjusted it down to 0.5 due to increased 
+                                   // the Adaptec research paper used 0.8; however we adjusted it down to 0.5 due to increased
                                    // segment size (we use 10 second segments, vs. the 3 second segments in the example player)
 
 // Returns the average segment download rate after adding the specified single download rate to the average.
@@ -100,7 +102,7 @@ int abrClientGetBitrateIndex(float bandwidth, int rateMin, int rateMax, int bitr
             ERROR("All available bitrates exceed current bandwidth. Returning index '0'!");
         }
     }
-    
+
     if (i >= uiMaxBitrateIndex)
     {
         return uiMaxBitrateIndex;
@@ -267,7 +269,7 @@ int abrClientGetNewBitrate(float lastFragmentThroughput, float avgFragmentThroug
             if(candidateBitrateIndex > uiCurBitrateIndex)  // if phi1 > phicur
             {
                 // The Adaptec algorithm's definition of "can-switch-up" being TRUE is when phi2 has been greater than phicur for >= CAN_SWITCH_UP_THRESHOLD amount of time.
-                // 
+                //
                 // The "ramping up" logic (i.e. - playbackTime < RAMPUPTHRESHOLD) is a departure from the standard Adaptech algorithm
                 // as laid out in the research paper. We discovered that if we have larger segment sizes (such as 10-second segments)
                 // and a LOT of bandwidth, we can pull down a LOT video at a low bit rate in 15 seconds (or whatever CAN_SWITCH_UP_THRESHOLD happens to be).
@@ -314,8 +316,8 @@ int abrClientGetNewBitrate(float lastFragmentThroughput, float avgFragmentThroug
 
           DEBUG(DBG_INFO, "bufferLength %f >= %d and < %d", bufferLength, LOW_BUFF_LVL, NORMAL_BUFF_LVL);
 
-          // On a channel change, our hope is that we'll fall into this if statment (theta1 < Beta(t) < theta2) after 
-          // downloading just one segment.  For example, if theta1 is 5 seconds and we've downloaded 1 segment 
+          // On a channel change, our hope is that we'll fall into this if statment (theta1 < Beta(t) < theta2) after
+          // downloading just one segment.  For example, if theta1 is 5 seconds and we've downloaded 1 segment
           // whose size minus the amount of the segment played so far is still greater than 5 seconds then we
           // should fall into this if statement (instead of staying in panic mode) which will allow us to "ramp up"
           // (i.e. - move to a higher bitrate) and get to our optimal bitrate as quickly as possible when on a high b/w network.
@@ -328,7 +330,7 @@ int abrClientGetNewBitrate(float lastFragmentThroughput, float avgFragmentThroug
               return proposedIndex;
           }
 #endif
-             
+
           if(candidateBitrateIndex < uiCurBitrateIndex) //if phi1 < phicur then:
           {
               if(uiCurBitrateIndex > 0)

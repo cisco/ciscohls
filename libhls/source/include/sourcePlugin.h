@@ -1,26 +1,27 @@
 #ifndef _SOURCE_PLUGIN_H_
 #define _SOURCE_PLUGIN_H_
+/*
+    LIBBHLS
+    Copyright (C) {2015}  {Cisco System}
 
-/* ****************************************************************************
-*
-*                   Copyright 2012 Cisco Systems, Inc.
-*
-*                              CHS Engineering
-*                           5030 Sugarloaf Parkway
-*                               P.O.Box 465447
-*                          Lawrenceville, GA 30042
-*
-*                        Proprietary and Confidential
-*              Unauthorized distribution or copying is prohibited
-*                            All rights reserved
-*
-* No part of this computer software may be reprinted, reproduced or utilized
-* in any form or by any electronic, mechanical, or other means, now known or
-* hereafter invented, including photocopying and recording, or using any
-* information storage and retrieval system, without permission in writing
-* from Cisco Systems, Inc.
-*
-******************************************************************************/
+    This library is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation; either
+    version 2.1 of the License, or (at your option) any later version.
+
+    This library is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
+    USA
+
+    Contributing Authors: Saravanakumar Periyaswamy, Patryk Prus, Tankut Akgul
+
+*/
 
 /**
  * @file sourcePlugin.h @date September 22, 2011
@@ -50,13 +51,13 @@ extern "C" {
 
 /*!
 * Unique souce plugin session identifier
-*/ 
+*/
 
 typedef void* srcSessionId_t;
 
 /*
- * 
- * ERROR AND STATUS INFORMATION 
+ *
+ * ERROR AND STATUS INFORMATION
  *
  */
 
@@ -72,7 +73,7 @@ typedef enum
 
 /*! \enum srcPluginErrCode_t
  * Error codes that can be returned by source plugins.  This list should be kept generic and not return
- * any error code that are plugin specific.  Plugins may use the errMsg[] param to return additional 
+ * any error code that are plugin specific.  Plugins may use the errMsg[] param to return additional
  * details that may be logged and help with debugging or triaging.
  */
 typedef enum
@@ -102,7 +103,7 @@ typedef struct
 } srcPluginErr_t;
 
 /*! \enum srcPluginContentType_t
- * content types 
+ * content types
  */
 typedef enum
 {
@@ -119,12 +120,12 @@ typedef struct
 
 typedef struct
 {
-   int  numAudioLanguages;                     /*!< Input - audioLangInfoArr array len. Output - No of available audio languages */ 
+   int  numAudioLanguages;                     /*!< Input - audioLangInfoArr array len. Output - No of available audio languages */
    srcPluginAudioLangInfo_t *audioLangInfoArr; /*!< Input - empty array. Output - Info about available audio languages */
 }srcPluginAudioLanguages_t;
 
 /*
- * 
+ *
  * GET/SET OPERATIONS ON PLUGIN
  *
  */
@@ -134,13 +135,13 @@ typedef struct
  */
 typedef enum
 {
-    SRC_PLUGIN_SET_DATA_SOURCE,     /*!< pData -> char* containing the URL to use for playback */ 
-    SRC_PLUGIN_SET_SPEED,           /*!< pData -> float* containing the desired playback speed */ 
-    SRC_PLUGIN_SET_POSITION,        /*!< pData -> float* containing the desired position, in ms */ 
-    SRC_PLUGIN_SET_MAX_BITRATE,     /*!< pData -> int* containg the maxinum bitrate, in bps */ 
-    SRC_PLUGIN_SET_MIN_BITRATE,     /*!< pData -> int* containg the minimum bitrate, in bps */ 
-    SRC_PLUGIN_SET_TARGET_BITRATE,  /*!< pData -> int* containg the target bitrate, in bps */ 
-    SRC_PLUGIN_SET_AUDIO_LANGUAGE,  /*!< pData -> char* containg the audio language ISO code */ 
+    SRC_PLUGIN_SET_DATA_SOURCE,     /*!< pData -> char* containing the URL to use for playback */
+    SRC_PLUGIN_SET_SPEED,           /*!< pData -> float* containing the desired playback speed */
+    SRC_PLUGIN_SET_POSITION,        /*!< pData -> float* containing the desired position, in ms */
+    SRC_PLUGIN_SET_MAX_BITRATE,     /*!< pData -> int* containg the maxinum bitrate, in bps */
+    SRC_PLUGIN_SET_MIN_BITRATE,     /*!< pData -> int* containg the minimum bitrate, in bps */
+    SRC_PLUGIN_SET_TARGET_BITRATE,  /*!< pData -> int* containg the target bitrate, in bps */
+    SRC_PLUGIN_SET_AUDIO_LANGUAGE,  /*!< pData -> char* containg the audio language ISO code */
     SRC_PLUGIN_SET_END
 
 } srcPluginSetCode_t;
@@ -150,8 +151,8 @@ typedef enum
  */
 typedef struct
 {
-    srcPluginSetCode_t setCode;     /*!< Specifies request type */ 
-    void* pData;                    /*!< Cast according to setCode */ 
+    srcPluginSetCode_t setCode;     /*!< Specifies request type */
+    void* pData;                    /*!< Cast according to setCode */
 
 } srcPluginSetData_t;
 
@@ -160,18 +161,18 @@ typedef struct
  */
 typedef enum
 {
-    SRC_PLUGIN_GET_NUM_BITRATES,    /*!< pData -> int* ; will contain number of available bitrates */ 
+    SRC_PLUGIN_GET_NUM_BITRATES,    /*!< pData -> int* ; will contain number of available bitrates */
     SRC_PLUGIN_GET_BITRATES,        /*!< pData -> int* ; integer array to hold bitrates. pData[0] MUST specify the
-                                                         size of the array, and will be overwritten on return */ 
+                                                         size of the array, and will be overwritten on return */
     SRC_PLUGIN_GET_CURRENT_BITRATE, /*!< pData -> int* ; will contain bitrate of the playlist the plugin is currently
                                                          pulling segments from */
-    SRC_PLUGIN_GET_DURATION,        /*!< pData -> float* ; will contain current media duration, in ms */ 
-    SRC_PLUGIN_GET_POSITION,        /*!< pData -> float* ; will contain current position, in ms */ 
-    SRC_PLUGIN_GET_SPEED,           /*!< pData -> float* ; containing the current playback speed */ 
-    SRC_PLUGIN_GET_TRICK_SUPPORTED, /*!< pData -> int* ; 1 - trick modes supported, 0 otherwise */ 
-    SRC_PLUGIN_GET_CONTENT_TYPE,    /*!< pData -> srcPluginContentType_t */ 
-    SRC_PLUGIN_GET_NUM_AUDIO_LANGUAGES, /*!< pData -> int* ; will contain number of available audio languages */ 
-    SRC_PLUGIN_GET_AUDIO_LANGUAGES_INFO, /*!< pData -> srcPluginAudioLangInfo_t*; will contain info about audio languages */ 
+    SRC_PLUGIN_GET_DURATION,        /*!< pData -> float* ; will contain current media duration, in ms */
+    SRC_PLUGIN_GET_POSITION,        /*!< pData -> float* ; will contain current position, in ms */
+    SRC_PLUGIN_GET_SPEED,           /*!< pData -> float* ; containing the current playback speed */
+    SRC_PLUGIN_GET_TRICK_SUPPORTED, /*!< pData -> int* ; 1 - trick modes supported, 0 otherwise */
+    SRC_PLUGIN_GET_CONTENT_TYPE,    /*!< pData -> srcPluginContentType_t */
+    SRC_PLUGIN_GET_NUM_AUDIO_LANGUAGES, /*!< pData -> int* ; will contain number of available audio languages */
+    SRC_PLUGIN_GET_AUDIO_LANGUAGES_INFO, /*!< pData -> srcPluginAudioLangInfo_t*; will contain info about audio languages */
     SRC_PLUGIN_GET_AUDIO_LANGUAGE,  /*!< pData -> char*; containing the current audio language ISO code */
 
     SRC_PLUGIN_GET_END
@@ -183,19 +184,19 @@ typedef enum
  */
 typedef struct
 {
-    srcPluginGetCode_t getCode;     /*!< Specifies request type */ 
+    srcPluginGetCode_t getCode;     /*!< Specifies request type */
     void* pData;                    /*!< Cast according to getCode */
 
 } srcPluginGetData_t;
 
 /*
- * 
+ *
  * GET OPERATIONS ON PLAYER
  *
  */
 
-/*!  \enum srcPlayerGetCode_t 
- * Codes for player get() function 
+/*!  \enum srcPlayerGetCode_t
+ * Codes for player get() function
  */
 typedef enum
 {
@@ -211,12 +212,12 @@ typedef enum
 typedef struct
 {
    srcPlayerGetCode_t getCode;  /*!< Specifies request type */
-   void * pData;                /*!< Cast according to getCode */ 
+   void * pData;                /*!< Cast according to getCode */
 
 } srcPlayerGetData_t;
 
 /*
- * 
+ *
  * SET OPERATIONS ON PLAYER
  *
  */
@@ -232,8 +233,8 @@ typedef enum
 
 } srcPlayerMode_t;
 
-/*!  \enum srcPlayerSetCode_t 
- * Codes for player set() function 
+/*!  \enum srcPlayerSetCode_t
+ * Codes for player set() function
  */
 typedef enum
 {
@@ -249,24 +250,24 @@ typedef enum
 typedef struct
 {
    srcPlayerSetCode_t setCode;  /*!< Specifies request type */
-   void * pData;                /*!< Cast according to setCode */ 
+   void * pData;                /*!< Cast according to setCode */
 
 } srcPlayerSetData_t;
 
 /*
- * 
+ *
  * CALLBACKS THAT RETURN PLUGIN STATUS TO PLAYER
  *
  */
 
-/*! \enum srcDrmType_t 
+/*! \enum srcDrmType_t
  * Enumeration of available DRM methods
  */
 typedef enum {
     SRC_DRM_PLAYREADY       /*!< Microsoft PlayReady DRM */
 } srcDrmType_t;
 
-/*! \struct srcDrmLicenseInfo_t 
+/*! \struct srcDrmLicenseInfo_t
  * Struct defining DRM license details
  */
 typedef struct
@@ -303,7 +304,7 @@ typedef struct
 
 } srcBufferMetadata_t;
 
-/*!  \enum srcPluginEvtCode_t 
+/*!  \enum srcPluginEvtCode_t
  * Event codes
  */
 typedef enum
@@ -333,46 +334,46 @@ typedef struct
  *
  * @param pHandle - session identifier passed into the plugin in
  *                the srcPluginFunc_t::open() call
- * @param pEvt - pointer to #srcPluginEvt_t containing the 
+ * @param pEvt - pointer to #srcPluginEvt_t containing the
  *             plugin event
- *  
- */ 
-typedef void (*pluginEvtCallback_t)( void* pHandle, srcPluginEvt_t* pEvt ); 
+ *
+ */
+typedef void (*pluginEvtCallback_t)( void* pHandle, srcPluginEvt_t* pEvt );
 /**
  * Callback provided by player for plugin to use to send asynchronous errors
  *
  * @param pHandle - session identifier passed into the plugin in
  *                the srcPluginFunc_t::open() call
- * @param pErr - pointer to #srcPluginErr_t containing the 
+ * @param pErr - pointer to #srcPluginErr_t containing the
  *             plugin error
- *  
- */ 
+ *
+ */
 typedef void (*pluginErrCallback_t)( void* pHandle, srcPluginErr_t* pErr );
 
 /*
- * 
+ *
  * CALLBACKS THAT RETURN PLAYER STATUS TO PLUGIN
  *
  */
 
 /*! \struct fifoData_t
-* Structure to hold demux fifo size and depth 
+* Structure to hold demux fifo size and depth
 */
 typedef struct
 {
    unsigned long fifoSize;           /*!< Total number of demux fifo descriptors */
-   unsigned long fifoDepth;          /*!< Demux fifo descriptors in use */ 
+   unsigned long fifoDepth;          /*!< Demux fifo descriptors in use */
 }fifoData_t;
 
-/*!  \enum srcPlayerEvtCode_t 
+/*!  \enum srcPlayerEvtCode_t
  * Event codes
  */
 typedef enum
 {
-   SRC_PLAYER_LAST_PTS = 0,          /*!< pData -> long* containing the last decoded 90khz PTS */ 
+   SRC_PLAYER_LAST_PTS = 0,          /*!< pData -> long* containing the last decoded 90khz PTS */
    SRC_PLAYER_DISCONTINUITY,         /*!< pData -> long* containing the last decoded 90khz PTS ; indicates a discontinuity was seen */
    SRC_PLAYER_FIFO_DATA,             /*!< pData -> uint32_t* containing the demux fifo size and depth */
-   SRC_PLAYER_AUDIO_FIFO_UNDERRUN    /*!< pData -> NULL */ 
+   SRC_PLAYER_AUDIO_FIFO_UNDERRUN    /*!< pData -> NULL */
 
 } srcPlayerEvtCode_t;
 
@@ -387,42 +388,42 @@ typedef struct
 } srcPlayerEvt_t;
 
 /**
- * Callback provided by plugin for player to use to send asynchronous events 
- *  
+ * Callback provided by plugin for player to use to send asynchronous events
+ *
  * @param sessionId - session this event is for
- * @param pEvt - pointer to #srcPlayerEvt_t containing the 
+ * @param pEvt - pointer to #srcPlayerEvt_t containing the
  *             player event
- *  
- * @pre 
+ *
+ * @pre
  *          - plugin initialized via
  *            srcPluginFunc_t::initialize()
  *          - session specified by sessionId has been created
  *            via srcPluginFunc_t::open()
- *  
- */ 
+ *
+ */
 typedef void (*playerEvtCallback_t)( srcSessionId_t sessionId, srcPlayerEvt_t* pEvt );
 
 /*! \struct srcPluginFunc_t
  * Structure that contains pointers to functions that a plugin must either fullfill or return NULL for.  Returning
- * NULL for a function may result in errors to the higher level application.  
+ * NULL for a function may result in errors to the higher level application.
 */
 typedef struct
 {
    /**
     * Initialization function for the source plugin
     *
-    * This API is called once the plugin is loaded with srcPluginLoad() to initialize the plugin.  This must be 
+    * This API is called once the plugin is loaded with srcPluginLoad() to initialize the plugin.  This must be
     * called prior to any other calls to the plugin
     *
-    * @param pErr - Pointer to #srcPluginErr_t error structure if 
+    * @param pErr - Pointer to #srcPluginErr_t error structure if
     *             applicable. May be NULL.
     *
-    * @pre 
-    *       - plugin loaded via srcPluginLoad() 
-    *  
-    * @post 
-    *       - plugin is initialized 
-    *  
+    * @pre
+    *       - plugin loaded via srcPluginLoad()
+    *
+    * @post
+    *       - plugin is initialized
+    *
     * @return #srcStatus_t
     */
    srcStatus_t (*initialize)( srcPluginErr_t* pErr );
@@ -430,66 +431,66 @@ typedef struct
    /**
     * Finalize function for the source plugin
     *
-    * This API is called to shutdown the source plugin.  Once this 
-    * is called no other calls to the plugin are allowed. 
+    * This API is called to shutdown the source plugin.  Once this
+    * is called no other calls to the plugin are allowed.
     *
-    * @param pErr - Pointer to #srcPluginErr_t error structure if 
+    * @param pErr - Pointer to #srcPluginErr_t error structure if
     *             applicable.  May be NULL.
     *
-    * @pre 
+    * @pre
     *       - plugin initialized via initialize()
-    *  
-    * @post 
+    *
+    * @post
     *       - all plugin sessions terminated and all plugin
     *         resources freed
-    *  
+    *
     * @return #srcStatus_t
     */
    srcStatus_t (*finalize)( srcPluginErr_t* pErr );
-  
+
    /**
     * Register callbacks with plugin
     *
     * This API is called by the player to register callbacks with the plugin for asynchronous events
     * and errors.
     *
-    * @param evtCb - #pluginEvtCallback_t event callback function 
+    * @param evtCb - #pluginEvtCallback_t event callback function
     * @param errCb - #pluginErrCallback_t error callback function
-    * @param pErr  - Pointer to #srcPluginErr_t error structure if 
+    * @param pErr  - Pointer to #srcPluginErr_t error structure if
     *              applicable.  May be NULL.
     *
-    * @pre 
-    *       - plugin initialized via initialize() 
-    *  
-    * @post 
+    * @pre
+    *       - plugin initialized via initialize()
+    *
+    * @post
     *       - plugin will use provided functions to signal
     *         asynchronous events and errors
     *
     * @return #srcStatus_t
     */
    srcStatus_t (*registerCB)( pluginEvtCallback_t evtCb, pluginErrCallback_t errCb, srcPluginErr_t* pErr );
-   
+
    /**
     * Opens a session with the plugin
     *
     * This API is called by the player to create a new playback session with the plugin.
     *
-    * @param sessionId - Session Id created by plugin.  Used by 
+    * @param sessionId - Session Id created by plugin.  Used by
     *                  player in all other API calls.
     * @param pHandle - Opaque handle returned by the player. Plugin
     *                must use this when calling player.
-    * @param pErr - Pointer to #srcPluginErr_t error structure if 
+    * @param pErr - Pointer to #srcPluginErr_t error structure if
     *             applicable.  May be NULL.
     *
-    * @pre 
-    *       - plugin initialized via initialize() 
-    *  
-    * @post 
-    *       - plugin session created 
+    * @pre
+    *       - plugin initialized via initialize()
+    *
+    * @post
+    *       - plugin session created
     *       - callback for player events registered via
     *         srcPlayerFunc_t::registerCB()
     *       - sessionId points to a unique session identfier
-    *  
+    *
     * @return #srcStatus_t
     */
    srcStatus_t (*open)( srcSessionId_t* sessionId, void* pHandle, srcPluginErr_t* pErr );
@@ -500,17 +501,17 @@ typedef struct
     * This API is called by the player to destroy an existing session.
     *
     * @param sessionId - Session to release.
-    * @param pErr - Pointer to #srcPluginErr_t error structure if 
+    * @param pErr - Pointer to #srcPluginErr_t error structure if
     *             applicable.  May be NULL.
     *
-    * @pre 
-    *       - plugin initialized via initialize() 
+    * @pre
+    *       - plugin initialized via initialize()
     *       - session specified by sessionId has been created via
     *         open()
-    *  
-    * @post 
+    *
+    * @post
     *       - session closed and all session resources released
-    *  
+    *
     * @return #srcStatus_t
     */
    srcStatus_t (*close)( srcSessionId_t sessionId, srcPluginErr_t* pErr );
@@ -522,37 +523,37 @@ typedef struct
     * use this to perform any addition setup, pre-fetch content, etc.  Operation may also be a no-op depending on the plugin implementation.
     *
     * @param sessionId - Session to prepare
-    * @param pErr - Pointer to #srcPluginErr_t error structure if 
+    * @param pErr - Pointer to #srcPluginErr_t error structure if
     *             applicable.  May be NULL.
     *
-    * @pre 
-    *       - plugin initialized via initialize() 
+    * @pre
+    *       - plugin initialized via initialize()
     *       - session specified by sessionId has been created via
     *         open()
     *       - source URL set using SRC_PLUGIN_SET_DATA_SOURCE
     *         option of set() function
-    *  
-    * @post 
-    *       - session is ready to begin playback 
-    *  
+    *
+    * @post
+    *       - session is ready to begin playback
+    *
     * @return #srcStatus_t
     */
    srcStatus_t (*prepare)( srcSessionId_t sessionId, srcPluginErr_t* pErr );
-   
+
    /**
     * Set a desired value in the plugin
     *
-    * This API is called by the player to set settings in the 
-    * plugin. 
+    * This API is called by the player to set settings in the
+    * plugin.
     *
-    * @param sessionId - Session to send the request to 
-    * @param pSetData - Pointer to #srcPluginSetData_t which 
+    * @param sessionId - Session to send the request to
+    * @param pSetData - Pointer to #srcPluginSetData_t which
     *                  contains the data to set
-    * @param pErr - Pointer to #srcPluginErr_t error structure if 
+    * @param pErr - Pointer to #srcPluginErr_t error structure if
     *             applicable.  May be NULL.
     *
-    * @pre 
-    *       - plugin initialized via initialize() 
+    * @pre
+    *       - plugin initialized via initialize()
     *       - session specified by sessionId has been created via
     *         open()
     *       - SRC_PLUGIN_SET_DATA_SOURCE -- session has NOT been
@@ -563,8 +564,8 @@ typedef struct
     *         prepared via prepare()
     *       - SRC_PLUGIN_SET_TARGET_BITRATE -- session has not
     *         started playback
-    * 
-    * @post 
+    *
+    * @post
     *       - SRC_PLUGIN_SET_DATA_SOURCE -- session will use
     *         provided URL as the data source
     *       - SRC_PLUGIN_SET_SPEED -- session will play content at
@@ -587,24 +588,24 @@ typedef struct
    /**
     * Retrieve a desired value from the plugin
     *
-    * This API is called by the player to get information from the 
-    * plugin. 
+    * This API is called by the player to get information from the
+    * plugin.
     *
-    * @param sessionId - Session to send the request to 
-    * @param pGetData - Pointer to #srcPluginGetData_t which 
+    * @param sessionId - Session to send the request to
+    * @param pGetData - Pointer to #srcPluginGetData_t which
     *                 contains the data to get
-    * @param pErr - Pointer to #srcPluginErr_t error structure if 
+    * @param pErr - Pointer to #srcPluginErr_t error structure if
     *             applicable.  May be NULL.
     *
-    * @pre 
-    *       - plugin initialized via initialize() 
+    * @pre
+    *       - plugin initialized via initialize()
     *       - session specified by sessionId has been created via
     *         open()
     *       - session has been prepared via prepare()
     *       - pGetData->pData has been allocated to hold the
     *         requested data
-    *  
-    * @post 
+    *
+    * @post
     *       - on SRC_SUCCESS, pGetData->pData contains the desired
     *         information
     *
@@ -624,26 +625,26 @@ typedef struct
 }srcPlayerMem_t;
 
 /*! \struct srcPlayerFunc_t
- * Structure that contains pointers to functions that a plugin may call on the player. 
+ * Structure that contains pointers to functions that a plugin may call on the player.
 */
 typedef struct
 {
    /**
     * Register player event callback
     *
-    * This API is called by the plugin to register a callback for 
-    * the player to call to send asynchronous events to a specific 
+    * This API is called by the plugin to register a callback for
+    * the player to call to send asynchronous events to a specific
     * plugin session.
     *
     * @param pHandle - session identifier passed into the plugin in
     *                the srcPluginFunc_t::open() call
-    * @param evtCb - #playerEvtCallback_t player event callback 
+    * @param evtCb - #playerEvtCallback_t player event callback
     *              function
-    *  
-    * @pre 
+    *
+    * @pre
     *       - session has been created via srcPluginFunc_t::open()
-    *  
-    * @post 
+    *
+    * @post
     *       - none
     *
     * @return #srcStatus_t
@@ -653,22 +654,22 @@ typedef struct
    /**
     * Get a buffer from the player
     *
-    * This API is called by the plugin to request a data buffer 
-    * from the player. 
-    *  
-    * This function is NON-BLOCKING 
+    * This API is called by the plugin to request a data buffer
+    * from the player.
+    *
+    * This function is NON-BLOCKING
     *
     * @param pHandle - session identifier passed into the plugin in
     *                the srcPluginFunc_t::open() call
     * @param buffer - pointer which will be set to the beginning of
     *               the returned buffer
-    * @param size - pointer to integer which will be set to the 
+    * @param size - pointer to integer which will be set to the
     *             size of the returned buffer
-    *  
-    * @pre 
+    *
+    * @pre
     *       - session has been created via srcPluginFunc_t::open()
-    *  
-    * @post 
+    *
+    * @post
     *       - none
     *
     * @return #srcStatus_t
@@ -678,66 +679,66 @@ typedef struct
    /**
     * Send filled buffer to player
     *
-    * This API is called by the plugin to send a filled data buffer 
-    * back to the player. 
+    * This API is called by the plugin to send a filled data buffer
+    * back to the player.
     *
     * @param pHandle - session identifier passed into the plugin in
     *                the srcPluginFunc_t::open() call
     * @param buffer - the data buffer to send
-    * @param size - amount of data written into buffer (can be 
+    * @param size - amount of data written into buffer (can be
     *             smaller than the actual size of the buffer)
-    * @param metadata - pointer to #srcBufferMetadata_t providing 
+    * @param metadata - pointer to #srcBufferMetadata_t providing
     *                 various information related to this chunk of
     *                 data
-    *  
-    * @pre 
+    *
+    * @pre
     *       - session has been created via srcPluginFunc_t::open()
     *       - buffer MUST be the result of a successful getBuffer()
     *         call
-    *  
-    * @post 
+    *
+    * @post
     *       - none
     *
     * @return #srcStatus_t
     */
    srcStatus_t (*sendBuffer)( void* pHandle, char* buffer, int size, srcBufferMetadata_t* metadata, void *pPrivate ); /* Size should be amount of buffer that was filled */
-   
+
    /**
     * Set player settings
     *
-    * This API is called by the plugin to set various settings on 
-    * the player. 
+    * This API is called by the plugin to set various settings on
+    * the player.
     *
     * @param pHandle - session identifier passed into the plugin in
     *                the srcPluginFunc_t::open() call
-    * @param pSetData - pointer to #srcPlayerSetData_t containing 
+    * @param pSetData - pointer to #srcPlayerSetData_t containing
     *                 the setting to set on the player
-    *  
-    * @pre 
+    *
+    * @pre
     *       - session has been created via srcPluginFunc_t::open()
-    *  
-    * @post 
+    *
+    * @post
     *       - none
     *
     * @return #srcStatus_t
-    */   
+    */
    srcStatus_t (*set)( void *pHandle, srcPlayerSetData_t *pSetData );
 
    /**
     * Get player settings
     *
     * This API is called by the plugin to get various settings from
-    * the player. 
+    * the player.
     *
     * @param pHandle - session identifier passed into the plugin in
     *                the srcPluginFunc_t::open() call
-    * @param pGetData - pointer to #srcPlayerGetData_t containing 
+    * @param pGetData - pointer to #srcPlayerGetData_t containing
     *                 the setting to get from the player
-    *  
-    * @pre 
+    *
+    * @pre
     *       - session has been created via srcPluginFunc_t::open()
-    *  
-    * @post 
+    *
+    * @post
     *       - none
     *
     * @return #srcStatus_t
@@ -745,22 +746,22 @@ typedef struct
    srcStatus_t (*get)( void *pHandle, srcPlayerGetData_t *pGetData );
 
    /**
-    * Allocate memory 
+    * Allocate memory
     *
-    * This API is called by the plugin to alloc memory for AV data from 
-    * the player. This API is only used by a plugin which perfoms its own 
-    * demux buffer management. 
+    * This API is called by the plugin to alloc memory for AV data from
+    * the player. This API is only used by a plugin which perfoms its own
+    * demux buffer management.
     *
     * @param pHandle - session identifier passed into the plugin in
     *                the srcPluginFunc_t::open() call
     * @param pMemData - pointer to #srcPlayerMem_t containing the size of
-    *               the memory allocation request and a pointer to be filled 
+    *               the memory allocation request and a pointer to be filled
     *               by the player which points to the memory allocted.
-    *  
-    * @pre 
+    *
+    * @pre
     *       - session has been created via srcPluginFunc_t::open()
-    *  
-    * @post 
+    *
+    * @post
     *       - none
     *
     * @return #srcStatus_t
@@ -770,22 +771,22 @@ typedef struct
    /**
     * Send filled memory to player
     *
-    * This API is called by the plugin to send a filled memory block 
-    * to the player. 
+    * This API is called by the plugin to send a filled memory block
+    * to the player.
     *
     * @param pHandle - session identifier passed into the plugin in
     *                the srcPluginFunc_t::open() call
     * @param pMem - pointer to the memory block to send
-    * @param size - amount of data in the memory block 
-    * @param metadata - pointer to #srcBufferMetadata_t providing 
+    * @param size - amount of data in the memory block
+    * @param metadata - pointer to #srcBufferMetadata_t providing
     *                 various information related to this chunk of
     *                 data
-    *  
-    * @pre 
+    *
+    * @pre
     *       - session has been created via srcPluginFunc_t::open()
     *       - pMem MUST be the result of a successful allocMem() call
-    *  
-    * @post 
+    *
+    * @post
     *       - none
     *
     * @return #srcStatus_t
@@ -793,19 +794,19 @@ typedef struct
    srcStatus_t (*sendMem)( void* pHandle, char* pMem, int size, srcBufferMetadata_t* metadata );
 
    /**
-    * Free memory 
+    * Free memory
     *
     * This API is called by the plugin to free the memory allocated using
     * the allocMem API
     *
     * @param pHandle - session identifier passed into the plugin in
     *                the srcPluginFunc_t::open() call
-    * @param pMem - pointer to the memory to be freed 
-    *  
-    * @pre 
+    * @param pMem - pointer to the memory to be freed
+    *
+    * @pre
     *       - session has been created via srcPluginFunc_t::open()
-    *  
-    * @post 
+    *
+    * @post
     *       - none
     *
     * @return #srcStatus_t
@@ -817,23 +818,23 @@ typedef struct
 /**
  * Load the source plugin
  *
- * This API is called by the player to load a given source 
- * plugin.  Each plugin MUST expose a function of this type 
- * named srcPluginLoad(). 
+ * This API is called by the player to load a given source
+ * plugin.  Each plugin MUST expose a function of this type
+ * named srcPluginLoad().
  *
- * @param pluginTable - pointer to empty #srcPluginErr_t to be 
+ * @param pluginTable - pointer to empty #srcPluginErr_t to be
  *                    populated by the plugin with appropriate
  *                    functions
- * @param playerTable - pointer to #srcPlayerFunc_t populated 
+ * @param playerTable - pointer to #srcPlayerFunc_t populated
  *                    with function pointers to valid player
  *                    functions
- * @param err - Pointer to #srcPluginErr_t error structure if 
+ * @param err - Pointer to #srcPluginErr_t error structure if
  *            applicable.  May be NULL.
- *  
- * @pre 
+ *
+ * @pre
  *       - none
- *  
- * @post 
+ *
+ * @post
  *       - pluginTable populated with valid plugin functions, or
  *         NULL
  *
@@ -844,17 +845,17 @@ typedef srcStatus_t (*tSrcPluginLoad)( srcPluginFunc_t* pluginTable, srcPlayerFu
 /**
  * Unload the source plugin
  *
- * This API is called by the player to unload a given source 
- * plugin. Each plugin MUST expose a function of this type 
+ * This API is called by the player to unload a given source
+ * plugin. Each plugin MUST expose a function of this type
  * named srcPluginUnload().
  *
- * @param err - Pointer to #srcPluginErr_t error structure if 
+ * @param err - Pointer to #srcPluginErr_t error structure if
  *            applicable.  May be NULL.
- *  
- * @pre 
+ *
+ * @pre
  *       - none
- *  
- * @post 
+ *
+ * @post
  *       - none
  *
  * @return #srcStatus_t
