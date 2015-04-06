@@ -102,6 +102,18 @@ hlsStatus_t curlInit(CURL** ppCurl)
             break;
         }
 #endif
+
+        //Disable DNS timeout handling via signals. Otherwise this causes nasty crashes in multi-threaded
+        //environments when DNS timeout occurs.
+        //See http://curl.haxx.se/mail/lib-2014-01/0098.html
+        //See curl recommendation: http://curl.haxx.se/libcurl/c/libcurl-tutorial.html#Multi-threading
+        //REMARK: This needs c-ares support in curl to prevent DNS hangups
+        curlResult = curl_easy_setopt( *ppCurl, CURLOPT_NOSIGNAL, 1 );
+        if( CURLE_OK != curlResult )
+        {
+            ERROR("Failed to set curl_easy_setop() with CURLOPT_NOSIGNAL; Error %s", curl_easy_strerror(curlResult) );
+        }
+
         /* Follow redirects */
         curlResult = curl_easy_setopt( *ppCurl, CURLOPT_FOLLOWLOCATION, 1 );
         if( CURLE_OK != curlResult )

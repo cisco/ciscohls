@@ -1685,7 +1685,7 @@ hlsStatus_t updateCurrentGroup(hlsSession_t *pSession, char groupID[], hlsGroup_
          else
          {
             ERROR("Could not add new group to current group list "
-                  "(currentGroupCount >= MAX_NUM_MEDIA_GROUPS)\n")
+                  "(currentGroupCount >= MAX_NUM_MEDIA_GROUPS)\n");
             rval = HLS_ERROR;
             break;
          }
