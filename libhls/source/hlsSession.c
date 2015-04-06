@@ -849,13 +849,7 @@ hlsStatus_t hlsSession_play(hlsSession_t* pSession)
                 rval = HLS_ERROR;
                 break;
             }
-            //
-            // The original code would do some form of timeout if it wasn't notified to play
-            // This really isn't useful and alot of systems will not report back that it is playing
-            // So I removed this.
-            // RMS.
-            //
-#if 0
+
             /* If HLS_PLAYING_TIMEOUT_SECS have passed and we are not yet HLS_PLAYING, return an error */
             if((currTime.tv_sec > timeoutTime.tv_sec) || ((currTime.tv_sec == timeoutTime.tv_sec) && (currTime.tv_nsec > timeoutTime.tv_nsec)))
             {
@@ -863,7 +857,7 @@ hlsStatus_t hlsSession_play(hlsSession_t* pSession)
                 rval = HLS_ERROR;
                 break;
             }
-#endif
+
             /* If downloader was told to stop, return error (since we never went to HLS_PLAYING) */
             if(pSession->bKillDownloader)
             {
@@ -879,6 +873,8 @@ hlsStatus_t hlsSession_play(hlsSession_t* pSession)
                 rval = pSession->downloaderStatus;
                 break;
             }
+
+            usleep(100000);
         }
 
     } while(0);
@@ -1674,6 +1670,20 @@ hlsStatus_t hlsSession_stop(hlsSession_t* pSession, int bFlush)
             ERROR("failed to set player mode SRC_PLAYER_MODE_PAUSE");
             rval = HLS_ERROR;
             break;
+        }
+
+        if(1 == bFlush)
+        {
+           /* Flush the decoder cache */
+           playerSetData.setCode = SRC_PLAYER_SET_BUFFER_FLUSH;
+           playerSetData.pData = NULL;
+           status = hlsPlayer_set(pSession->pHandle, &playerSetData);
+           if(status != SRC_SUCCESS)
+           {
+              ERROR("failed to flush player buffers");
+              rval = HLS_ERROR;
+              break;
+           }
         }
 
         /* Kill the downloader */

@@ -314,9 +314,14 @@ gst_ciscdemux_base_init (gpointer gclass)
 
   gst_element_class_set_details_simple(element_class,
     "Cisco HLS Demuxer",
-    "Demuxer/Fetcher",
+    "Codec/Demuxer/Adaptive",
     "Cisco's HLS library GStreamer interface",
-    "Matt Snoby <<snobym@cisco.com>>");
+    //leading whitespace below after the first author is to align
+    //the gst-inspect output nicely, don't remove them
+    "Matt Snoby <<snobym@cisco.com>>\n\
+                         Saravanakumar Periyaswamy <<sarperiy@cisco.com>>\n\
+                         Tankut Akgul <<akgult@cisco.com>>"
+    );
   gst_element_class_add_pad_template (element_class,
       gst_static_pad_template_get (&src_factory));
   gst_element_class_add_pad_template (element_class,
@@ -351,11 +356,16 @@ gst_ciscdemux_class_init (GstciscdemuxClass * klass)
 #if GST_CHECK_VERSION(1,0,0)
    gst_element_class_set_details_simple(gstelement_class,
       "Cisco HLS Demuxer",
-      "Demuxer/Fetcher",
+      //The class metadata line below MUST include keywords Demuxer and Adaptive.
+      //This tells playbin/decodebin to dynamically adjust multiqueue sizes it
+      //inserts into the pipeline.
+      "Codec/Demuxer/Adaptive",
       "Cisco's HLS library GStreamer interface",
-      "Matt Snoby <<snobym@cisco.com>>"
-      "Saravanakumar Periyaswamy <<sarperiy@cisco.com>>"
-      "Tankut Akgul <<akgult@cisco.com>>");
+      //leading whitespace below after the first author is to align
+      //the gst-inspect output nicely, don't remove them
+      "Matt Snoby <<snobym@cisco.com>>\n\
+                           Saravanakumar Periyaswamy <<sarperiy@cisco.com>>\n\
+                           Tankut Akgul <<akgult@cisco.com>>");
    gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&src_factory));
    gst_element_class_add_pad_template (gstelement_class,
@@ -408,15 +418,9 @@ gst_ciscdemux_init (Gstciscdemux * demux, GstciscdemuxClass * gclass)
    demux->isFlushOnSeek = FALSE;
    demux->drmType = NULL;
    demux->defaultAudioLangISOCode[0] = '\0';
-   if(0 != pthread_mutex_init(&demux->PTSMutex, NULL))
-   {
-      GST_WARNING("Failed to init PTSMutex\n");
-   }
 
-   if(0 != pthread_cond_init(&demux->PTSThreadCond, NULL))
-   {
-      GST_WARNING("Failed to init PTSThreadCond\n");
-   }
+   g_mutex_init(&demux->PTSMutex);
+   g_cond_init(&demux->PTSThreadCond);
 }
 
 static void
@@ -747,6 +751,13 @@ static gboolean gst_cscohlsdemuxer_src_query (GstPad * pad, GstQuery * query)
                break;
             }
             GST_INFO("numAudioLanguages = %d\n", numAudioLanguages);
+
+            if (0 >= numAudioLanguages)
+            {
+               GST_ERROR("No audio languages available\n");
+               ret = FALSE;
+               break;
+            }
 
             audioLanguages.numAudioLanguages = numAudioLanguages;
             audioLanguages.audioLangInfoArr =
@@ -1382,7 +1393,15 @@ srcStatus_t hlsPlayer_sendBuffer(void* pHandle, char* buffer, int size, srcBuffe
             gst_element_no_more_pads(GST_ELEMENT_CAST(demux));
          }
 
-         if (pthread_create(&demux->getPTSThread, NULL, getCurrentPTSNotify, demux) == 0)
+         demux->getPTSThread = g_thread_new("pts_thread",
+                                            getCurrentPTSNotify,
+                                            demux);
+
+         if (NULL == demux->getPTSThread)
+         {
+            GST_ERROR("Failed to start PTS thread!\n");
+         }
+         else
          {
             demux->bGetPTSThreadRunning = TRUE;
          }
@@ -1806,16 +1825,16 @@ static gboolean cisco_hls_close(Gstciscdemux *demux)
    srcPluginErr_t errTable;
    srcStatus_t stat = SRC_SUCCESS;
 
-   pthread_mutex_lock(&demux->PTSMutex);
+   g_mutex_lock(&demux->PTSMutex);
    demux->bKillPTSThread = TRUE;
    GST_DEBUG("Timestamp before killing pts thread : %llu\n", (unsigned long long)time(NULL));
    /* Wake up the PTS thread if it is sleeping */
-   pthread_cond_signal(&demux->PTSThreadCond);
-   pthread_mutex_unlock(&demux->PTSMutex);
+   g_cond_signal(&demux->PTSThreadCond);
+   g_mutex_unlock(&demux->PTSMutex);
 
    if (TRUE == demux->bGetPTSThreadRunning)
    {
-      pthread_join(demux->getPTSThread, NULL);
+      g_thread_join(demux->getPTSThread);
       demux->bGetPTSThreadRunning = FALSE;
    }
 
@@ -1868,15 +1887,8 @@ static gboolean cisco_hls_finalize(Gstciscdemux *demux)
       GST_LOG("Done finalizing the HLS src plugin\n");
    }
 
-   if(0 != pthread_mutex_destroy(&demux->PTSMutex))
-   {
-      GST_WARNING("Failed to destroy PTSMutex\n");
-   }
-
-   if(0 != pthread_cond_destroy(&demux->PTSThreadCond))
-   {
-      GST_WARNING("Failed to destroy PTSThreadCond\n");
-   }
+   //Unload hls plugin to free up player function table memory
+   srcPluginUnload();
 
    if(NULL != demux->inputStreamCap)
    {
@@ -1894,6 +1906,9 @@ static gboolean cisco_hls_finalize(Gstciscdemux *demux)
       g_free(demux->srcpad_discrete);
       demux->srcpad_discrete = NULL;
    }
+
+   g_mutex_clear(&demux->PTSMutex);
+   g_cond_clear(&demux->PTSThreadCond);
 
    return TRUE;
 }
@@ -2043,7 +2058,7 @@ static void * getCurrentPTSNotify(void *data)
    long long       pts_90khz = 0;
    Gstciscdemux    *demux = (Gstciscdemux *)data;
    srcPlayerEvt_t  ptsEvent = {SRC_PLAYER_LAST_PTS, NULL};
-   struct timespec ts = {};
+   GTimeVal        ts = {0, 0};
 
    GST_LOG("%s() >>>>\n", __FUNCTION__);
 
@@ -2062,24 +2077,24 @@ static void * getCurrentPTSNotify(void *data)
 
       do
       {
-         pthread_mutex_lock(&demux->PTSMutex);
+         g_mutex_lock(&demux->PTSMutex);
 
          if(TRUE == demux->bKillPTSThread)
          {
-            pthread_mutex_unlock(&demux->PTSMutex);
+            g_mutex_unlock(&demux->PTSMutex);
             break;
          }
 
          ts.tv_sec = time(NULL) + SRC_PTS_NOTIFY_INTERVAL;
-         pthread_cond_timedwait(&demux->PTSThreadCond, &demux->PTSMutex, &ts);
+         g_cond_timed_wait(&demux->PTSThreadCond, &demux->PTSMutex, &ts);
 
          if(TRUE == demux->bKillPTSThread)
          {
-            pthread_mutex_unlock(&demux->PTSMutex);
+            g_mutex_unlock(&demux->PTSMutex);
             break;
          }
 
-         pthread_mutex_unlock(&demux->PTSMutex);
+         g_mutex_unlock(&demux->PTSMutex);
 
          if(NULL == demux->downstream_peer_pad)
          {
@@ -2148,7 +2163,8 @@ static void * getCurrentPTSNotify(void *data)
    }while(0);
 
    GST_LOG("%s() <<<<\n", __FUNCTION__);
-   pthread_exit(NULL);
+
+   return NULL;
 }
 
 static gboolean gst_ciscdemux_get_caps( Gstciscdemux *demux,

@@ -26,7 +26,6 @@
 #define __GST_CISCDEMUX_H__
 
 #include <gst/gst.h>
-#include <pthread.h>
 #include "sourcePlugin.h"
 
 G_BEGIN_DECLS
@@ -92,9 +91,9 @@ struct _Gstciscdemux
   srcPluginFunc_t   HLS_pluginTable;
   playerEvtCallback_t playerEvtCb;
 
-  pthread_t       getPTSThread;
-  pthread_cond_t  PTSThreadCond;
-  pthread_mutex_t PTSMutex;
+  GThread         *getPTSThread;
+  GCond           PTSThreadCond;
+  GMutex          PTSMutex;
   gboolean        bKillPTSThread;
   gboolean        bGetPTSThreadRunning;
   gfloat          speed;
