@@ -415,7 +415,7 @@ gst_ciscdemux_init (Gstciscdemux * demux, GstciscdemuxClass * gclass)
    demux->speed = 0.0;
    demux->bDisableMainStreamAudio = FALSE;
    demux->bufferPts = INVALID_PTS;
-   demux->isFlushOnSeek = FALSE;
+   demux->newSegment = FALSE;
    demux->drmType = NULL;
    demux->defaultAudioLangISOCode[0] = '\0';
 
@@ -1262,6 +1262,35 @@ srcStatus_t hlsPlayer_sendBuffer(void* pHandle, char* buffer, int size, srcBuffe
 
    do
    {
+      if (demux->newSegment == TRUE)
+      {
+         GstEvent *segmentEvent = NULL;
+
+         //Send a segment event downstream
+#if GST_CHECK_VERSION(1,0,0)
+         GstSegment segment;
+         segment.rate = 1.0;
+         segment.applied_rate = 1.0;
+         segment.format = GST_FORMAT_TIME;
+         segment.start = demux->seekpos;
+         segment.stop = GST_CLOCK_TIME_NONE;
+         segment.position = 0;
+
+         segmentEvent = gst_event_new_segment (&segment);
+#else
+         segmentEvent = gst_event_new_new_segment (FALSE, 1.0, GST_FORMAT_TIME, demux->seekpos, GST_CLOCK_TIME_NONE, 0);
+#endif
+         if (NULL != segmentEvent)
+         {
+            GST_WARNING("[cischlsdemux] sending segment event downstream for timestamp %"G_GINT64_FORMAT"...\n", demux->seekpos);
+            if (gst_pad_push_event (demux->srcpad, segmentEvent) != TRUE)
+               GST_WARNING("[cischlsdemux] sending segment event downstream failed!");
+         }
+
+         demux->newSegment = FALSE;
+      }
+
+
       if(NULL == demux)
       {
          GST_ERROR("%s() demux is NULL\n", __FUNCTION__);
@@ -1475,6 +1504,8 @@ srcStatus_t hlsPlayer_set(void *pHandle, srcPlayerSetData_t *pSetData)
             {
                status = SRC_ERROR;
             }
+            //Send new segment event after the flush
+            demux->newSegment = TRUE;
          }
          break;
 
@@ -1995,18 +2026,6 @@ static gboolean gst_cisco_hls_seek (Gstciscdemux *demux, GstEvent *event)
 
    if((speed == rate) && (GST_FORMAT_TIME == format))
    {
-      //if we are paused currently, before doing a seek, send a flush downstream to
-      //empty the demux buffers and unblock the libhls internal download loop
-      //otherwise libhls may deadlock badly trying to kill the downloader
-      //thread which may be blocked on demux buffers
-      if (GST_STATE(demux) == GST_STATE_PAUSED)
-      {
-         if (NULL != demux->srcpad)
-            gst_ciscdemux_flush(demux, demux->srcpad);
-      }
-
-      //Set flush on seek before calling into HLS plugin
-      demux->isFlushOnSeek = TRUE;
       demux->seekpos = cur;
 
       setData.setCode = SRC_PLUGIN_SET_POSITION;
@@ -2017,8 +2036,6 @@ static gboolean gst_cisco_hls_seek (Gstciscdemux *demux, GstEvent *event)
       if ( stat == SRC_ERROR )
       {
          GST_WARNING("Failed to set position on the source plugin: %s\n", errTable.errMsg);
-         //Reset the flag if call failed
-         demux->isFlushOnSeek = FALSE;
          return FALSE;
       }
    }
@@ -2027,15 +2044,12 @@ static gboolean gst_cisco_hls_seek (Gstciscdemux *demux, GstEvent *event)
       setData.setCode = SRC_PLUGIN_SET_SPEED;
       speed = rate;
       setData.pData = &speed;
-      //Set flush on seek before calling into HLS plugin
-      demux->isFlushOnSeek = TRUE;
+
       stat = demux->HLS_pluginTable.set( pSession->pSessionID, &setData, &errTable );
       if(stat)
       {
          GST_ERROR("%s: Error %d while setting speed to %f: %s", __FUNCTION__,
                    errTable.errCode, speed, errTable.errMsg);
-         //Reset the flag if call failed
-         demux->isFlushOnSeek = FALSE;
          return FALSE;
       }
 
@@ -2248,7 +2262,6 @@ static gboolean gst_ciscdemux_get_caps( Gstciscdemux *demux,
 static gboolean gst_ciscdemux_flush(Gstciscdemux *demux, GstPad *srcpad)
 {
    GstEvent *event;
-   GstEvent *segmentEvent = NULL;
    gboolean ret = FALSE;
 
    do
@@ -2280,32 +2293,6 @@ static gboolean gst_ciscdemux_flush(Gstciscdemux *demux, GstPad *srcpad)
 
       GST_LOG("cisco demux sending flush stop downstream...\n");
       gst_pad_push_event (srcpad, event);
-
-      if (demux->isFlushOnSeek == TRUE)
-      {
-         //Send a segment event downstream
-#if GST_CHECK_VERSION(1,0,0)
-         GstSegment segment;
-         segment.rate = 1.0;
-         segment.applied_rate = 1.0;
-         segment.format = GST_FORMAT_TIME;
-         segment.start = demux->seekpos;
-         segment.stop = GST_CLOCK_TIME_NONE;
-         segment.position = 0;
-
-         segmentEvent = gst_event_new_segment (&segment);
-#else
-         segmentEvent = gst_event_new_new_segment (FALSE, 1.0, GST_FORMAT_TIME, demux->seekpos, GST_CLOCK_TIME_NONE, 0);
-#endif
-         if (NULL != segmentEvent)
-         {
-            GST_WARNING("[cischlsdemux] sending segment event downstream for timestamp %"G_GINT64_FORMAT"...\n", demux->seekpos);
-            if (gst_pad_push_event (srcpad, segmentEvent) != TRUE)
-               GST_WARNING("[cischlsdemux] sending segment event downstream failed!");
-         }
-
-         demux->isFlushOnSeek = FALSE;
-      }
 
       ret = TRUE;
    }while(0);

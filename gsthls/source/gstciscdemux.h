@@ -101,7 +101,7 @@ struct _Gstciscdemux
   gboolean        bDisableMainStreamAudio;
   gint64          bufferPts;
   gint64          seekpos;
-  gboolean        isFlushOnSeek;
+  gboolean        newSegment;
   gchar           defaultAudioLangISOCode[ISO_LANG_CODE_LEN + 1];
 };
 
