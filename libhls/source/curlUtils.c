@@ -71,6 +71,7 @@ static size_t customFwrite(char* pBuffer, size_t size, size_t nmemb, void* pData
  */
 hlsStatus_t curlInit(CURL** ppCurl)
 {
+    curl_version_info_data *vdata = NULL;
     hlsStatus_t rval = HLS_OK;
 
     CURLcode curlResult;
@@ -102,6 +103,17 @@ hlsStatus_t curlInit(CURL** ppCurl)
             break;
         }
 #endif
+
+        vdata = curl_version_info(CURLVERSION_NOW);
+        if ( NULL != vdata )
+        {
+            if ( !(vdata->features & CURL_VERSION_ASYNCHDNS) )
+            {
+                ERROR("libhls required c-ares (asynchronous DNS) support compiled in curl");
+                rval = HLS_ERROR;
+                break;
+            }
+        }
 
         //Disable DNS timeout handling via signals. Otherwise this causes nasty crashes in multi-threaded
         //environments when DNS timeout occurs.

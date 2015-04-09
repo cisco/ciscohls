@@ -146,6 +146,13 @@ AC_DEFINE_UNQUOTED(P_HAS_GNU_MUTEXES, ${P_HAS_GNU_MUTEXES},[Platform has non POS
 
 LIBCURL_CHECK_CONFIG(,,curl=1, curl=0 )
 
+# We need c-ares support compiled into curl
+asynchdns=`curl-config --features | grep "AsynchDNS"`
+if test x$asynchdns != x"AsynchDNS"
+then
+	AC_MSG_ERROR(Curl must be built with c-ares support. Please use --enable-ares option when compiling curl)
+fi
+
 #
 # We need the math lib specifically floorf
 #
