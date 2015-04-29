@@ -1672,6 +1672,11 @@ hlsStatus_t hlsSession_stop(hlsSession_t* pSession, int bFlush)
             break;
         }
 
+        /* Kill the downloader */
+        pSession->bKillDownloader = 1;
+
+        DEBUG(DBG_INFO, "Stopping download thread");
+
         if(1 == bFlush)
         {
            /* Flush the decoder cache */
@@ -1685,11 +1690,6 @@ hlsStatus_t hlsSession_stop(hlsSession_t* pSession, int bFlush)
               break;
            }
         }
-
-        /* Kill the downloader */
-        pSession->bKillDownloader = 1;
-
-        DEBUG(DBG_INFO, "Stopping download thread");
 
         /* Wake up downloader thread if it is sleeping */
         if(pthread_mutex_lock(&(pSession->downloaderWakeMutex)) == 0)

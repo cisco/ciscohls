@@ -461,36 +461,39 @@ hlsStatus_t hlsSegmentDownloadLoop(hlsSession_t* pSession)
                     /* If we didn't get a segment we've hit EOF */
                     DEBUG(DBG_NOISE,"EOF -- no more segments in VoD playlist");
 
-                    /* If we've hit EOF on a VoD stream, then the downloader needs to signal the
-                       playback controller and exit. The playback controller will monitor the
-                       buffer level and signal EOF to the player once timeBuffered reaches 0. */
-
-                    /* Allocate a new playback controller signal */
-                    pSignal = malloc(sizeof(playbackControllerSignal_t));
-                    if(pSignal == NULL)
+                    if(1 != pSession->bKillDownloader)
                     {
-                        ERROR("malloc error");
-                        status = HLS_MEMORY_ERROR;
-                        break;
+                       /* If we've hit EOF on a VoD stream, then the downloader needs to signal the
+                          playback controller and exit. The playback controller will monitor the
+                          buffer level and signal EOF to the player once timeBuffered reaches 0. */
+
+                       /* Allocate a new playback controller signal */
+                       pSignal = malloc(sizeof(playbackControllerSignal_t));
+                       if(pSignal == NULL)
+                       {
+                          ERROR("malloc error");
+                          status = HLS_MEMORY_ERROR;
+                          break;
+                       }
+
+                       *pSignal = PBC_DOWNLOAD_COMPLETE;
+
+                       /* Push the message to the playback controller message queue */
+                       llerror = pushMsg(pSession->playbackControllerMsgQueue, (void*)pSignal);
+                       if(llerror != LL_OK)
+                       {
+                          ERROR("failed to signal the playback controller");
+                          free(pSignal);
+                          status = HLS_ERROR;
+                          break;
+                       }
+
+                       /* Release reference to signal -- playback controller will free */
+                       pSignal = NULL;
+
+                       /* Stop the downloader thread */
+                       pSession->bKillDownloader = 1;
                     }
-
-                    *pSignal = PBC_DOWNLOAD_COMPLETE;
-
-                    /* Push the message to the playback controller message queue */
-                    llerror = pushMsg(pSession->playbackControllerMsgQueue, (void*)pSignal);
-                    if(llerror != LL_OK)
-                    {
-                        ERROR("failed to signal the playback controller");
-                        free(pSignal);
-                        status = HLS_ERROR;
-                        break;
-                    }
-
-                    /* Release reference to signal -- playback controller will free */
-                    pSignal = NULL;
-
-                    /* Stop the downloader thread */
-                    pSession->bKillDownloader = 1;
                 }
                 else /* LIVE stream */
                 {
@@ -829,35 +832,38 @@ hlsStatus_t hlsIFrameDownloadLoop(hlsSession_t* pSession)
                     break;
                 }
 
-                /* If we didn't get an I-frame, signal the playback controller
-				   thread that the download is complete and the downloader is exiting. */
-
-                /* Allocate a new playback controller signal */
-                pSignal = malloc(sizeof(playbackControllerSignal_t));
-                if(pSignal == NULL)
+                if(1 != pSession->bKillDownloader)
                 {
-                    ERROR("malloc error");
-                    status = HLS_MEMORY_ERROR;
-                    break;
+                   /* If we didn't get an I-frame, signal the playback controller
+                      thread that the download is complete and the downloader is exiting. */
+
+                   /* Allocate a new playback controller signal */
+                   pSignal = malloc(sizeof(playbackControllerSignal_t));
+                   if(pSignal == NULL)
+                   {
+                      ERROR("malloc error");
+                      status = HLS_MEMORY_ERROR;
+                      break;
+                   }
+
+                   *pSignal = PBC_DOWNLOAD_COMPLETE;
+
+                   /* Push the message to the playback controller message queue */
+                   llerror = pushMsg(pSession->playbackControllerMsgQueue, (void*)pSignal);
+                   if(llerror != LL_OK)
+                   {
+                      ERROR("failed to signal the playback controller");
+                      free(pSignal);
+                      status = HLS_ERROR;
+                      break;
+                   }
+
+                   /* Release reference to signal -- playback controller will free */
+                   pSignal = NULL;
+
+                   /* Stop the downloader thread */
+                   pSession->bKillDownloader = 1;
                 }
-
-                *pSignal = PBC_DOWNLOAD_COMPLETE;
-
-                /* Push the message to the playback controller message queue */
-                llerror = pushMsg(pSession->playbackControllerMsgQueue, (void*)pSignal);
-                if(llerror != LL_OK)
-                {
-                    ERROR("failed to signal the playback controller");
-                    free(pSignal);
-                    status = HLS_ERROR;
-                    break;
-                }
-
-                /* Release reference to signal -- playback controller will free */
-                pSignal = NULL;
-
-                /* Stop the downloader thread */
-                pSession->bKillDownloader = 1;
             }
 
             /* Make sure we're still in a valid state */
