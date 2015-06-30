@@ -36,7 +36,6 @@
 
 #include <gst/gst.h>
 #include <gst/base/gsttypefindhelper.h>
-
 #include "gstciscdemux.h"
 #include "string.h"
 
@@ -46,6 +45,9 @@ GST_DEBUG_CATEGORY_STATIC (gst_ciscdemux_debug);
 #define DRM_TYPE_VGDRM "ENCRYPTED_VGDRM_HLS"
 #define DRM_TYPE_BASIC "ENCRYPTED_BASIC_HLS"
 #define INVALID_PTS  -1
+#define BUFFER_SIZE 65536
+/* Convert from GStreamer time to MPEG time. */
+#define GSTTIME_TO_MPEGTIME(time) (((time) * 9) / (GST_MSECOND/10))
 
 /* demux signals and args */
 enum
@@ -316,8 +318,8 @@ gst_ciscdemux_base_init (gpointer gclass)
     "Cisco HLS Demuxer",
     "Codec/Demuxer/Adaptive",
     "Cisco's HLS library GStreamer interface",
-    //leading whitespace below after the first author is to align
-    //the gst-inspect output nicely, don't remove them
+     //leading whitespace below after the first author is to align      
+     //the gst-inspect output nicely, don't remove them 
     "Matt Snoby <<snobym@cisco.com>>\n\
                          Saravanakumar Periyaswamy <<sarperiy@cisco.com>>\n\
                          Tankut Akgul <<akgult@cisco.com>>"
@@ -356,13 +358,13 @@ gst_ciscdemux_class_init (GstciscdemuxClass * klass)
 #if GST_CHECK_VERSION(1,0,0)
    gst_element_class_set_details_simple(gstelement_class,
       "Cisco HLS Demuxer",
-      //The class metadata line below MUST include keywords Demuxer and Adaptive.
-      //This tells playbin/decodebin to dynamically adjust multiqueue sizes it
-      //inserts into the pipeline.
+      // The class metadata line below MUST include the keywords Demuxer and Adaptive.
+      // This tells playbin/decodebin to dynamically adjust multiqueue sizes it inserts
+      // int the pipeline and also makes autoplugging function correctly.
       "Codec/Demuxer/Adaptive",
       "Cisco's HLS library GStreamer interface",
-      //leading whitespace below after the first author is to align
-      //the gst-inspect output nicely, don't remove them
+      //leading whitespace below after the first author is to align      
+      //the gst-inspect output nicely, don't remove them 
       "Matt Snoby <<snobym@cisco.com>>\n\
                            Saravanakumar Periyaswamy <<sarperiy@cisco.com>>\n\
                            Tankut Akgul <<akgult@cisco.com>>");
@@ -415,7 +417,7 @@ gst_ciscdemux_init (Gstciscdemux * demux, GstciscdemuxClass * gclass)
    demux->speed = 0.0;
    demux->bDisableMainStreamAudio = FALSE;
    demux->bufferPts = INVALID_PTS;
-   demux->newSegment = FALSE;
+   demux->newSegment = TRUE;
    demux->drmType = NULL;
    demux->defaultAudioLangISOCode[0] = '\0';
 
@@ -758,7 +760,6 @@ static gboolean gst_cscohlsdemuxer_src_query (GstPad * pad, GstQuery * query)
                ret = FALSE;
                break;
             }
-
             audioLanguages.numAudioLanguages = numAudioLanguages;
             audioLanguages.audioLangInfoArr =
                (srcPluginAudioLangInfo_t *)g_malloc(sizeof(srcPluginAudioLangInfo_t) * numAudioLanguages);
@@ -999,6 +1000,7 @@ static GstStateChangeReturn gst_cscohlsdemuxer_change_state (GstElement * elemen
                str =  g_strstr_len (uri, -1, "LicenseID=");
                if (str != NULL)
                {
+                  GST_INFO_OBJECT("%s: I found a LicenseID in the string  = '%s'\n", __func__, str);
                   // copy string until you find '&'
                   array = g_strsplit (str, &delimiter, 1024);
                   // the first array element string should hold what we need.
@@ -1009,28 +1011,28 @@ static GstStateChangeReturn gst_cscohlsdemuxer_change_state (GstElement * elemen
                   }
                   demux->LicenseID = strdup (array[0]);
                   g_strfreev(array);
-               }
 
-               if (!g_strstr_len (uri,-1, "?drmType="))
-               {
-                  demux->drmType = strdup(DRM_TYPE_BASIC);
-                  GST_INFO_OBJECT(demux, "Set drmType to: %s\n", demux->drmType);
-               }
-               else
-               {
-                  if (g_strstr_len (uri,-1, "verimatrix"))
+                  if (!g_strstr_len (uri,-1, "?drmType="))
                   {
-                     demux->drmType = strdup(DRM_TYPE_VERIMATRIX);
-                     GST_INFO_OBJECT(demux, "Set drmType to: %s\n", demux->drmType);
-                  }
-                  else if (g_strstr_len (uri,-1, "vgdrm"))
-                  {
-                     demux->drmType = strdup(DRM_TYPE_VGDRM);
+                     demux->drmType = strdup(DRM_TYPE_BASIC);
                      GST_INFO_OBJECT(demux, "Set drmType to: %s\n", demux->drmType);
                   }
                   else
                   {
-                     GST_ERROR("Unknown drmType!\n");
+                     if (g_strstr_len (uri,-1, "verimatrix"))
+                     {
+                        demux->drmType = strdup(DRM_TYPE_VERIMATRIX);
+                        GST_INFO_OBJECT(demux, "Set drmType to: %s\n", demux->drmType);
+                     }
+                     else if (g_strstr_len (uri,-1, "vgdrm"))
+                     {
+                        demux->drmType = strdup(DRM_TYPE_VGDRM);
+                        GST_INFO_OBJECT(demux, "Set drmType to: %s\n", demux->drmType);
+                     }
+                     else
+                     {
+                        GST_ERROR("Unknown drmType!\n");
+                     }
                   }
                }
             }while(0);
@@ -1114,6 +1116,8 @@ void hlsPlayer_pluginEvtCallback(void* pHandle, srcPluginEvt_t* pEvt)
       case SRC_PLUGIN_EOF:
       case SRC_PLUGIN_BOF:
       case SRC_PLUGIN_BOS:
+
+
          GST_INFO("Received boundary event(BOS/BOF/EOF/EOS)");
          gst_ciscdemux_send_eos(demux->srcpad);
 
@@ -1122,15 +1126,6 @@ void hlsPlayer_pluginEvtCallback(void* pHandle, srcPluginEvt_t* pEvt)
             gst_ciscdemux_send_eos(demux->srcpad_discrete[ii]);
          }
          break;
-#if 0
-      case SRC_PLUGIN_BOF:
-         gst_element_post_message(GST_ELEMENT_CAST(demux),
-                                  gst_message_new_element(GST_OBJECT_CAST(demux),
-                                  gst_structure_new("extended_notification",
-                                  "notification", G_TYPE_STRING, "BOF",
-                                  NULL)));
-         break;
-#endif
    }
    return;
 }
@@ -1211,9 +1206,9 @@ srcStatus_t hlsPlayer_getBuffer(void* pHandle, char** buffer, int* size, void **
 
       //TODO Make this buffer the size of the pipeline buffer
 #if GST_CHECK_VERSION(1,0,0)
-      pmem->buf = gst_buffer_new_allocate (NULL, 4096, NULL);
+      pmem->buf = gst_buffer_new_allocate (NULL, BUFFER_SIZE, NULL);
 #else
-      pmem->buf = gst_buffer_try_new_and_alloc(4096);
+      pmem->buf = gst_buffer_try_new_and_alloc(BUFFER_SIZE);
 #endif
       if (G_UNLIKELY (pmem->buf == NULL))
       {
@@ -1221,7 +1216,11 @@ srcStatus_t hlsPlayer_getBuffer(void* pHandle, char** buffer, int* size, void **
          GST_ERROR("Error getting GstBuffer\n");
          return SRC_ERROR;
       }
-
+      //
+      // Initialize the offset to 0 otherwise anyone that dereferences
+      // could have a problem.
+      //
+      GST_BUFFER_OFFSET(pmem->buf) = 0;
 #if GST_CHECK_VERSION(1,0,0)
       if (gst_buffer_map (pmem->buf, &pmem->info, GST_MAP_WRITE) == FALSE)
       {
@@ -1235,7 +1234,7 @@ srcStatus_t hlsPlayer_getBuffer(void* pHandle, char** buffer, int* size, void **
       pmem->size = pmem->info.size;
 #else
       pmem->memory = GST_BUFFER_DATA(pmem->buf);
-      pmem->size = 4096;
+      pmem->size = BUFFER_SIZE;
 #endif
       pmem->bInUse = TRUE;
 
@@ -1262,35 +1261,6 @@ srcStatus_t hlsPlayer_sendBuffer(void* pHandle, char* buffer, int size, srcBuffe
 
    do
    {
-      if (demux->newSegment == TRUE)
-      {
-         GstEvent *segmentEvent = NULL;
-
-         //Send a segment event downstream
-#if GST_CHECK_VERSION(1,0,0)
-         GstSegment segment;
-         segment.rate = 1.0;
-         segment.applied_rate = 1.0;
-         segment.format = GST_FORMAT_TIME;
-         segment.start = demux->seekpos;
-         segment.stop = GST_CLOCK_TIME_NONE;
-         segment.position = 0;
-
-         segmentEvent = gst_event_new_segment (&segment);
-#else
-         segmentEvent = gst_event_new_new_segment (FALSE, 1.0, GST_FORMAT_TIME, demux->seekpos, GST_CLOCK_TIME_NONE, 0);
-#endif
-         if (NULL != segmentEvent)
-         {
-            GST_WARNING("[cischlsdemux] sending segment event downstream for timestamp %"G_GINT64_FORMAT"...\n", demux->seekpos);
-            if (gst_pad_push_event (demux->srcpad, segmentEvent) != TRUE)
-               GST_WARNING("[cischlsdemux] sending segment event downstream failed!");
-         }
-
-         demux->newSegment = FALSE;
-      }
-
-
       if(NULL == demux)
       {
          GST_ERROR("%s() demux is NULL\n", __FUNCTION__);
@@ -1333,7 +1303,6 @@ srcStatus_t hlsPlayer_sendBuffer(void* pHandle, char* buffer, int size, srcBuffe
       if (metadata->pts > INVALID_PTS)
       {
          demux->bufferPts = metadata->pts;
-      }
 #if GST_CHECK_VERSION(1,0,0)
       gst_buffer_set_size (buf, size);
       GST_BUFFER_PTS (buf) = (demux->bufferPts * GST_MSECOND) / 90;
@@ -1341,6 +1310,18 @@ srcStatus_t hlsPlayer_sendBuffer(void* pHandle, char* buffer, int size, srcBuffe
       GST_BUFFER_SIZE (buf) = size;
       GST_BUFFER_TIMESTAMP (buf) = (demux->bufferPts * GST_MSECOND) / 90;
 #endif
+      }
+      else
+      {
+#if GST_CHECK_VERSION(1,0,0)
+         gst_buffer_set_size (buf, size);
+         GST_BUFFER_PTS(buf) = GST_CLOCK_TIME_NONE;
+         GST_BUFFER_DTS(buf) = GST_CLOCK_TIME_NONE;
+#else
+         GST_BUFFER_SIZE (buf) = size;
+         GST_BUFFER_TIMESTAMP (buf) =0;
+#endif
+      }
 
       // we don't need the pPrivate anymore
       g_free (pmem);
@@ -1391,7 +1372,7 @@ srcStatus_t hlsPlayer_sendBuffer(void* pHandle, char* buffer, int size, srcBuffe
             break;
          }
 
-         GST_INFO_OBJECT(demux, "Main stream Capabilities: %" GST_PTR_FORMAT,
+         GST_WARNING_OBJECT(demux, "Main stream Capabilities: %" GST_PTR_FORMAT,
                          demux->inputStreamCap[metadata->streamNum]);
 
          gst_pad_set_event_function(demux->srcpad, GST_DEBUG_FUNCPTR(gst_cscohlsdemuxer_src_event));
@@ -1443,6 +1424,7 @@ srcStatus_t hlsPlayer_sendBuffer(void* pHandle, char* buffer, int size, srcBuffe
                break;
             }
          }
+
       }// end of if capsSet
 
       if(SRC_STREAM_NUM_MAIN == metadata->streamNum)
@@ -1477,8 +1459,38 @@ srcStatus_t hlsPlayer_sendBuffer(void* pHandle, char* buffer, int size, srcBuffe
       gst_buffer_set_caps(buf, demux->inputStreamCap[metadata->streamNum]);
 #endif
 
-      gst_pad_push(srcpad, buf);
+     if (demux->newSegment == TRUE)
+     {
+        GstEvent *segmentEvent = NULL;
+#if GST_CHECK_VERSION(1,0,0)
+        GstSegment segment;
+        gst_segment_init(&segment,GST_FORMAT_TIME);
+        segment.rate = 1.0;
+        segment.applied_rate = 1.0;
+        segment.format = GST_FORMAT_TIME;
+        segment.position =0;
+        segment.start =  demux->seekpos;
+        segment.time =  demux->seekpos; //start;
+        segment.stop = gst_cisco_hls_get_duration(demux);
+        segment.flags = GST_SEGMENT_FLAG_RESET;
+        GST_WARNING(" Sending NewSegment message with flag set to reset, setting:\n new position to  %u (ms) \n start %"G_GINT64_FORMAT"  \n stop %"G_GINT64_FORMAT"\n" ,demux->seekpos/ GST_MSECOND,segment.start, segment.stop);
 
+          GST_BUFFER_TIMESTAMP (buf) =demux->seekpos;
+
+        segmentEvent = gst_event_new_segment (&segment);
+#else
+        segmentEvent = gst_event_new_new_segment (FALSE, 1.0, GST_FORMAT_TIME, demux->seekpos, GST_CLOCK_TIME_NONE, 0);
+#endif
+        if (NULL != segmentEvent)
+        {
+           GST_WARNING("[cischlsdemux] sending segment event downstream for timestamp %"G_GINT64_FORMAT"...\n", demux->seekpos);
+           if (gst_pad_push_event (demux->srcpad, segmentEvent) != TRUE)
+              GST_WARNING("[cischlsdemux] sending segment event downstream failed!");
+        }
+        demux->newSegment = FALSE;
+     }
+
+      gst_pad_push(srcpad, buf);
       status = SRC_SUCCESS;
 
    }while(0);
@@ -1504,7 +1516,6 @@ srcStatus_t hlsPlayer_set(void *pHandle, srcPlayerSetData_t *pSetData)
             {
                status = SRC_ERROR;
             }
-            //Send new segment event after the flush
             demux->newSegment = TRUE;
          }
          break;
@@ -1690,7 +1701,6 @@ static gboolean cisco_hls_initialize (Gstciscdemux *demux)
       }
 
    } while(0);
-
    return bError;
 }
 
@@ -1937,7 +1947,6 @@ static gboolean cisco_hls_finalize(Gstciscdemux *demux)
       g_free(demux->srcpad_discrete);
       demux->srcpad_discrete = NULL;
    }
-
    g_mutex_clear(&demux->PTSMutex);
    g_cond_clear(&demux->PTSThreadCond);
 
@@ -2044,7 +2053,6 @@ static gboolean gst_cisco_hls_seek (Gstciscdemux *demux, GstEvent *event)
       setData.setCode = SRC_PLUGIN_SET_SPEED;
       speed = rate;
       setData.pData = &speed;
-
       stat = demux->HLS_pluginTable.set( pSession->pSessionID, &setData, &errTable );
       if(stat)
       {
@@ -2060,16 +2068,64 @@ static gboolean gst_cisco_hls_seek (Gstciscdemux *demux, GstEvent *event)
 
    return TRUE;
 }
+static gboolean platform_getPTS(Gstciscdemux *demux, gint64 *in_pts_90khz)
+{
+   gboolean bGotPTS = FALSE;
+   gboolean rc = FALSE;
+   unsigned int    pts_45khz = 0;
+   GstQuery     *query = NULL;
+   GstFormat    gst_format;
+   gint64       pos = 0;
 
+   *in_pts_90khz = INVALID_PTS;
+
+   do
+   {
+
+         query = gst_query_new_position(GST_FORMAT_TIME);
+         rc = gst_pad_query(demux->downstream_peer_pad, query);
+         if (!rc)
+         {
+            GST_WARNING("Query failed on downstream per pad ");
+            gst_query_unref(query);
+            bGotPTS = FALSE;
+            break;
+         }
+         gst_query_parse_position(query, &gst_format, &pos);
+
+         if ( pos== NULL)
+         {
+            GST_WARNING("qst_query_parse_position returned NULL - not able to get position from downstream peer");
+            gst_query_unref(query);
+            query = NULL;
+            bGotPTS = FALSE;
+            break;
+         }
+
+         // pos is in nanoseconds
+         // need to convert to ticks
+         // 1khz = 1 ms
+         // 90 khz clock = 0.0111111ms
+
+         *in_pts_90khz= GSTTIME_TO_MPEGTIME(pos);
+
+
+         GST_LOG("90khz PTS %"G_GINT64_MODIFIER"d pos time: %"G_GINT64_MODIFIER"d\n",
+               *in_pts_90khz,
+               (pos/GST_SECOND));
+
+         gst_query_unref(query);
+         bGotPTS = TRUE;
+   }while (0);
+
+
+   return bGotPTS;
+}
 static void * getCurrentPTSNotify(void *data)
 {
-   GstQuery        *query = NULL;
-   GstStructure    *structure;
-   const GValue    *val = NULL;
-   gpointer        *ptr = NULL;
    gboolean        rc;
    unsigned int    pts_45khz = 0;
-   long long       pts_90khz = 0;
+   gint64          pts_90khz = 0;
    Gstciscdemux    *demux = (Gstciscdemux *)data;
    srcPlayerEvt_t  ptsEvent = {SRC_PLAYER_LAST_PTS, NULL};
    GTimeVal        ts = {0, 0};
@@ -2115,52 +2171,11 @@ static void * getCurrentPTSNotify(void *data)
             /* Try again - srcpad is not linked */
             continue;
          }
-
-         structure = gst_structure_new("get_current_pts", "current_pts", G_TYPE_UINT, 0, NULL);
-#if GST_CHECK_VERSION(1,0,0)
-         query = gst_query_new_custom(GST_QUERY_CUSTOM, structure);
-#else
-         query = gst_query_new_application(GST_QUERY_CUSTOM, structure);
-#endif
-         rc = gst_pad_query(demux->downstream_peer_pad, query);
-         if (!rc)
+         if (FALSE == platform_getPTS(demux, &pts_90khz))
          {
-            GST_WARNING("could not get pts");
-            gst_query_unref(query);
+            GST_LOG("Not able to get PTS \n");
             continue;
          }
-
-         structure = (GstStructure *)gst_query_get_structure(query);
-         val = gst_structure_get_value(structure, "current_pts");
-         if (val == NULL)
-         {
-            GST_WARNING("could not get pts");
-            gst_query_unref(query);
-            continue;
-         }
-
-         ptr = g_value_get_pointer(val);
-         if(NULL == ptr)
-         {
-            GST_WARNING("pts value is 0\n");
-            gst_query_unref(query);
-            continue;
-         }
-
-         memcpy((gchar *)&pts_45khz, (gchar *)&ptr, sizeof(pts_45khz));
-
-         if ((int)pts_45khz == INVALID_PTS)
-         {
-            GST_WARNING("pts value is invalid\n");
-            gst_query_unref(query);
-            continue;
-         }
-
-         GST_LOG("Current 45khz based PTS %u\n", pts_45khz);
-         pts_90khz = ((long long)pts_45khz) << 1;
-         GST_LOG("Current 90khz based PTS %lld\n", pts_90khz);
-
-         gst_query_unref(query);
 
          if(NULL != demux->playerEvtCb)
          {
@@ -2282,7 +2297,7 @@ static gboolean gst_ciscdemux_flush(Gstciscdemux *demux, GstPad *srcpad)
       gst_pad_push_event (srcpad, event);
 
 #if GST_CHECK_VERSION(1,0,0)
-      event = gst_event_new_flush_stop (FALSE);
+      event = gst_event_new_flush_stop (TRUE); //rms changed from FALSE
 #else
       event = gst_event_new_flush_stop ();
 #endif
