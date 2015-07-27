@@ -1,0 +1,17 @@
+WHAT IT IS
+--------------
+This repository holds two connected software components.  
+1.)libhls 
+2.)gsthls
+
+libhls - is a self contained library that handles all the HLS actions.  It downloads manifests, segments and handles 
+throttling of the data along with choosing the right segment to download based upon network conditions.  It has a set 
+API for integration into any player.
+
+This library supports V4 of the Apple HLS specification along with webVTT.  Meaning this library has support for 
+- HLS Manifest up to Version 5
+- IFrame based trick modes
+- Discrete audio support
+- Basic HLS encryption support
+
+gsthls - is a gstreamer plugin that interfaces into libhls for use in gstreamer pipelines.  
